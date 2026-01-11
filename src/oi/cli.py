@@ -1,6 +1,9 @@
 """Command-line interface for Open Intelligence."""
 
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import click
 
 from .storage import load_state
@@ -29,12 +32,16 @@ def main(model: str, llm_detection: bool) -> None:
     while True:
         try:
             user_input = input("> ").strip()
+        except EOFError:
+            break
 
-            if not user_input:
-                continue
+        if not user_input:
+            continue
 
-            if user_input.lower() == "exit":
-                break
+        if user_input.lower() == "exit":
+            break
+
+        try:
 
             # Process the turn
             response, conclusion, token_stats = process_turn(
