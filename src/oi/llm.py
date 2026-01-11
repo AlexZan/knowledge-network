@@ -1,11 +1,28 @@
 """LLM interaction layer using litellm."""
 
 import os
+from pathlib import Path
 from litellm import completion
 
 
 # Default to DeepSeek for free testing
 DEFAULT_MODEL = os.environ.get("OI_MODEL", "deepseek/deepseek-chat")
+
+# Prompts directory
+PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+
+def load_prompt(name: str) -> str:
+    """Load a prompt from the prompts directory.
+
+    Args:
+        name: Prompt filename (without .md extension)
+
+    Returns:
+        The prompt text
+    """
+    prompt_path = PROMPTS_DIR / f"{name}.md"
+    return prompt_path.read_text(encoding="utf-8").strip()
 
 
 def chat(messages: list[dict], model: str = DEFAULT_MODEL) -> str:
@@ -30,14 +47,9 @@ def extract_conclusion(thread_messages: list[dict], model: str = DEFAULT_MODEL) 
         model: Model identifier
 
     Returns:
-        A concise summary of the resolution
+        A concise knowledge statement extracted from the conversation
     """
-    extraction_prompt = """Summarize the resolution of this conversation in one concise sentence.
-Focus on: what was the problem/question and what was the solution/answer.
-Be brief - this summary will be used as context for future conversations.
-
-Conversation:
-"""
+    extraction_prompt = load_prompt("conclusion_extraction")
 
     # Format the thread for the prompt
     thread_text = "\n".join([
@@ -47,8 +59,8 @@ Conversation:
     ])
 
     messages = [
-        {"role": "system", "content": "You are a helpful assistant that summarizes conversations concisely."},
-        {"role": "user", "content": extraction_prompt + thread_text}
+        {"role": "system", "content": "You extract knowledge from conversations."},
+        {"role": "user", "content": f"{extraction_prompt}\n\nConversation:\n{thread_text}"}
     ]
 
     return chat(messages, model)

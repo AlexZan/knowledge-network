@@ -1,7 +1,12 @@
 """Command-line interface for Open Intelligence."""
 
 import os
+import warnings
 from dotenv import load_dotenv
+
+# Suppress litellm's pydantic serialization warnings (DeepSeek response format mismatch)
+warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
+
 load_dotenv()
 
 import click

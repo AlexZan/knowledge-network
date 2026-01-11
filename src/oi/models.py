@@ -16,6 +16,7 @@ class Thread(BaseModel):
     """A conversation thread that may be open or concluded."""
     id: str
     messages: list[Message] = Field(default_factory=list)
+    context_conclusion_ids: list[str] = Field(default_factory=list)  # Conclusions that provide context
     status: Literal["open", "concluded"] = "open"
     conclusion_id: str | None = None
 
