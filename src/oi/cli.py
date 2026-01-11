@@ -18,7 +18,7 @@ def print_conclusion(conclusion, raw_tokens: int, compacted_tokens: int) -> None
     savings = (1 - compacted_tokens / raw_tokens) * 100 if raw_tokens > 0 else 0
     click.echo()
     click.echo(f"[Conclusion extracted: {conclusion.content}]")
-    click.echo(f"[Tokens: {raw_tokens:,} raw → {compacted_tokens:,} compacted | Savings: {savings:.0f}%]")
+    click.echo(f"[Tokens: {raw_tokens:,} raw -> {compacted_tokens:,} compacted | Savings: {savings:.0f}%]")
     click.echo()
 
 
