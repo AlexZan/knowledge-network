@@ -3,11 +3,13 @@
 import uuid
 from datetime import datetime
 
-from .models import ConversationState, Thread, Message, Conclusion
+from .models import ConversationState, Thread, Message, Conclusion, Artifact
 from .storage import load_state, save_state
 from .context import build_context, count_messages_tokens
 from .detection import is_disagreement
 from .llm import chat, extract_conclusion
+from .chatlog import append_exchange
+from .interpret import interpret_exchange, ArtifactInterpretation
 
 
 def generate_id() -> str:
@@ -28,6 +30,36 @@ def add_message(thread: Thread, role: str, content: str) -> Message:
     msg = Message(role=role, content=content)
     thread.messages.append(msg)
     return msg
+
+
+def create_artifact_from_interpretation(
+    state: ConversationState,
+    interpretation: ArtifactInterpretation
+) -> Artifact | None:
+    """Create an artifact from an LLM interpretation.
+
+    Args:
+        state: Current conversation state
+        interpretation: The LLM's interpretation of what to capture
+
+    Returns:
+        Created artifact, or None if nothing should be captured
+    """
+    if not interpretation.should_capture or not interpretation.artifact_type:
+        return None
+
+    artifact = Artifact(
+        id=generate_id(),
+        artifact_type=interpretation.artifact_type,
+        summary=interpretation.summary or "",
+        status=interpretation.status,
+        related_to=interpretation.related_to,
+        tags=interpretation.tags,
+        expires=interpretation.artifact_type in ("fact", "event"),
+    )
+
+    state.artifacts.append(artifact)
+    return artifact
 
 
 def conclude_thread(
@@ -81,20 +113,23 @@ def process_turn(
     state: ConversationState,
     user_input: str,
     model: str,
-    use_llm_detection: bool = False
-) -> tuple[str, Conclusion | None, tuple[int, int] | None]:
+    use_llm_detection: bool = False,
+    use_artifacts: bool = False
+) -> tuple[str, Conclusion | Artifact | None, tuple[int, int] | None]:
     """Process a single conversation turn.
 
     Args:
         state: Current conversation state
         user_input: User's message
         model: LLM model to use
-        use_llm_detection: Whether to use LLM for disagreement detection
+        use_llm_detection: Whether to use LLM for disagreement detection (legacy)
+        use_artifacts: Use new artifact system instead of thread/conclusion
 
     Returns:
-        Tuple of (ai_response, conclusion_if_extracted, token_stats_if_concluded)
+        Tuple of (ai_response, artifact_or_conclusion, token_stats_if_concluded)
     """
     conclusion = None
+    artifact = None
     token_stats = None
 
     # Get or create active thread
@@ -116,18 +151,31 @@ def process_turn(
     # Add AI response to current thread
     add_message(active_thread, "assistant", ai_response)
 
-    # Check if this turn concludes the thread (need at least 2 exchanges)
-    if len(active_thread.messages) >= 4:
-        # Get the user message that just came in (second to last)
-        user_msg = active_thread.messages[-2].content
-        if not is_disagreement(user_msg, use_llm=use_llm_detection, model=model):
-            # User accepted - conclude this thread
-            conclusion, raw, compacted = conclude_thread(state, active_thread, model)
-            token_stats = (raw, compacted)
-            # Clear active thread so next turn starts fresh
-            state.active_thread_id = None
+    # Always append to raw chat log
+    append_exchange(user_input, ai_response)
+
+    if use_artifacts:
+        # New artifact system: LLM interprets what to capture
+        interpretation = interpret_exchange(user_input, ai_response, model)
+        artifact = create_artifact_from_interpretation(state, interpretation)
+
+        # Clear active thread after each exchange in artifact mode
+        # (no more thread continuity, just artifacts)
+        state.active_thread_id = None
+    else:
+        # Legacy thread/conclusion system
+        # Check if this turn concludes the thread (need at least 2 exchanges)
+        if len(active_thread.messages) >= 4:
+            # Get the user message that just came in (second to last)
+            user_msg = active_thread.messages[-2].content
+            if not is_disagreement(user_msg, use_llm=use_llm_detection, model=model):
+                # User accepted - conclude this thread
+                conclusion, raw, compacted = conclude_thread(state, active_thread, model)
+                token_stats = (raw, compacted)
+                # Clear active thread so next turn starts fresh
+                state.active_thread_id = None
 
     # Save state
     save_state(state)
 
-    return ai_response, conclusion, token_stats
+    return ai_response, artifact or conclusion, token_stats
