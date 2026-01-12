@@ -1,4 +1,14 @@
-# Decision 007: SQLite Storage
+# Decision 007: SQLite Storage [REVERTED]
+
+> **Status: REVERTED** - See `docs/lessons-learned/001-premature-optimization.md`
+>
+> We optimized before proving the concept. The data model evolved significantly
+> during brainstorming (threads → efforts → self-evolving artifact schemas).
+> Reverted to simple JSON for faster iteration.
+
+---
+
+*Original decision below for reference:*
 
 ## Context
 

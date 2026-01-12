@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from .models import ConversationState, Thread, Message, Conclusion
-from .storage import load_state, save_state, add_history_entry
+from .storage import load_state, save_state
 from .context import build_context, count_messages_tokens
 from .detection import is_disagreement
 from .llm import chat, extract_conclusion
@@ -124,14 +124,6 @@ def process_turn(
             # User accepted - conclude this thread
             conclusion, raw, compacted = conclude_thread(state, active_thread, model)
             token_stats = (raw, compacted)
-
-            # Add to history
-            add_history_entry(
-                entry_type="knowledge",
-                thread_id=active_thread.id,
-                conclusion_id=conclusion.id
-            )
-
             # Clear active thread so next turn starts fresh
             state.active_thread_id = None
 
