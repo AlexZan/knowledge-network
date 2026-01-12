@@ -1,120 +1,107 @@
 """Tests for data models."""
 
 import pytest
-from oi.models import (
-    Message,
-    Thread,
-    Conclusion,
-    TokenStats,
-    ConversationState,
-)
+from oi.models import Artifact, ConversationState
 
 
-class TestMessage:
-    def test_create_message(self):
-        msg = Message(role="user", content="Hello")
-        assert msg.role == "user"
-        assert msg.content == "Hello"
-        assert msg.timestamp is not None
-
-    def test_message_roles(self):
-        user_msg = Message(role="user", content="Hi")
-        assistant_msg = Message(role="assistant", content="Hello!")
-        assert user_msg.role == "user"
-        assert assistant_msg.role == "assistant"
-
-
-class TestThread:
-    def test_create_thread(self):
-        thread = Thread(id="t001")
-        assert thread.id == "t001"
-        assert thread.messages == []
-        assert thread.status == "open"
-        assert thread.conclusion_id is None
-
-    def test_thread_with_messages(self):
-        thread = Thread(
-            id="t001",
-            messages=[
-                Message(role="user", content="Hi"),
-                Message(role="assistant", content="Hello!"),
-            ]
+class TestArtifact:
+    def test_create_effort(self):
+        artifact = Artifact(
+            id="abc123",
+            artifact_type="effort",
+            summary="Finding best gaming mouse",
+            status="open",
+            tags=["gaming", "hardware"]
         )
-        assert len(thread.messages) == 2
+        assert artifact.id == "abc123"
+        assert artifact.artifact_type == "effort"
+        assert artifact.status == "open"
+        assert artifact.resolution is None
+        assert artifact.expires is False
 
-    def test_concluded_thread(self):
-        thread = Thread(id="t001", status="concluded", conclusion_id="c001")
-        assert thread.status == "concluded"
-        assert thread.conclusion_id == "c001"
-
-
-class TestConclusion:
-    def test_create_conclusion(self):
-        conclusion = Conclusion(
-            id="c001",
-            content="The bug was caused by expired tokens",
-            source_thread_id="t001"
+    def test_create_resolved_effort(self):
+        artifact = Artifact(
+            id="abc123",
+            artifact_type="effort",
+            summary="Finding best gaming mouse",
+            status="resolved",
+            resolution="Decided to buy Logitech G Pro X Superlight",
+            tags=["gaming", "hardware"]
         )
-        assert conclusion.id == "c001"
-        assert conclusion.content == "The bug was caused by expired tokens"
-        assert conclusion.source_thread_id == "t001"
-        assert conclusion.created is not None
+        assert artifact.status == "resolved"
+        assert artifact.resolution == "Decided to buy Logitech G Pro X Superlight"
 
+    def test_create_fact(self):
+        artifact = Artifact(
+            id="fact1",
+            artifact_type="fact",
+            summary="The capital of France is Paris",
+            expires=True
+        )
+        assert artifact.artifact_type == "fact"
+        assert artifact.expires is True
 
-class TestTokenStats:
-    def test_empty_stats(self):
-        stats = TokenStats()
-        assert stats.total_raw == 0
-        assert stats.total_compacted == 0
-        assert stats.savings_percent == 0.0
+    def test_create_event(self):
+        artifact = Artifact(
+            id="event1",
+            artifact_type="event",
+            summary="User mentioned they're tired today",
+            expires=True
+        )
+        assert artifact.artifact_type == "event"
 
-    def test_savings_calculation(self):
-        stats = TokenStats(total_raw=1000, total_compacted=100)
-        assert stats.savings_percent == 90.0
-
-    def test_savings_no_division_by_zero(self):
-        stats = TokenStats(total_raw=0, total_compacted=0)
-        assert stats.savings_percent == 0.0
+    def test_default_values(self):
+        artifact = Artifact(
+            id="test",
+            artifact_type="fact",
+            summary="Test"
+        )
+        assert artifact.status is None
+        assert artifact.resolution is None
+        assert artifact.related_to is None
+        assert artifact.tags == []
+        assert artifact.ref_count == 0
+        assert artifact.expires is False
 
 
 class TestConversationState:
     def test_empty_state(self):
         state = ConversationState()
-        assert state.threads == []
-        assert state.conclusions == []
-        assert state.active_thread_id is None
+        assert state.artifacts == []
 
-    def test_get_active_thread(self):
-        thread = Thread(id="t001")
-        state = ConversationState(
-            threads=[thread],
-            active_thread_id="t001"
-        )
-        assert state.get_active_thread() == thread
+    def test_get_open_efforts(self):
+        state = ConversationState(artifacts=[
+            Artifact(id="1", artifact_type="effort", summary="Open effort", status="open"),
+            Artifact(id="2", artifact_type="effort", summary="Resolved effort", status="resolved", resolution="Done"),
+            Artifact(id="3", artifact_type="fact", summary="A fact"),
+        ])
+        open_efforts = state.get_open_efforts()
+        assert len(open_efforts) == 1
+        assert open_efforts[0].id == "1"
 
-    def test_get_active_thread_none(self):
-        state = ConversationState()
-        assert state.get_active_thread() is None
+    def test_get_resolved_efforts(self):
+        state = ConversationState(artifacts=[
+            Artifact(id="1", artifact_type="effort", summary="Open effort", status="open"),
+            Artifact(id="2", artifact_type="effort", summary="Resolved effort", status="resolved", resolution="Done"),
+        ])
+        resolved = state.get_resolved_efforts()
+        assert len(resolved) == 1
+        assert resolved[0].id == "2"
 
-    def test_get_active_conclusions(self):
-        conclusions = [
-            Conclusion(id="c001", content="First", source_thread_id="t001"),
-            Conclusion(id="c002", content="Second", source_thread_id="t002"),
-        ]
-        state = ConversationState(conclusions=conclusions)
-        assert state.get_active_conclusions() == conclusions
+    def test_get_facts(self):
+        state = ConversationState(artifacts=[
+            Artifact(id="1", artifact_type="effort", summary="An effort", status="open"),
+            Artifact(id="2", artifact_type="fact", summary="Fact 1"),
+            Artifact(id="3", artifact_type="fact", summary="Fact 2"),
+        ])
+        facts = state.get_facts()
+        assert len(facts) == 2
 
     def test_serialization_roundtrip(self):
-        state = ConversationState(
-            threads=[Thread(id="t001")],
-            conclusions=[Conclusion(id="c001", content="Test", source_thread_id="t001")],
-            active_thread_id="t001",
-            token_stats=TokenStats(total_raw=100, total_compacted=10)
-        )
+        state = ConversationState(artifacts=[
+            Artifact(id="1", artifact_type="effort", summary="Test", status="resolved", resolution="Done"),
+        ])
         json_str = state.model_dump_json()
         loaded = ConversationState.model_validate_json(json_str)
-
-        assert loaded.threads[0].id == "t001"
-        assert loaded.conclusions[0].content == "Test"
-        assert loaded.active_thread_id == "t001"
-        assert loaded.token_stats.total_raw == 100
+        assert len(loaded.artifacts) == 1
+        assert loaded.artifacts[0].resolution == "Done"

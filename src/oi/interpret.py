@@ -14,25 +14,25 @@ class ArtifactInterpretation(BaseModel):
     should_capture: bool = Field(
         description="Whether this exchange warrants creating an artifact"
     )
-    artifact_type: Literal["effort", "conclusion", "fact", "event"] | None = Field(
+    artifact_type: Literal["effort", "fact", "event"] | None = Field(
         default=None,
         description="Type of artifact to create"
     )
     summary: str | None = Field(
         default=None,
-        description="Summary of the artifact content"
+        description="What the user is trying to do (for efforts) or the fact/event"
     )
     status: Literal["open", "resolved"] | None = Field(
         default=None,
-        description="For efforts: whether it's still open or resolved"
+        description="For efforts: open if ongoing, resolved if concluded"
     )
-    related_to: str | None = Field(
+    resolution: str | None = Field(
         default=None,
-        description="ID of related artifact (e.g., effort this resolves)"
+        description="For resolved efforts: what was decided/concluded"
     )
     tags: list[str] = Field(
         default_factory=list,
-        description="Tags for searchability (e.g., 'frustrating', 'learning')"
+        description="Tags for searchability"
     )
     reasoning: str = Field(
         description="Why the LLM made this decision"
@@ -45,41 +45,53 @@ INTERPRETATION_PROMPT = """You are analyzing a conversation exchange to determin
 
 | Type | When to Use | Expires? |
 |------|-------------|----------|
-| effort | Goal-oriented work (open or resolved) | No |
-| conclusion | Resolution/knowledge from an effort | No |
-| fact | Simple Q&A, public knowledge | Yes (if unreferenced) |
-| event | Casual exchange, context that might matter | Yes (fast) |
+| effort | Goal-oriented work - user trying to accomplish something | No |
+| fact | Simple Q&A, specific knowledge | Yes (if unreferenced) |
+| event | Casual exchange, context that might matter later | Yes (fast) |
+
+## Effort Status
+
+- **open**: User is still working on this, no decision yet
+- **resolved**: User made a decision or completed the goal - MUST include resolution
 
 ## Guidelines
 
-**Create an artifact when:**
-- User is working toward a goal (effort)
-- Knowledge was gained or a decision was made (conclusion)
-- A specific fact was established that might be referenced (fact)
-- Context was shared that might be relevant later (event)
+**Create an effort when:**
+- User is trying to accomplish something (find information, make a decision, solve a problem)
+- Mark as "resolved" with a resolution when the user indicates a decision ("I'll do that", "that sounds good", "I'll buy that one")
+
+**Create a fact when:**
+- Simple Q&A that establishes specific knowledge
+- Something the user might reference later
 
 **Don't create an artifact when:**
-- It's a simple greeting or acknowledgment
-- It's a lookup query (user asking about past work)
-- The exchange has no lasting value
+- Simple greeting or acknowledgment
+- No lasting value
+
+## IMPORTANT for resolved efforts
+
+When a user says things like "I'll buy that one", "okay I'll do that", "sounds good":
+- This is a RESOLVED effort
+- The resolution must capture WHAT they decided, not just that they decided
+- If they said "that one", infer from context (usually the first/recommended option)
 
 ## Your Task
 
-Analyze this exchange and respond ONLY with a JSON object (no markdown, no explanation):
+Analyze this exchange and respond ONLY with a JSON object (no markdown):
 
 {{
   "should_capture": true or false,
-  "artifact_type": "effort" or "conclusion" or "fact" or "event" or null,
-  "summary": "One sentence describing the artifact",
-  "status": "open" or "resolved" (for efforts only, null otherwise),
-  "related_to": null,
+  "artifact_type": "effort" or "fact" or "event" or null,
+  "summary": "What the user is trying to do",
+  "status": "open" or "resolved" (for efforts only),
+  "resolution": "What was decided (for resolved efforts only)",
   "tags": ["tag1", "tag2"],
   "reasoning": "Why you made this decision"
 }}
 
 ## Exchange to Analyze
 
-User: {user_message}
+{context}User: {user_message}
 Assistant: {assistant_message}
 """
 
@@ -87,7 +99,8 @@ Assistant: {assistant_message}
 def interpret_exchange(
     user_message: str,
     assistant_message: str,
-    model: str
+    model: str,
+    recent_context: list[dict] | None = None
 ) -> ArtifactInterpretation:
     """Have the LLM interpret what artifact (if any) to create from an exchange.
 
@@ -95,13 +108,24 @@ def interpret_exchange(
         user_message: The user's message
         assistant_message: The assistant's response
         model: LLM model to use for interpretation
+        recent_context: Recent exchanges for context (to resolve "that one", etc.)
 
     Returns:
         ArtifactInterpretation with the LLM's decision
     """
+    # Build context string from recent exchanges
+    context_str = ""
+    if recent_context:
+        context_str = "Recent conversation context:\n"
+        for exchange in recent_context[-3:]:  # Last 3 exchanges
+            context_str += f"User: {exchange['user']}\n"
+            context_str += f"Assistant: {exchange['assistant']}\n\n"
+        context_str += "Current exchange:\n"
+
     prompt = INTERPRETATION_PROMPT.format(
         user_message=user_message,
-        assistant_message=assistant_message
+        assistant_message=assistant_message,
+        context=context_str
     )
 
     messages = [{"role": "user", "content": prompt}]

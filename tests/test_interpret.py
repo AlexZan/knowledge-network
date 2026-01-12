@@ -76,10 +76,10 @@ class TestInterpretExchange:
         mock_response = '''```json
 {
     "should_capture": true,
-    "artifact_type": "conclusion",
-    "summary": "Decided to use React",
-    "status": null,
-    "related_to": "abc123",
+    "artifact_type": "effort",
+    "summary": "Choosing a frontend framework",
+    "status": "resolved",
+    "resolution": "Decided to use React",
     "tags": ["tech", "decision"],
     "reasoning": "A decision was made"
 }
@@ -93,7 +93,9 @@ class TestInterpretExchange:
             )
 
         assert result.should_capture is True
-        assert result.artifact_type == "conclusion"
+        assert result.artifact_type == "effort"
+        assert result.status == "resolved"
+        assert result.resolution == "Decided to use React"
 
     def test_handles_invalid_json(self):
         mock_response = "This is not valid JSON"

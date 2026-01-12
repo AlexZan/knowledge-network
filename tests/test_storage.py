@@ -4,8 +4,9 @@ import pytest
 from pathlib import Path
 import tempfile
 import shutil
+import json
 
-from oi.models import ConversationState, Thread, Message, Conclusion, TokenStats
+from oi.models import ConversationState, Artifact
 from oi.storage import save_state, load_state, get_state_path, ensure_state_dir
 
 
@@ -31,23 +32,25 @@ class TestStorage:
     def test_load_empty_state(self, temp_state_dir):
         state = load_state(temp_state_dir)
         assert isinstance(state, ConversationState)
-        assert state.threads == []
-        assert state.conclusions == []
+        assert state.artifacts == []
 
     def test_save_and_load_roundtrip(self, temp_state_dir):
-        original_state = ConversationState(
-            threads=[
-                Thread(id="t001", status="concluded", conclusion_id="c001",
-                       messages=[Message(role="user", content="Q"), Message(role="assistant", content="A")]),
-                Thread(id="t002", status="open",
-                       messages=[Message(role="user", content="Hello")]),
-            ],
-            conclusions=[
-                Conclusion(id="c001", content="Test conclusion", source_thread_id="t001")
-            ],
-            active_thread_id="t002",
-            token_stats=TokenStats(total_raw=500, total_compacted=50)
-        )
+        original_state = ConversationState(artifacts=[
+            Artifact(
+                id="effort1",
+                artifact_type="effort",
+                summary="Finding best gaming mouse",
+                status="resolved",
+                resolution="Chose Logitech G Pro X Superlight",
+                tags=["gaming", "hardware"]
+            ),
+            Artifact(
+                id="fact1",
+                artifact_type="fact",
+                summary="The capital of France is Paris",
+                expires=True
+            ),
+        ])
 
         save_state(original_state, temp_state_dir)
 
@@ -57,26 +60,44 @@ class TestStorage:
 
         loaded_state = load_state(temp_state_dir)
 
-        assert len(loaded_state.threads) == 2
-        assert loaded_state.threads[0].id == "t001"
-        assert loaded_state.threads[1].id == "t002"
-        assert len(loaded_state.conclusions) == 1
-        assert loaded_state.conclusions[0].content == "Test conclusion"
-        assert loaded_state.active_thread_id == "t002"
-        assert loaded_state.token_stats.total_raw == 500
+        assert len(loaded_state.artifacts) == 2
+        assert loaded_state.artifacts[0].id == "effort1"
+        assert loaded_state.artifacts[0].resolution == "Chose Logitech G Pro X Superlight"
+        assert loaded_state.artifacts[1].artifact_type == "fact"
 
     def test_save_overwrites_existing(self, temp_state_dir):
-        state1 = ConversationState(
-            conclusions=[Conclusion(id="c001", content="First", source_thread_id="t001")]
-        )
+        state1 = ConversationState(artifacts=[
+            Artifact(id="1", artifact_type="fact", summary="First")
+        ])
         save_state(state1, temp_state_dir)
 
-        state2 = ConversationState(
-            conclusions=[Conclusion(id="c002", content="Second", source_thread_id="t002")]
-        )
+        state2 = ConversationState(artifacts=[
+            Artifact(id="2", artifact_type="fact", summary="Second")
+        ])
         save_state(state2, temp_state_dir)
 
         loaded = load_state(temp_state_dir)
-        assert len(loaded.conclusions) == 1
-        assert loaded.conclusions[0].id == "c002"
-        assert loaded.conclusions[0].content == "Second"
+        assert len(loaded.artifacts) == 1
+        assert loaded.artifacts[0].id == "2"
+        assert loaded.artifacts[0].summary == "Second"
+
+    def test_migration_from_legacy_format(self, temp_state_dir):
+        """Test that legacy state with threads/conclusions is migrated."""
+        # Write legacy format directly
+        legacy_state = {
+            "threads": [{"id": "t001", "messages": [], "status": "open"}],
+            "conclusions": [{"id": "c001", "content": "Old conclusion", "source_thread_id": "t001"}],
+            "artifacts": [
+                {"id": "a001", "artifact_type": "effort", "summary": "New artifact", "status": "open"}
+            ],
+            "active_thread_id": "t001",
+            "token_stats": {"total_raw": 100, "total_compacted": 10}
+        }
+        state_path = get_state_path(temp_state_dir)
+        ensure_state_dir(temp_state_dir)
+        state_path.write_text(json.dumps(legacy_state))
+
+        # Load should migrate - keep artifacts, drop threads/conclusions
+        loaded = load_state(temp_state_dir)
+        assert len(loaded.artifacts) == 1
+        assert loaded.artifacts[0].id == "a001"

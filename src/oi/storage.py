@@ -2,8 +2,7 @@
 
 import json
 from pathlib import Path
-from datetime import datetime
-from .models import ConversationState
+from .models import ConversationState, Artifact
 
 
 DEFAULT_STATE_DIR = Path.home() / ".oi"
@@ -27,10 +26,20 @@ def save_state(state: ConversationState, state_dir: Path = DEFAULT_STATE_DIR) ->
 
 
 def load_state(state_dir: Path = DEFAULT_STATE_DIR) -> ConversationState:
-    """Load conversation state from disk, or return empty state if none exists."""
+    """Load conversation state from disk, or return empty state if none exists.
+
+    Handles migration from legacy format (threads/conclusions) to new format (artifacts only).
+    """
     state_path = get_state_path(state_dir)
     if not state_path.exists():
         return ConversationState()
 
     data = json.loads(state_path.read_text())
+
+    # Check if this is legacy format (has threads/conclusions)
+    if "threads" in data or "conclusions" in data:
+        # Migrate: extract artifacts, ignore legacy fields
+        artifacts = data.get("artifacts", [])
+        return ConversationState(artifacts=[Artifact.model_validate(a) for a in artifacts])
+
     return ConversationState.model_validate(data)

@@ -5,6 +5,52 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 
+class Artifact(BaseModel):
+    """A knowledge artifact created from conversation exchanges.
+
+    Types:
+    - effort: Goal-oriented work (open or resolved)
+    - fact: Simple Q&A, public knowledge (can expire)
+    - event: Casual exchange, context that might matter (expires fast)
+
+    When an effort is resolved, the resolution field captures the outcome.
+    """
+    id: str
+    artifact_type: Literal["effort", "fact", "event"]
+    summary: str
+    status: Literal["open", "resolved"] | None = None  # For efforts
+    resolution: str | None = None  # What was decided/concluded (for resolved efforts)
+    related_to: str | None = None  # ID of related artifact
+    tags: list[str] = Field(default_factory=list)
+    ref_count: int = 0  # For expiration: how often referenced
+    expires: bool = False  # Whether this can expire
+    created: datetime = Field(default_factory=datetime.now)
+
+
+class ConversationState(BaseModel):
+    """Complete state of a conversation.
+
+    Raw chat history is stored separately in chatlog.jsonl.
+    This state contains only the extracted artifacts.
+    """
+    artifacts: list[Artifact] = Field(default_factory=list)
+
+    def get_open_efforts(self) -> list[Artifact]:
+        """Get all open efforts (unresolved work)."""
+        return [a for a in self.artifacts if a.artifact_type == "effort" and a.status == "open"]
+
+    def get_resolved_efforts(self) -> list[Artifact]:
+        """Get all resolved efforts (completed work with conclusions)."""
+        return [a for a in self.artifacts if a.artifact_type == "effort" and a.status == "resolved"]
+
+    def get_facts(self) -> list[Artifact]:
+        """Get all fact artifacts."""
+        return [a for a in self.artifacts if a.artifact_type == "fact"]
+
+
+# Legacy models kept for migration compatibility
+# TODO: Remove after full migration
+
 class Message(BaseModel):
     """A single message in a conversation."""
     role: Literal["user", "assistant"]
@@ -13,39 +59,19 @@ class Message(BaseModel):
 
 
 class Thread(BaseModel):
-    """A conversation thread that may be open or concluded."""
+    """LEGACY: A conversation thread that may be open or concluded."""
     id: str
     messages: list[Message] = Field(default_factory=list)
-    context_conclusion_ids: list[str] = Field(default_factory=list)  # Conclusions that provide context
+    context_conclusion_ids: list[str] = Field(default_factory=list)
     status: Literal["open", "concluded"] = "open"
     conclusion_id: str | None = None
 
 
 class Conclusion(BaseModel):
-    """A compacted summary of a resolved thread."""
+    """LEGACY: A compacted summary of a resolved thread."""
     id: str
     content: str
     source_thread_id: str
-    created: datetime = Field(default_factory=datetime.now)
-
-
-class Artifact(BaseModel):
-    """A knowledge artifact created from conversation exchanges.
-
-    Types:
-    - effort: Goal-oriented work (open or resolved)
-    - conclusion: Resolution/knowledge from an effort
-    - fact: Simple Q&A, public knowledge (can expire)
-    - event: Casual exchange, context that might matter (expires fast)
-    """
-    id: str
-    artifact_type: Literal["effort", "conclusion", "fact", "event"]
-    summary: str
-    status: Literal["open", "resolved"] | None = None  # For efforts
-    related_to: str | None = None  # ID of related artifact
-    tags: list[str] = Field(default_factory=list)
-    ref_count: int = 0  # For expiration: how often referenced
-    expires: bool = False  # Whether this can expire
     created: datetime = Field(default_factory=datetime.now)
 
 
@@ -61,16 +87,16 @@ class TokenStats(BaseModel):
         return (1 - self.total_compacted / self.total_raw) * 100
 
 
-class ConversationState(BaseModel):
-    """Complete state of a conversation."""
+# Full legacy state for backwards compatibility during migration
+class LegacyConversationState(BaseModel):
+    """LEGACY: Full state including threads/conclusions. Use ConversationState instead."""
     threads: list[Thread] = Field(default_factory=list)
     conclusions: list[Conclusion] = Field(default_factory=list)
-    artifacts: list[Artifact] = Field(default_factory=list)  # New artifact system
+    artifacts: list[Artifact] = Field(default_factory=list)
     active_thread_id: str | None = None
     token_stats: TokenStats = Field(default_factory=TokenStats)
 
     def get_active_thread(self) -> Thread | None:
-        """Get the currently active thread."""
         if not self.active_thread_id:
             return None
         for thread in self.threads:
@@ -79,5 +105,4 @@ class ConversationState(BaseModel):
         return None
 
     def get_active_conclusions(self) -> list[Conclusion]:
-        """Get all active conclusions."""
         return self.conclusions
