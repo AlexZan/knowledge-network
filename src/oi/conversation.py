@@ -8,6 +8,7 @@ from .storage import load_state, save_state
 from .chatlog import append_exchange, read_recent
 from .interpret import interpret_exchange, ArtifactInterpretation
 from .llm import chat
+from .prompts import load_prompt
 
 
 def generate_id() -> str:
@@ -53,7 +54,7 @@ def build_context(state: ConversationState) -> list[dict]:
     - Recent chat history (for conversation continuity)
     """
     system_parts = [
-        "You are a helpful AI assistant. Be concise and direct.",
+        load_prompt("system").strip(),
         ""
     ]
 
