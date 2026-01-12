@@ -29,6 +29,26 @@ class Conclusion(BaseModel):
     created: datetime = Field(default_factory=datetime.now)
 
 
+class Artifact(BaseModel):
+    """A knowledge artifact created from conversation exchanges.
+
+    Types:
+    - effort: Goal-oriented work (open or resolved)
+    - conclusion: Resolution/knowledge from an effort
+    - fact: Simple Q&A, public knowledge (can expire)
+    - event: Casual exchange, context that might matter (expires fast)
+    """
+    id: str
+    artifact_type: Literal["effort", "conclusion", "fact", "event"]
+    summary: str
+    status: Literal["open", "resolved"] | None = None  # For efforts
+    related_to: str | None = None  # ID of related artifact
+    tags: list[str] = Field(default_factory=list)
+    ref_count: int = 0  # For expiration: how often referenced
+    expires: bool = False  # Whether this can expire
+    created: datetime = Field(default_factory=datetime.now)
+
+
 class TokenStats(BaseModel):
     """Token usage statistics."""
     total_raw: int = 0
@@ -45,6 +65,7 @@ class ConversationState(BaseModel):
     """Complete state of a conversation."""
     threads: list[Thread] = Field(default_factory=list)
     conclusions: list[Conclusion] = Field(default_factory=list)
+    artifacts: list[Artifact] = Field(default_factory=list)  # New artifact system
     active_thread_id: str | None = None
     token_stats: TokenStats = Field(default_factory=TokenStats)
 
