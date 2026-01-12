@@ -107,8 +107,69 @@ Effort: "Add multiplayer mode" [OPEN - no conclusion yet]
 - Decide: Are simple Q&As lightweight efforts or something else?
 - Once model is solid, update schema and code
 
-## Key Insight
+## Key Insight (v1)
 
 > The network is **efforts linked to efforts**, with conclusions as leaves.
 > Open efforts = pending work. Closed efforts = resolved work.
 > This captures the journey, not just the outcomes.
+
+---
+
+## Breakthrough: Self-Evolving Artifact Schemas
+
+### The Realization
+
+Effort/Conclusion is just ONE artifact type - not THE model.
+
+The chat log is the **raw artifact**. Everything else is a **learned compression format**.
+
+```
+Chat Log (raw)
+    ↓
+[Artifact Type A: Effort/Conclusion] - for goal-oriented work
+[Artifact Type B: ???] - for casual exchanges
+[Artifact Type C: ???] - for learning journeys
+[Artifact Type D: ???] - user-specific, emerges from usage
+    ↓
+[Higher-order artifacts] - patterns across artifacts
+```
+
+### Core Ideas
+
+1. **Multiple compression formats** - Different "lenses" on the same conversation
+2. **Self-evolving schemas** - System learns what formats work for THIS user
+3. **Human-readable neural network** - Emergent structure that's still inspectable/auditable
+4. **Contractual by review** - User can see and correct what it learned
+
+### The System Learns HOW to Store Knowledge
+
+Not just WHAT to store.
+
+| User Type | Emergent Schemas |
+|-----------|-----------------|
+| Developer | `bug_fix`, `feature`, `refactor`, `architecture_decision` |
+| Researcher | `hypothesis`, `finding`, `contradiction`, `source` |
+| Writer | `draft`, `revision`, `feedback`, `character_note` |
+| Planner | `goal`, `milestone`, `blocker`, `decision` |
+
+### Analogy to Neural Networks
+
+- Neural networks learn compressed representations (embeddings)
+- But they're opaque - you can't inspect them
+- This system learns compressed representations too
+- But they're **human-readable** and **auditable**
+- Like a neural network you can review and correct
+
+### Thesis Evolution
+
+> The network learns both **content** AND **structure**.
+> The schemas themselves evolve based on usage patterns.
+> Compression formats are first-class, evolvable entities.
+
+### Open Questions
+
+- How does a new schema emerge? (User defines? System proposes? Hybrid?)
+- How do schemas evolve over time?
+- Can schemas be shared across users? (Community schemas?)
+- What's the "base" schema everything starts with?
+- How does the system know which schema to apply to a new conversation?
