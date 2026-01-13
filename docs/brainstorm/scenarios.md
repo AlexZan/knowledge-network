@@ -233,3 +233,82 @@ Analyze each scenario to determine what artifact type (if any) should be created
 2. How does the LLM decide which type to use?
 3. What's the expiration policy? Time-based? Reference-based? Both?
 4. Should hierarchical efforts be nested or linked by ID?
+
+---
+
+## Context Building Scenarios
+
+These scenarios inform how the AI retrieves context using tools.
+
+### Scenario: State Query
+**User:** "What are we working on?"
+
+**AI behavior:** Calls `get_open_objectives()` + `get_recent_resolved(5)`
+
+**Response:** "You have 3 open objectives for Project X:
+1. Fix login bug
+2. Add dark mode
+3. Refactor auth
+
+Recently finished: Payment integration (2 days ago), User onboarding (last week).
+
+Want to continue one of these?"
+
+**Artifact created?** No - just a lookup.
+
+---
+
+### Scenario: Continue Last
+**User:** "Let's continue from where we left off"
+
+**AI behavior:** Calls `get_open_objectives()`, sorts by `updated` timestamp, picks most recent.
+
+**Key insight:** Need `updated` timestamp, not just `created`. Most recently *active* objective, not most recently *created*.
+
+**Response:** "Last time we were working on [most recent objective]. Want to continue?"
+
+**Artifact created?** No - just retrieval + confirmation.
+
+---
+
+### Scenario: Topic Query
+**User:** "My skin condition is getting worse"
+
+**AI behavior:** Calls `search_artifacts("health skin condition")`, finds related objective (even if resolved).
+
+**Response:** Uses history: "Last time we tried cream X and it worked for a bit. What's happening now?"
+
+**Artifact created?** Maybe - updates existing objective or creates child effort.
+
+---
+
+### Scenario: Specific Search
+**User:** "What was that bug with the player falling through floors?"
+
+**AI behavior:** Calls `search_artifacts("bug player floor collision")`. If not found, calls `search_chatlog("floor falling")`.
+
+**Response:** Returns match with context.
+
+**Artifact created?** No - just lookup.
+
+---
+
+## Context Building Architecture
+
+The AI has retrieval tools available and decides which to use:
+
+```
+Tools:
+├── get_open_objectives()        # Current work
+├── get_recent_resolved(n)       # Recently finished
+├── search_artifacts(query)      # Find by tags/keywords/summary
+└── search_chatlog(query)        # Raw history fallback
+
+Instructions:
+"Use retrieval tools based on what user is asking.
+State queries → get open objectives.
+Topic queries → search by relevance.
+You can combine tools."
+```
+
+This is standard tool use - one LLM call, AI decides what context it needs.
