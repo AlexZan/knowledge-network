@@ -8,18 +8,16 @@ from typing import Literal
 class Artifact(BaseModel):
     """A knowledge artifact created from conversation exchanges.
 
-    Types:
-    - effort: Goal-oriented work (open or resolved)
-    - fact: Simple Q&A, public knowledge (can expire)
-    - event: Casual exchange, context that might matter (expires fast)
+    Types are defined in schemas/artifact_types.yaml and can be customized.
+    Default types: effort, fact, event
 
     When an effort is resolved, the resolution field captures the outcome.
     """
     id: str
-    artifact_type: Literal["effort", "fact", "event"]
+    artifact_type: str  # Dynamic - loaded from schema config
     summary: str
-    status: Literal["open", "resolved"] | None = None  # For efforts
-    resolution: str | None = None  # What was decided/concluded (for resolved efforts)
+    status: Literal["open", "resolved"] | None = None  # For types with has_status
+    resolution: str | None = None  # What was decided/concluded (for resolved)
     related_to: str | None = None  # ID of related artifact
     tags: list[str] = Field(default_factory=list)
     ref_count: int = 0  # For expiration: how often referenced

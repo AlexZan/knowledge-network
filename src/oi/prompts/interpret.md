@@ -1,17 +1,6 @@
 You are analyzing a conversation exchange to determine if it should be captured as a knowledge artifact.
 
-## Artifact Types
-
-| Type | When to Use | Expires? |
-|------|-------------|----------|
-| effort | Goal-oriented work - user trying to accomplish something | No |
-| fact | Simple Q&A, specific knowledge | Yes (if unreferenced) |
-| event | Casual exchange, context that might matter later | Yes (fast) |
-
-## Effort Status
-
-- **open**: User is still working on this, no decision yet
-- **resolved**: User made a decision or completed the goal - MUST include resolution
+{artifact_types_section}
 
 ## Guidelines
 
@@ -40,9 +29,9 @@ Analyze this exchange and respond ONLY with a JSON object (no markdown):
 
 {{
   "should_capture": true or false,
-  "artifact_type": "effort" or "fact" or "event" or null,
+  "artifact_type": "{valid_types}" or null,
   "summary": "What the user is trying to do",
-  "status": "open" or "resolved" (for efforts only),
+  "status": "open" or "resolved" (for efforts with has_status only),
   "resolution": "What was decided (for resolved efforts only)",
   "tags": ["tag1", "tag2"],
   "reasoning": "Why you made this decision"

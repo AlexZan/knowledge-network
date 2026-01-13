@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from .llm import chat
 from .prompts import load_prompt
+from .schemas import get_artifact_type_names, build_interpretation_prompt_section
 
 
 class ArtifactInterpretation(BaseModel):
@@ -15,9 +16,9 @@ class ArtifactInterpretation(BaseModel):
     should_capture: bool = Field(
         description="Whether this exchange warrants creating an artifact"
     )
-    artifact_type: Literal["effort", "fact", "event"] | None = Field(
+    artifact_type: str | None = Field(
         default=None,
-        description="Type of artifact to create"
+        description="Type of artifact to create (loaded from schema)"
     )
     summary: str | None = Field(
         default=None,
@@ -66,8 +67,14 @@ def interpret_exchange(
             context_str += f"Assistant: {exchange['assistant']}\n\n"
         context_str += "Current exchange:\n"
 
+    # Build dynamic prompt sections from schema
+    artifact_types_section = build_interpretation_prompt_section()
+    valid_types = '" or "'.join(get_artifact_type_names())
+
     prompt_template = load_prompt("interpret")
     prompt = prompt_template.format(
+        artifact_types_section=artifact_types_section,
+        valid_types=valid_types,
         user_message=user_message,
         assistant_message=assistant_message,
         context=context_str

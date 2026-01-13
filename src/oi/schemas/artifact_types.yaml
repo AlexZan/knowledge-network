@@ -1,0 +1,31 @@
+# Artifact Type Definitions
+# These define what types of knowledge artifacts can be created.
+
+types:
+  effort:
+    description: "Goal-oriented work - user trying to accomplish something"
+    expires: false
+    has_status: true  # Can be "open" or "resolved"
+    has_resolution: true  # Captures what was decided when resolved
+    examples:
+      - "Finding the best gaming mouse"
+      - "Debugging a login issue"
+      - "Planning a trip to Japan"
+
+  fact:
+    description: "Simple Q&A, specific knowledge that might be referenced later"
+    expires: true
+    has_status: false
+    has_resolution: false
+    examples:
+      - "The capital of France is Paris"
+      - "User's preferred programming language is Python"
+
+  event:
+    description: "Casual exchange, context that might matter later"
+    expires: true
+    has_status: false
+    has_resolution: false
+    examples:
+      - "User mentioned they're tired today"
+      - "User is working from home this week"
