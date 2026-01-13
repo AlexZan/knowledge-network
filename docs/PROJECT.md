@@ -1,34 +1,51 @@
-# Living Knowledge Networks
+# Project Technical Reference
 
-> A conversation system that compacts based on conclusions, not token limits.
+> Current architecture and code structure. For the vision, see [thesis.md](thesis.md).
 
-## Where We Came From
+## Related Docs
 
-### The Problem
-Traditional chatbots have a fundamental limitation: they maintain a growing chat log until they hit a token limit, then either truncate or summarize everything. This loses important context and treats all messages as equally important.
+- **Vision**: [thesis.md](thesis.md) - The 5 theses driving this project
+- **Roadmap**: [slices/README.md](slices/README.md) - Implementation phases
+- **Progress**: [JOURNEY.md](JOURNEY.md) - Where we are, pivots made
 
-### Evolution
-1. **Thread/Conclusion model** (v1) - Conversations grouped into threads, each thread extracted to a conclusion when resolved. Problem: What about unresolved discussions?
+---
 
-2. **SQLite storage** (reverted) - Tried to optimize storage before proving the concept. Lesson learned: prove the model first, optimize later.
+## Data Model
 
-3. **Artifact model** (current) - Replaced threads/conclusions with a single flexible artifact type. An "effort" can be open or resolved, with a resolution field capturing decisions.
-
-## Where We Are
-
-### Data Model
 ```
 Artifact
-├── artifact_type: "effort" | "fact" | "event"
+├── artifact_type: str     # Dynamic - loaded from schemas/artifact_types.yaml
 ├── summary: str           # What this is about
-├── status: "open" | "resolved" (efforts only)
-├── resolution: str        # What was decided (resolved efforts)
+├── status: "open" | "resolved" (for types with has_status)
+├── resolution: str        # What was decided (for resolved items)
 ├── tags: list[str]        # For searchability
-├── expires: bool          # Facts/events can expire
+├── expires: bool          # From schema - whether this type can expire
 └── ref_count: int         # For future: expiration based on references
 ```
 
-### How It Works
+## Configurable Schemas
+
+Artifact types defined in YAML (user can override):
+
+```yaml
+# src/oi/schemas/artifact_types.yaml (defaults)
+# ~/.oi/schemas/artifact_types.yaml (user overrides)
+types:
+  effort:
+    description: "Goal-oriented work"
+    has_status: true
+    has_resolution: true
+    expires: false
+  fact:
+    description: "Simple Q&A, specific knowledge"
+    expires: true
+  event:
+    description: "Casual exchange, context"
+    expires: true
+```
+
+## Flow
+
 ```
 User message
     ↓
@@ -43,7 +60,8 @@ interpret_exchange()  →  LLM decides: create artifact? what type?
 state.json  →  artifacts only (compressed knowledge)
 ```
 
-### Key Files
+## Key Files
+
 ```
 src/oi/
 ├── models.py        # Artifact, ConversationState
@@ -53,51 +71,29 @@ src/oi/
 ├── storage.py       # JSON persistence
 ├── cli.py           # Command-line interface
 ├── llm.py           # LiteLLM wrapper
-└── prompts/
-    ├── system.md    # Main AI system prompt
-    └── interpret.md # Artifact interpretation rules
+├── prompts/
+│   ├── system.md    # Main AI system prompt
+│   └── interpret.md # Artifact interpretation rules
+└── schemas/
+    ├── __init__.py        # Schema loader utilities
+    └── artifact_types.yaml # Default type definitions
 ```
 
-### Storage
+## Storage
+
 ```
 ~/.oi/
 ├── state.json      # Artifacts (compressed knowledge)
 └── chatlog.jsonl   # Raw exchanges (permanent archive)
 ```
 
-## Where We're Going
-
-### Not Yet Implemented
-
-1. **Search/Retrieval** - Currently all artifacts loaded into context. Need:
-   - Keyword search through artifacts
-   - Relevance-based retrieval
-   - Only load relevant artifacts (RAG pattern)
-
-2. **Artifact Linking** - When an effort resolves, it should link to/update the original open effort instead of creating a new one.
-
-3. **Expiration** - Facts/events marked `expires: true` but no expiration logic yet. Need reference counting and cleanup.
-
-4. **User Prompt Overrides** - Prompts in package, no user customization path yet.
-
-### Design Principles
-
-- **Raw chat is permanent** - chatlog.jsonl never deleted, always append
-- **Artifacts are compressed knowledge** - Summary of what matters
-- **Agentic interpretation** - LLM decides what to capture, not rules
-- **Context is JIT** - Load only what's needed, not everything
-
-### Open Questions
-
-1. Should artifacts link to each other? (effort → resolution)
-2. How to handle multi-session efforts? (user returns days later)
-3. When to expire unreferenced facts/events?
-4. How to search when artifacts grow large?
-
 ## Key Decisions
 
-See `docs/decisions/` for detailed decision records.
+See `docs/decisions/` for detailed records.
 
-- **007-sqlite-storage.md** - REVERTED - premature optimization
-- Artifact-only model chosen over Thread/Conclusion split
-- External prompts in markdown for easy editing
+| Decision | Outcome |
+|----------|---------|
+| 007-sqlite-storage.md | REVERTED - premature optimization |
+| Data model | Artifact-only (not Thread/Conclusion split) |
+| Prompts | External markdown files |
+| Schemas | Configurable YAML, user can override |
