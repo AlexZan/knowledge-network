@@ -1,4 +1,4 @@
-# Slice 1a: Minimal Conclusion Tracking - User Stories
+# Slice 1a: Minimal Effort Artifact Compaction - User Stories
 
 Issue: N/A
 Status: Draft
@@ -33,17 +33,23 @@ Dependencies: None
 
 ---
 
-## Story 3: Conclusion Extracted on Acceptance
+## Story 3: Effort Artifact Extracted on Acceptance
 
 **As a** user
 **I want to** thank the AI or confirm its answer
 **So that** the resolution is captured automatically
 
 **Acceptance:**
-- [ ] When I reply with acceptance (e.g., "Thanks!", "That makes sense", "Got it"), a conclusion notification appears
-- [ ] The notification shows the extracted conclusion text in brackets
-- [ ] The conclusion text is a concise summary of what was resolved (not a copy of the full conversation)
+- [ ] When I reply with acceptance (e.g., "Thanks!", "That makes sense", "Got it"), an artifact notification appears
+- [ ] The notification shows the effort summary and resolution
+- [ ] The artifact text is a concise summary of what was resolved (not a copy of the full conversation)
 - [ ] The notification appears after my acceptance message, before the next prompt
+
+**Format:**
+```
+[effort:resolved] Debug auth bug
+  => Token was expired, refresh fixed it
+```
 
 **Trigger phrases that should cause extraction:**
 - "Thanks!"
@@ -55,31 +61,31 @@ Dependencies: None
 
 ---
 
-## Story 4: Token Stats Shown After Conclusion
+## Story 4: Token Stats Shown After Artifact Extraction
 
 **As a** user
 **I want to** see how many tokens were saved
 **So that** I understand the compaction benefit
 
 **Acceptance:**
-- [ ] Immediately after a conclusion is extracted, token stats appear
+- [ ] Immediately after an artifact is extracted, token stats appear
 - [ ] Stats show: raw tokens, compacted tokens, and savings percentage
-- [ ] Format example: `[Tokens: 1,247 raw -> 68 compacted | Savings: 95%]`
-- [ ] Stats reflect only the thread that was just concluded (not cumulative)
+- [ ] Format example: `[Tokens: 1,247 raw → 68 compacted | Savings: 95%]`
+- [ ] Stats reflect only the effort that was just resolved (not cumulative)
 
 ---
 
-## Story 5: Thread Stays Open on Disagreement
+## Story 5: Effort Stays Open on Disagreement
 
 **As a** user
 **I want to** push back or disagree
-**So that** the conversation continues without premature conclusion
+**So that** the conversation continues without premature resolution
 
 **Acceptance:**
-- [ ] When I reply with disagreement, no conclusion is extracted
+- [ ] When I reply with disagreement, no artifact is extracted
 - [ ] No token stats appear
 - [ ] The AI responds to my disagreement and the conversation continues
-- [ ] The thread remains open until I eventually accept or change topic
+- [ ] The effort remains open until I eventually accept or change topic
 
 **Disagreement phrases that should NOT trigger extraction:**
 - "No, that's not it"
@@ -94,26 +100,26 @@ Dependencies: None
 
 **As a** user
 **I want to** go back and forth multiple times before reaching resolution
-**So that** only the final answer becomes the conclusion
+**So that** only the final answer becomes the artifact resolution
 
 **Acceptance:**
-- [ ] I can disagree multiple times in a row without conclusions being extracted
-- [ ] When I finally accept, the conclusion captures the final resolution (not earlier wrong answers)
-- [ ] The conclusion text reflects what actually solved the problem
+- [ ] I can disagree multiple times in a row without artifacts being extracted
+- [ ] When I finally accept, the artifact captures the final resolution (not earlier wrong answers)
+- [ ] The artifact resolution reflects what actually solved the problem
 
 ---
 
-## Story 7: Reference Earlier Conclusions in Same Session
+## Story 7: Reference Earlier Artifacts in Same Session
 
 **As a** user
 **I want to** ask questions that reference things we discussed earlier
 **So that** the AI remembers without me re-explaining
 
 **Acceptance:**
-- [ ] After a conclusion is extracted, I can ask a follow-up that references it
-- [ ] The AI responds with knowledge of the earlier conclusion
+- [ ] After an artifact is extracted, I can ask a follow-up that references it
+- [ ] The AI responds with knowledge of the earlier resolution
 - [ ] I do not need to re-explain the earlier topic
-- [ ] Example: After concluding auth bug and db bug, asking "which was easier to fix?" gets a relevant answer
+- [ ] Example: After resolving auth bug and db bug, asking "which was easier to fix?" gets a relevant answer
 
 ---
 
@@ -139,7 +145,7 @@ Dependencies: None
 **Acceptance:**
 - [ ] After exiting and running `oi` again, the conversation continues
 - [ ] I can ask "what were we discussing?" and get an accurate answer
-- [ ] Previous conclusions are available to the AI
+- [ ] Previous artifacts are available to the AI
 - [ ] I do not need to re-explain earlier context
 
 ---
@@ -157,30 +163,30 @@ Dependencies: None
 
 ---
 
-## Story 11: Multiple Conclusions in One Session
+## Story 11: Multiple Artifacts in One Session
 
 **As a** user
 **I want to** resolve multiple topics in a single session
-**So that** each is captured as a separate conclusion
+**So that** each is captured as a separate artifact
 
 **Acceptance:**
-- [ ] Each time I accept/thank, a new conclusion is extracted
-- [ ] Each conclusion has its own token stats displayed
-- [ ] All conclusions are available for the AI to reference
-- [ ] Later questions can reference any of the conclusions from the session
+- [ ] Each time I accept/thank, a new artifact is extracted
+- [ ] Each artifact has its own token stats displayed
+- [ ] All artifacts are available for the AI to reference
+- [ ] Later questions can reference any of the artifacts from the session
 
 ---
 
-## Story 12: Topic Change Triggers Conclusion
+## Story 12: Topic Change Triggers Resolution
 
 **As a** user
 **I want to** ask a completely new question
-**So that** the previous topic is concluded automatically
+**So that** the previous topic is resolved automatically
 
 **Acceptance:**
-- [ ] When I ask a new, unrelated question after the AI gave an answer, a conclusion is extracted
+- [ ] When I ask a new, unrelated question after the AI gave an answer, an artifact is extracted
 - [ ] I do not need to explicitly thank or accept
-- [ ] The new question is handled normally after the conclusion is shown
+- [ ] The new question is handled normally after the artifact is shown
 
 ---
 
@@ -188,10 +194,10 @@ Dependencies: None
 
 **As a** user
 **I want to** clearly distinguish system messages from AI responses
-**So that** I know what is conclusion feedback vs. conversation
+**So that** I know what is artifact feedback vs. conversation
 
 **Acceptance:**
-- [ ] Conclusion notifications are visually distinct (brackets, color, or prefix)
+- [ ] Artifact notifications are visually distinct (brackets, color, or prefix)
 - [ ] Token stats are visually distinct
 - [ ] AI responses are clearly separate from system feedback
 - [ ] My own messages are distinguishable from AI messages
@@ -202,10 +208,10 @@ Dependencies: None
 
 **As a** user
 **I want to** chat naturally
-**So that** conclusion extraction feels seamless
+**So that** artifact extraction feels seamless
 
 **Acceptance:**
-- [ ] Conclusion notifications appear quickly (not blocking the next prompt)
+- [ ] Artifact notifications appear quickly (not blocking the next prompt)
 - [ ] I can immediately type my next message after seeing the notification
 - [ ] The flow feels like a normal chat, not a wizard or form
 - [ ] No special commands or syntax required
@@ -215,11 +221,11 @@ Dependencies: None
 ## Out of Scope (Slice 1b)
 
 The following are explicitly NOT part of this slice:
-- Manual `/conclude` command
+- Manual `/resolve` command
 - Manual `/reject` command
 - `/expand` to see full thread
-- `/conclusions` to list all conclusions
+- `/artifacts` to list all artifacts
 - `/stats` to see cumulative stats
-- Editing or correcting conclusions
+- Editing or correcting artifacts
 - `/help` command
 - Error recovery UI
