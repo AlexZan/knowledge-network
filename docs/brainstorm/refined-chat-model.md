@@ -268,6 +268,271 @@ This IS the thesis:
 
 We just refined the terminology and simplified the model.
 
+## RAG Strategy (Future Slices)
+
+> **Note**: Not for Slice 1. Documented here for future implementation.
+
+### The Problem
+
+With many artifacts, the context builder needs efficient retrieval:
+
+```
+Traditional:
+  User: "work on payment integration"
+  → Scan all artifact files
+  → Keyword match
+  → Slow, misses semantic matches
+
+RAG:
+  User: "work on payment integration"
+  → Embed query → vector
+  → Vector similarity search
+  → Fast, finds "Stripe checkout" even without exact words
+```
+
+### Recommendations
+
+| Question | Recommendation | Rationale |
+|----------|----------------|-----------|
+| Embedding model | Local: `sentence-transformers` (all-MiniLM-L6-v2) | Free, fast, offline, good quality |
+| Storage | ChromaDB (local persistent) | Purpose-built, simple API, local-first |
+| When to embed | On artifact creation | Artifacts created infrequently, always searchable |
+| What to embed | summary + resolution + tags | Semantic essence without noise |
+
+### Artifact Structure with RAG Metadata
+
+```javascript
+{
+  // Core artifact data
+  "id": "effort-abc123",
+  "type": "effort",
+  "summary": "Debug 401 authentication error",
+  "resolution": "Token was expired, refresh fixed it",
+  "status": "resolved",
+  "tags": ["auth", "debugging", "api"],
+
+  // RAG metadata (future)
+  "embedding": [0.023, -0.041, ...],
+  "source_ref": "chat-xyz:lines-15-42",
+  "created_at": "2026-01-14T10:00:00Z",
+  "token_count": 68
+}
+```
+
+### Dual Storage: Summary + Raw Access
+
+The artifact links back to source chat for deep dives:
+
+```
+Artifact (in context, searchable via RAG)
+  ├── summary: "Debug 401 auth error"
+  ├── resolution: "Token was expired"
+  ├── embedding: [vectors for semantic search]
+  │
+  └── source_ref: "chat-xyz:lines-15-42"  ← Link to raw
+          │
+          ↓
+      Raw Chat Log (preserved, accessible on demand)
+        [full back-and-forth if AI needs details]
+```
+
+**Normal flow:** AI uses artifact summary (cheap, fast, in context)
+**Deep dive:** AI reads linked source chat (on demand, rare)
+
+This means:
+- Context stays small (summaries only)
+- Full detail always accessible (via source link)
+- AI can manually search/read raw chat when needed
+
+### ChromaDB Usage (Future)
+
+```python
+import chromadb
+
+client = chromadb.PersistentClient(path="~/.oi/vectors")
+artifacts = client.get_or_create_collection("artifacts")
+
+# On artifact creation
+embed_text = f"{summary}. {resolution}. Tags: {', '.join(tags)}"
+artifacts.add(
+    ids=["effort-abc123"],
+    documents=[embed_text],
+    metadatas=[{
+        "type": "effort",
+        "status": "resolved",
+        "chat": "chat-xyz",
+        "source_ref": "chat-xyz:lines-15-42"
+    }]
+)
+
+# On context building (semantic search)
+results = artifacts.query(
+    query_texts=["payment integration"],
+    n_results=10,
+    where={"status": "resolved"}  # Optional filters
+)
+```
+
+### Implications for Slice 1
+
+No code changes, but design with RAG in mind:
+- Structure artifacts cleanly (summary, resolution, tags as separate fields)
+- Use JSON storage that's easy to migrate to ChromaDB
+- Keep artifact text concise (good for context AND future embedding)
+- Include source_ref linking back to raw chat
+
+## Agent-Artifact Architecture (Future Slices)
+
+> **Note**: Not for Slice 1. Captured for future implementation.
+
+### The Insight: Agents and Artifacts Are Linked
+
+Artifact detection, schema, and creation should come from an "agent package":
+
+```
+Chat Stream (conversation flowing)
+    │
+    ├── [Effort Agent] 👁️ (half-awake, watching...)
+    │     Schema: {goal, attempts, resolution}
+    │     Trigger: "user trying to accomplish something"
+    │     → Creates: Effort artifact
+    │
+    ├── [Fact Agent] 👁️ (half-awake, watching...)
+    │     Schema: {statement, source, confidence}
+    │     Trigger: "factual Q&A concluded"
+    │     → Creates: Fact artifact
+    │
+    └── [Custom: BugReport Agent] 👁️ (user-defined)
+          Schema: {error, repro_steps, fix}
+          Trigger: "debugging session concluded"
+          → Creates: BugReport artifact
+```
+
+Multiple agents, each:
+- **Half-awake** (low overhead, pattern matching)
+- **Schema-bound** (knows what artifact type to produce)
+- **Self-activating** (triggers on its own conditions)
+- **Extensible** (users can add custom agent packages)
+
+### Key Insight: Subject Doesn't Matter, Structure Does
+
+The artifact type depends on **grammatical/intentional structure**, not topic:
+
+| Message | Subject | Structure/Intent |
+|---------|---------|------------------|
+| "hello how are you?" | social | Greeting (no artifact) |
+| "lets solve a bug" | debugging | **Effort initiation** |
+| "i want to learn about ww2" | history | **Effort initiation** |
+| "i got in a bad fight with my gf" | relationships | Statement (unclear) |
+| "what's the capital of France?" | geography | **Question → Fact** |
+| "that fixed it, thanks!" | any | **Resolution trigger** |
+| "I'll go with option A" | any | **Decision** |
+
+**The topic is irrelevant. The intent structure determines the artifact type.**
+
+### Dialogue Acts (Speech Acts)
+
+This maps to well-studied linguistic concepts:
+
+| Act Type | Examples | Maps to Artifact? |
+|----------|----------|-------------------|
+| Greeting | "hi", "hello" | No artifact (noise) |
+| Question | "what is X?" | Fact (when answered) |
+| Request | "help me with X" | Effort (open) |
+| Inform | "I did X yesterday" | Event or Statement |
+| Commit | "I'll do X" | Decision |
+| Accept | "that works, thanks" | Resolution trigger |
+| Reject | "no that's not it" | Effort continues |
+
+### Intent Detection: Vectors vs Classifiers
+
+**Vectors capture meaning, not intent:**
+
+```
+"I want to learn about WW2"  →  [vector about WW2, learning]
+"WW2 started in 1939"        →  [vector about WW2, dates]
+
+Semantically similar (both about WW2)
+But completely different intents (effort vs statement)
+```
+
+**Better: Use classifiers for intent, vectors for topics:**
+
+| Tool | Use For | Speed |
+|------|---------|-------|
+| Rules | Obvious intents ("lets", "help me") | ~0.1ms |
+| Classifier | Ambiguous intents | ~3ms |
+| Vectors | Finding related artifacts by topic | ~10ms |
+
+```
+Vectors    = WHAT is this about?     (topic, semantics)
+Classifier = WHAT is user doing?     (intent, action)
+```
+
+### Efficient Cascading Detection
+
+```
+Message: "lets debug this auth issue"
+         │
+         ↓
+    ┌────────────────┐
+    │ Level 1: Rules │  (~0.1ms)
+    │ "lets" → effort│  ← Match! Done.
+    └────────────────┘
+
+Message: "I had a weird experience yesterday"
+         │
+         ↓
+    ┌────────────────┐
+    │ Level 1: Rules │  No match
+    └────────────────┘
+         │
+         ↓
+    ┌────────────────────┐
+    │ Level 2: Classifier│  (~3ms)
+    │ statement: 0.7     │  ← Use this
+    └────────────────────┘
+```
+
+### Agent Package Structure (Future)
+
+```python
+# effort_agent.py
+class EffortAgent:
+    schema = EffortArtifact  # Pydantic model
+
+    def detect(self, message: str) -> float:
+        """Return confidence 0-1 that this triggers me"""
+        # Rules first, classifier fallback
+
+    def extract(self, context: list) -> EffortArtifact:
+        """Create the artifact from conversation context"""
+        # Summarize, structure, return typed artifact
+
+# Users could add custom agents:
+class BugReportAgent:
+    schema = BugReportArtifact
+    triggers = ["error", "bug", "broken", "debugging"]
+    # ...
+```
+
+### What Makes This Valuable
+
+1. **Agents = artifact factories** - each agent knows its schema
+2. **Composable** - add new artifact types by adding agent packages
+3. **Efficient** - rules + classifier cascade, not heavy LLM calls
+4. **Topic-agnostic** - same detection works for any subject matter
+5. **Self-evolving** - ties to earlier insight about emergent schemas
+
+### Comparison to Traditional Agents
+
+| Traditional Agents | This Architecture |
+|-------------------|-------------------|
+| Explicitly invoked | Self-activating on pattern |
+| Do task, return result | Watch stream, create artifact |
+| One at a time | Multiple concurrent observers |
+| Generic output | Schema-bound typed output |
+
 ## Open Questions
 
 ### 1. Artifact Ownership
