@@ -41,6 +41,19 @@ Without the scenario step, stories become fragmented and leak implementation det
 
 ---
 
+## File Naming Convention
+
+**Rule: Include the step name in the filename to avoid confusion.**
+
+Files for the same slice exist in different folders. Without step names in filenames,
+they all look identical and cause confusion.
+
+| Step | Naming Pattern | Example |
+|------|----------------|---------|
+| Slice Spec | `{slice-id}.md` | `1a-minimal.md` |
+| Scenario | `{slice-id}-scenario.md` | `1a-minimal-scenario.md` |
+| Stories | `{slice-id}-stories.md` | `1a-minimal-stories.md` |
+
 ## Document Locations
 
 ```
@@ -50,13 +63,13 @@ docs/
 ├── pipeline.md            # This document
 ├── slices/
 │   ├── README.md          # Slice overview
-│   ├── slice-1a-*.md      # Slice specs
+│   ├── 1a-minimal.md      # Slice spec
 │   └── ...
 ├── scenarios/
-│   └── slice-1a-*.md      # Narrative walkthroughs
+│   └── 1a-minimal-scenario.md   # Narrative walkthrough
 ├── stories/
 │   ├── INDEX.md           # Story index
-│   └── slice-1a-*.md      # User stories
+│   └── 1a-minimal-stories.md    # User stories
 └── decisions/
     └── 001-*.md           # Architecture decisions
 ```
@@ -65,8 +78,8 @@ docs/
 
 ## Adding a New Slice
 
-1. **Write the slice spec** in `docs/slices/slice-{N}-{name}.md`
-2. **Run scenario-agent** with thesis + slice spec → generates scenario
-3. **Run story-agent** with thesis + slice + scenario → generates stories
+1. **Write the slice spec** in `docs/slices/{N}-{name}.md`
+2. **Run scenario-agent** → generates `docs/scenarios/{N}-{name}-scenario.md`
+3. **Run story-agent** → generates `docs/stories/{N}-{name}-stories.md`
 4. **Review and refine** all artifacts
 5. **Implement** based on stories
