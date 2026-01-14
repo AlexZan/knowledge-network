@@ -533,6 +533,25 @@ class BugReportAgent:
 | One at a time | Multiple concurrent observers |
 | Generic output | Schema-bound typed output |
 
+### Summary: Two Systems, Two Tools
+
+| System | Tool | Purpose |
+|--------|------|---------|
+| **Context Builder** | Vectors (RAG) | "Find artifacts *about* this topic" |
+| **Artifact Builder** | Intent Classifier | "Is this an *effort*, *fact*, *resolution*?" |
+
+```
+User: "I want to work on payment integration"
+         │
+         ├─→ Intent Classifier: "effort initiation" → Effort Agent activates
+         │
+         └─→ Vector Search: finds related artifacts about payments → loads into context
+```
+
+**Two orthogonal concerns:**
+- **What to load** (semantic/topical) → vectors
+- **What to create** (intent/action) → classifier
+
 ## Open Questions
 
 ### 1. Artifact Ownership
