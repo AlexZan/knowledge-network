@@ -1,0 +1,4 @@
+stage: scenarios
+artifacts:
+  scenarios:
+  - scenarios/scenarios.md

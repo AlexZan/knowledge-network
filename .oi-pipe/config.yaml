@@ -1,0 +1,24 @@
+stages:
+- brainstorm
+- scenarios
+- stories
+- tests
+- dev
+- qa
+- done
+agents:
+  scenarios:
+    model: deepseek/deepseek-chat
+    instructions: .oi-pipe/agents/scenario-agent.md
+  stories:
+    model: ollama_chat/qwen3:8b
+    instructions: .oi-pipe/agents/story-agent.md
+  tests:
+    model: deepseek/deepseek-chat
+    instructions: .oi-pipe/agents/test-architect.md
+  dev:
+    model: ollama_chat/qwen2.5-coder:7b
+    instructions: .oi-pipe/agents/dev-agent.md
+  qa:
+    model: deepseek/deepseek-chat
+    instructions: .oi-pipe/agents/qa-agent.md
