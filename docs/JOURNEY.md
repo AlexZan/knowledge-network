@@ -12,9 +12,25 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Slice 1a (Partial)
+## Current Status: Slice 1 via oi-pipe TDD Pipeline
 
-We're implementing [Slice 1a: Minimal Conclusion Tracking](slices/slice-1a-minimal.md).
+Pivoted to **dev-first approach** ([decision 008](decisions/008-dev-first-pivot.md)). Building Slice 1 (two-log proof) using the oi-pipe TDD pipeline (`D:/Dev/oi/pipeline/`). Current effort: `efforts/chat-cli/`.
+
+### Pipeline Progress: Test Architect Stage
+
+Generated tests for Stories 4-9 using the pipeline. Key improvements made to oi-pipe during this effort:
+
+| Improvement | What | Why |
+|-------------|------|-----|
+| Package skeleton | AST-based code context (~500 tokens) | Full source caused pattern-copying; no context caused wrong package names |
+| Scenario context | Target architecture injected into prompt | Tests verify new file-based architecture, not existing object model |
+| Stub generator | Auto-creates missing functions from test imports | Tests run and fail meaningfully (AssertionError) instead of opaque ImportError |
+| SUT rule | Rule #10: every test has an unmocked System Under Test | Eliminated defective tests that compute behavior inline |
+| Model switch | deepseek-reasoner for test-architect | Better TDD: invents new interfaces instead of constraining to existing functions |
+| `--story N` flag | Extract single story from stories.md | Review tests one story at a time |
+| `--experiment` flag | Save to tests/experiments/ by model name | Compare model outputs without overwriting |
+
+### What's Built (Slice 1a Legacy)
 
 ### What's Built
 

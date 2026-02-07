@@ -22,18 +22,23 @@ Open questions:
 ---
 
 ### 2. Chat Log Format
-**Status**: Mentioned, not designed
+**Status**: Designed
 **Question**: What does the summarized chat log artifact look like?
 
 Supporting docs:
+- [context-and-cognition.md](brainstorm/context-and-cognition.md) - **Two-log model fully designed**
 - [effort-scoped-context.md](brainstorm/effort-scoped-context.md) - "Two files per chat" concept
 - [refined-chat-model.md](brainstorm/refined-chat-model.md) - Chat + artifacts model
 
+Decisions made:
+- [x] Two logs: raw (verbatim JSONL) + summary (manifest YAML)
+- [x] Manifest contains segments with type, summary, raw_ref, artifact links
+- [x] Segment types: effort, fact, event, greeting, calculation, clarification, meta
+- [x] Storage: `~/.oi/chats/chat-123/{manifest.yaml, raw.jsonl}`
+
 Open questions:
-- [ ] What fields does a chat log entry have?
-- [ ] How is it different from an effort artifact?
-- [ ] What level of detail in summaries?
-- [ ] How are links to raw logs stored?
+- [ ] How to detect segment boundaries automatically?
+- [ ] Exact manifest schema (needs implementation)
 
 ---
 
@@ -87,19 +92,25 @@ Open questions:
 
 ---
 
-### 6. AI Chat Retrieval
-**Status**: Mentioned, not designed
+### 6. AI Chat Retrieval & Context Strategies
+**Status**: Designed
 **Question**: How does AI find relevant old context for new chats?
 
 Supporting docs:
+- [context-and-cognition.md](brainstorm/context-and-cognition.md) - **Context strategies fully designed**
 - [effort-scoped-context.md](brainstorm/effort-scoped-context.md) - Chat management section
 - [refined-chat-model.md](brainstorm/refined-chat-model.md) - RAG strategy
 
+Decisions made:
+- [x] Three strategies: chat-only, RAG-only, hybrid
+- [x] Effort weight controls which strategy / how much context
+- [x] Chat merging via `/merge @chat1 @chat2` or auto-suggestion
+- [x] Chats compact to artifact refs, so "merging" is just combining refs
+
 Open questions:
-- [ ] Search artifacts, chat logs, or both?
-- [ ] How to rank relevance?
-- [ ] How much old context to pull in?
-- [ ] User confirmation before pulling old context?
+- [ ] When does RAG retrieval happen (every prompt vs on-demand)?
+- [ ] How to present merge suggestions without being annoying?
+- [ ] Should merged chats maintain link to originals?
 
 ---
 
@@ -130,19 +141,25 @@ Open questions:
 
 ## Lower Priority
 
-### 7. Agents Revisited
-**Status**: Open question
-**Question**: If context is self-managing, what role do subagents play?
+### 7. Agents Architecture
+**Status**: Significantly designed
+**Question**: How do agents coordinate without a central director?
 
 Supporting docs:
-- [effort-scoped-context.md](brainstorm/effort-scoped-context.md) - "Agents in This Model" section
-- [refined-chat-model.md](brainstorm/refined-chat-model.md) - Agent-artifact architecture
+- [peer-agent-scenario.md](scenarios/peer-agent-scenario.md) - Full peer model scenario
+- [director-agent-scenario.md](scenarios/director-agent-scenario.md) - Director model for comparison
+- [agent-communication.md](brainstorm/agent-communication.md) - Disputes, escalation, coordination
+
+Decisions made:
+- [x] Peer model preferred (stateless agents, kanban as coordinator)
+- [x] Disputes via artifact comments + kanban backflow
+- [x] Escalation via failure_count in item metadata + model ladder
+- [x] Specialist columns for domain-specific help (future)
 
 Open questions:
-- [ ] Are subagents still needed for separate context?
-- [ ] Subagents for parallelism instead of context isolation?
-- [ ] Subagents as "effort executors" with specific instructions?
-- [ ] Interactive main agent vs autonomous subagent - when to use which?
+- [ ] Custom kanban system vs GitHub Projects?
+- [ ] Comment storage format (inline vs separate files)?
+- [ ] Specialist agent definitions (future slice)
 
 ---
 

@@ -128,3 +128,9 @@ def process_turn(
     save_state(state)
 
     return ai_response, artifact
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def conclude_effort(*args, **kwargs):
+    raise NotImplementedError('conclude_effort')

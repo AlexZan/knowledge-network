@@ -9,8 +9,12 @@ Quick reference for artifacts created/modified during this design session.
 | File | Type | One-liner |
 |------|------|-----------|
 | [effort-scoped-context.md](brainstorm/effort-scoped-context.md) | Brainstorm | **Core model**: lazy compaction, effort weight, focus constraint, escalation |
-| [director-agent-scenario.md](scenarios/director-agent-scenario.md) | Scenario | Future vision: 24/7 director spawning workers |
+| [director-agent-scenario.md](scenarios/director-agent-scenario.md) | Scenario | Director model: 24/7 orchestrator spawning workers |
+| [peer-agent-scenario.md](scenarios/peer-agent-scenario.md) | Scenario | **Peer model**: stateless agents, kanban as coordinator |
+| [agent-communication.md](brainstorm/agent-communication.md) | Brainstorm | Disputes, escalation, stateless coordination |
 | [human-context-management.md](brainstorm/human-context-management.md) | Brainstorm | Human needs artifact dashboard, visual mapping |
+| [context-and-cognition.md](brainstorm/context-and-cognition.md) | Brainstorm | Two-log model, context strategies, human cognitive needs, continuous capture |
+| [008-dev-first-pivot.md](decisions/008-dev-first-pivot.md) | Decision | **Pivot**: Generic AI → Dev-first roadmap |
 | [TODO.md](TODO.md) | Tracking | 10 open design threads with links |
 | SESSION-MAP.md | Meta | This file - session overview |
 
@@ -18,7 +22,8 @@ Quick reference for artifacts created/modified during this design session.
 
 | File | Type | Changes |
 |------|------|---------|
-| [tech-stack.md](tech-stack.md) | Decision | Full rewrite: philosophy, layers, hackable primitives, examples |
+| [tech-stack.md](tech-stack.md) | Decision | Full rewrite: philosophy, layers, hackable primitives, applications |
+| [thesis.md](thesis.md) | Vision | Added "Primitives and Applications" framing section |
 
 ---
 
@@ -28,20 +33,40 @@ Quick reference for artifacts created/modified during this design session.
 1. **Python** for CLI/tools - hackable, AI ecosystem native
 2. **Anti-monolith** - small composable pieces, everything is files
 3. **Hackable primitives** - users modify tools, instructions, schemas directly
+4. **Primitives vs Applications** - primitives are the product, applications are configurations
 
 ### Context Model
-4. **Lazy compaction** - stay large as long as possible, compact at meaningful boundaries
-5. **Effort weight** - quality/cost dial (high=max context, low=cheap)
-6. **Focus constraint tied to weight** - high=locked, low=flexible
-7. **One chat = one effort** - constraint as feature, not limitation
+5. **Lazy compaction** - stay large as long as possible, compact at meaningful boundaries
+6. **Effort weight** - quality/cost dial (high=max context, low=cheap)
+7. **Focus constraint tied to weight** - high=locked, low=flexible
+8. **One chat = one effort** - constraint as feature, not limitation
+
+### Agent Coordination
+9. **Peer model over director** - stateless agents, kanban as coordinator
+10. **Disputes via comments** - artifact comments + kanban backflow
+11. **Stateless escalation** - failure_count in item metadata + model ladder
+12. **No process dependencies** - agent dies after each attempt, item persists
 
 ### Cost Management
-8. **Model escalation** - start free/cheap, escalate after 2 failures
-9. **Effort weight influences starting tier** - critical starts at Sonnet/Opus
+13. **Model escalation** - start free/cheap, escalate after 2 failures
+14. **Effort weight influences starting tier** - critical starts at Sonnet/Opus
+15. **Configurable model ladder** - per-agent-type escalation rules
 
 ### Human Interface
-10. **Human has context limit too** - needs dashboard, artifact inventory
-11. **Visual mapping** - graphs, trees, timelines built on primitives (future)
+16. **Human has context limit too** - needs dashboard, artifact inventory
+17. **Visual mapping** - graphs, trees, timelines built on primitives (future)
+
+### Context & Storage
+18. **Two-log model** - raw log (verbatim) + summary log (manifest with artifact refs)
+19. **Chats compact to artifact refs** - artifacts are primary, chats are process
+20. **Context strategies** - chat-only, RAG-only, or hybrid based on use case
+21. **Effort weight controls context budget** - one dial for budget, compaction, focus, model
+
+### Human Cognition
+22. **Conclusion as cognitive relief** - closed loops release mental resources
+23. **Temporal grounding** - always show past/present/future state
+24. **Progress visibility** - artifacts are progress bar for knowledge work
+25. **Continuous capture** - summarize every response, don't wait for end-of-session
 
 ---
 
@@ -60,11 +85,22 @@ Quick reference for artifacts created/modified during this design session.
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  PRIMITIVES (Python)              VIEWS (Future)            │
-│  ─────────────────────            ──────────────            │
-│  artifacts, schemas    ─────────► graph, tree, kanban       │
-│  relationships         ─────────► timeline, 3D map          │
-│  tools, instructions   ─────────► custom views              │
+│  PEER AGENT MODEL                                           │
+│  ─────────────────                                          │
+│                                                             │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                 │
+│  │  story  │───►│  arch   │───►│  dev    │───► ...         │
+│  │  agent  │    │  agent  │    │  agent  │                 │
+│  └─────────┘    └─────────┘    └─────────┘                 │
+│       │              │              │                       │
+│       ▼              ▼              ▼                       │
+│   watches        watches        watches                     │
+│   column         column         column                      │
+│                                                             │
+│  • Stateless agents (die after each effort)                │
+│  • Kanban is the coordinator                                │
+│  • Artifacts are the only communication                     │
+│  • failure_count in item → model selection                  │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
@@ -74,6 +110,7 @@ Quick reference for artifacts created/modified during this design session.
 │  tools/*.py           ─── drop in functions                 │
 │  schemas/*.py         ─── Pydantic models                   │
 │  config.yaml          ─── settings                          │
+│  applications/        ─── domain configurations             │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```

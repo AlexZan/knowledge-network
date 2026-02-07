@@ -4,6 +4,39 @@
 
 ---
 
+## The Bigger Picture: Primitives and Applications
+
+This project builds a **customizable AI system from composable primitives**. The primitives are domain-agnostic; applications are configurations of those primitives for specific use cases.
+
+```
+PRIMITIVES (the building blocks)
+────────────────────────────────
+├── Efforts        - Units of focused work
+├── Artifacts      - Compacted knowledge (conclusions, facts, events)
+├── Tools          - Extensible Python functions
+├── Instructions   - Markdown prompts (system, agent)
+├── Schemas        - Pydantic data models
+├── Context Mgmt   - Lazy compaction, effort weight, focus constraint
+├── Model Ladder   - Escalation from cheap → expensive models
+└── Persistence    - Files, SQLite, everything inspectable
+
+         ↓ composed into ↓
+
+APPLICATIONS (configurations)
+────────────────────────────────
+├── Coding Assistant    ← First target (TDD pipeline)
+├── Research Assistant
+├── Writing Assistant
+├── Knowledge Base
+└── [any domain]
+```
+
+**Key insight**: The primitives ARE the product. Applications are just configurations stored in `~/.oi/applications/<name>/`.
+
+The five theses below describe the **knowledge layer** - how conversations become persistent, growing, connected knowledge. This is one set of primitives. Other primitives (tools, agents, escalation) handle execution.
+
+---
+
 ## Abstract
 
 Current AI systems compact conversations arbitrarily—when context windows fill, tokens get summarized or discarded. This treats knowledge as a storage problem rather than a reasoning problem.

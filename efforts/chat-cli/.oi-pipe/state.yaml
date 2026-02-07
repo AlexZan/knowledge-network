@@ -1,4 +1,18 @@
-stage: scenarios
+stage: tests
 artifacts:
   scenarios:
   - scenarios/scenarios.md
+  stories:
+  - stories/stories.md
+  tests:
+  - tests\test_story9_verify_token_savings_from_effort_management.py
+  tests_validation:
+    total: 4
+    passed: 2
+    failed: 2
+    errors: 0
+    review:
+      test_context_size_measured_with_open_effort: A
+      test_context_size_measured_after_concluding_effort: A
+    valid_red_phase: true
+last_updated: '2026-02-07T18:20:51.915990'

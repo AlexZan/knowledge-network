@@ -167,3 +167,41 @@ You are a development agent focused on writing code.
 | Embeddings | ChromaDB | `~/.oi/state/vectors/` | Local, no API |
 | Config | YAML | `~/.oi/config.yaml` | Human-editable |
 | Instructions | Markdown | `~/.oi/instructions/` | Just text |
+
+---
+
+## Applications: Configurations of Primitives
+
+The primitives are domain-agnostic. Applications are configurations for specific use cases.
+
+```
+~/.oi/
+├── applications/
+│   ├── coding/                    # TDD pipeline for development
+│   │   ├── agents/
+│   │   │   ├── dev-agent.md
+│   │   │   ├── test-architect.md
+│   │   │   ├── qa-agent.md
+│   │   │   └── director-agent.md
+│   │   ├── tools/
+│   │   │   └── run_tests.py
+│   │   └── config.yaml            # coding-specific settings
+│   │
+│   ├── research/                  # Different agents, same primitives
+│   │   ├── agents/
+│   │   │   ├── search-agent.md
+│   │   │   └── summarize-agent.md
+│   │   └── config.yaml
+│   │
+│   └── writing/                   # Yet another configuration
+│       ├── agents/
+│       │   ├── outline-agent.md
+│       │   └── editor-agent.md
+│       └── config.yaml
+```
+
+**First target**: Coding assistant with TDD pipeline (dev-agent, test-architect, QA, director).
+
+**Key insight**: The primitives ARE the product. Applications are just configurations.
+
+See [thesis.md](thesis.md) for the full vision.

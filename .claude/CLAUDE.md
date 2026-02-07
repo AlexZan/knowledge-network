@@ -28,6 +28,14 @@ Never recreate content that already exists in another markdown file. Always use 
 | `docs/JOURNEY.md` | Implementation progress, pivots, current status |
 | `docs/decisions/*.md` | Architectural decisions |
 
+## Brainstorming vs. Implementing
+
+**CRITICAL**: When discussing/brainstorming solutions with the user, do NOT implement or run commands until the user explicitly says to do so (e.g., "do it", "go ahead", "implement that"). Discussion of a solution is NOT approval to build it.
+
+- Brainstorming = talking about options, analyzing problems, proposing fixes
+- Implementing = editing files, running scripts, making changes
+- The boundary is explicit user approval — never cross it on your own
+
 ## Development Approach
 
 ### TDD Pipeline Tool (oi-pipe)

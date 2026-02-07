@@ -12,17 +12,24 @@ class Artifact(BaseModel):
     Default types: effort, fact, event
 
     When an effort is resolved, the resolution field captures the outcome.
+
+    States:
+    - open: Actively working on this
+    - resolved: Concluded with a resolution
+    - archived: Inactive after period of no activity (can be reopened)
     """
     id: str
     artifact_type: str  # Dynamic - loaded from schema config
     summary: str
-    status: Literal["open", "resolved"] | None = None  # For types with has_status
+    status: Literal["open", "resolved", "archived"] | None = None  # For types with has_status
     resolution: str | None = None  # What was decided/concluded (for resolved)
+    parent_id: str | None = None  # ID of parent artifact (for hierarchy)
     related_to: str | None = None  # ID of related artifact
     tags: list[str] = Field(default_factory=list)
     ref_count: int = 0  # For expiration: how often referenced
     expires: bool = False  # Whether this can expire
     created: datetime = Field(default_factory=datetime.now)
+    updated: datetime = Field(default_factory=datetime.now)  # Last activity
 
 
 class ConversationState(BaseModel):
@@ -34,12 +41,21 @@ class ConversationState(BaseModel):
     artifacts: list[Artifact] = Field(default_factory=list)
 
     def get_open_efforts(self) -> list[Artifact]:
-        """Get all open efforts (unresolved work)."""
+        """Get all open efforts (actively working)."""
         return [a for a in self.artifacts if a.artifact_type == "effort" and a.status == "open"]
 
     def get_resolved_efforts(self) -> list[Artifact]:
         """Get all resolved efforts (completed work with conclusions)."""
         return [a for a in self.artifacts if a.artifact_type == "effort" and a.status == "resolved"]
+
+    def get_archived_efforts(self) -> list[Artifact]:
+        """Get all archived efforts (inactive, can be reopened)."""
+        return [a for a in self.artifacts if a.artifact_type == "effort" and a.status == "archived"]
+
+    def get_recent_efforts(self, limit: int = 5) -> list[Artifact]:
+        """Get most recently updated efforts (any status), sorted by updated time."""
+        efforts = [a for a in self.artifacts if a.artifact_type == "effort"]
+        return sorted(efforts, key=lambda a: a.updated, reverse=True)[:limit]
 
     def get_facts(self) -> list[Artifact]:
         """Get all fact artifacts."""

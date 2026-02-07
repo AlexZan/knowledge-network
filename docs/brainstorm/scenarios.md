@@ -243,9 +243,9 @@ These scenarios inform how the AI retrieves context using tools.
 ### Scenario: State Query
 **User:** "What are we working on?"
 
-**AI behavior:** Calls `get_open_objectives()` + `get_recent_resolved(5)`
+**AI behavior:** Calls `get_open_efforts()` + `get_recent_resolved(5)`
 
-**Response:** "You have 3 open objectives for Project X:
+**Response:** "You have 3 open efforts for Project X:
 1. Fix login bug
 2. Add dark mode
 3. Refactor auth
@@ -261,11 +261,11 @@ Want to continue one of these?"
 ### Scenario: Continue Last
 **User:** "Let's continue from where we left off"
 
-**AI behavior:** Calls `get_open_objectives()`, sorts by `updated` timestamp, picks most recent.
+**AI behavior:** Calls `get_open_efforts()`, sorts by `updated` timestamp, picks most recent.
 
-**Key insight:** Need `updated` timestamp, not just `created`. Most recently *active* objective, not most recently *created*.
+**Key insight:** Need `updated` timestamp, not just `created`. Most recently *active* effort, not most recently *created*.
 
-**Response:** "Last time we were working on [most recent objective]. Want to continue?"
+**Response:** "Last time we were working on [most recent effort]. Want to continue?"
 
 **Artifact created?** No - just retrieval + confirmation.
 
@@ -274,11 +274,11 @@ Want to continue one of these?"
 ### Scenario: Topic Query
 **User:** "My skin condition is getting worse"
 
-**AI behavior:** Calls `search_artifacts("health skin condition")`, finds related objective (even if resolved).
+**AI behavior:** Calls `search_artifacts("health skin condition")`, finds related effort (even if resolved).
 
 **Response:** Uses history: "Last time we tried cream X and it worked for a bit. What's happening now?"
 
-**Artifact created?** Maybe - updates existing objective or creates child effort.
+**Artifact created?** Maybe - updates existing effort or creates child effort.
 
 ---
 
@@ -299,16 +299,126 @@ The AI has retrieval tools available and decides which to use:
 
 ```
 Tools:
-├── get_open_objectives()        # Current work
+├── get_open_efforts()           # Current work
 ├── get_recent_resolved(n)       # Recently finished
 ├── search_artifacts(query)      # Find by tags/keywords/summary
 └── search_chatlog(query)        # Raw history fallback
 
 Instructions:
 "Use retrieval tools based on what user is asking.
-State queries → get open objectives.
+State queries → get open efforts.
 Topic queries → search by relevance.
 You can combine tools."
 ```
 
 This is standard tool use - one LLM call, AI decides what context it needs.
+
+---
+
+## Edge Case Scenarios
+
+These scenarios clarify when to create artifacts vs just use chat log.
+
+### Scenario A: Emotional/Relationship (No Clear Goal)
+**User:** "I had a huge fight with my sister last night"
+
+**Analysis:**
+- No clear goal/effort - user is sharing, not trying to accomplish something
+- Without specialized handling (e.g., therapist agent), we can't systematically help
+- Conversation might evolve into clearer effort ("help me apologize")
+
+**Artifact created?** No - just chat log for now.
+
+**Rationale:** Without systemic capability to handle this type of conversation, don't force an artifact. The conversation might naturally evolve into a clearer effort. Raw chat log preserves everything for future recall.
+
+**Future:** With specialized agents (therapist, relationship coach), could create structured efforts: "Process fight", "Plan resolution", "Prevent future conflicts".
+
+---
+
+### Scenario B: Throwaway Utility Query
+**User:** "Convert 50 USD to EUR"
+**AI:** "That's about 46 EUR at current rates"
+**User:** "Thanks"
+
+**Analysis:**
+- Truly one-off, no lasting value
+- User unlikely to reference this later
+- No effort, no fact worth keeping
+
+**Artifact created?** No - just chat log.
+
+**Rationale:** Not everything needs compression artifacts. Chat log is searchable for recall ("what was that amount I asked you to convert?"). Don't pollute artifact space with throwaway queries.
+
+---
+
+### Scenario C: Trivial Decision (Still an Effort!)
+**User:** "Help me name my new cat"
+*[Back and forth with suggestions]*
+**User:** "Okay, I'll go with Luna"
+
+**Analysis:**
+- User had a goal (name cat)
+- Conversation happened
+- Decision was reached ("Luna")
+
+**Artifact created?** YES - effort with resolution.
+
+```
+[effort:resolved] Name user's new cat
+  => User decided on "Luna"
+```
+
+**Rationale:** No matter how trivial it seems to us, the user cared enough to ask. That's what matters. The artifact respects the user's investment. Might be referenced later ("How's Luna doing?").
+
+**Key insight:** Our judgment of "trivial" doesn't matter. If user spent time and reached a conclusion, it's an effort.
+
+---
+
+### Scenario D: Open-Ended Learning (May Never Complete)
+**User:** "I want to learn about WW2"
+*[Extended conversation about causes, timeline, key events]*
+**User:** "Please create a timeline of major events"
+*[AI creates document]*
+*[User doesn't return for weeks]*
+
+**Analysis:**
+- Parent effort: "Learn about WW2"
+- Child efforts emerge: "Understand causes", "Create timeline"
+- May never explicitly "complete" - user just stops coming back
+
+**Artifact structure:**
+```
+[effort:open] Learn about WW2
+  ├── [effort:resolved] Understand how it started
+  │   => Discussed Treaty of Versailles, rise of fascism
+  ├── [effort:resolved] Create timeline of major events
+  │   => links to document artifact
+  └── [No activity for X weeks → auto-archive]
+```
+
+**New state needed: `archived`**
+- Not resolved (user didn't say "I've learned enough")
+- Not actively open (no recent activity)
+- Preserved for future, not cluttering active view
+
+**Rationale:** Some efforts don't have natural resolution points. They fade rather than conclude. Archiving after inactivity keeps the active list clean while preserving history.
+
+---
+
+## Artifact States
+
+Based on these scenarios, we need three states:
+
+| State | Meaning | Shows in "What are we working on?" |
+|-------|---------|-----------------------------------|
+| `open` | Actively working | Yes |
+| `resolved` | Concluded with resolution | No (but in "recently finished") |
+| `archived` | Inactive, auto-archived after X time | No (searchable, can reopen) |
+
+Transitions:
+```
+open → resolved   (user concludes)
+open → archived   (inactivity timeout)
+archived → open   (user returns to topic)
+resolved → open   (rare: resolution didn't hold, e.g., skin condition returned)
+```
