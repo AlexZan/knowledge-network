@@ -120,7 +120,7 @@ def build_turn_context(state, session_dir):
     sections = []
 
     # Section 1: Open Efforts (current work) - highest priority
-    open_efforts = state.get_open_efforts()
+    open_efforts = state.get_open_efforts() if state else []
     if open_efforts:
         sections.append("# Open Efforts (Current Work)")
         for effort in open_efforts:
@@ -146,7 +146,7 @@ def build_turn_context(state, session_dir):
         sections.append("")
 
     # Section 2: Resolved Artifacts (past work with conclusions)
-    resolved_efforts = state.get_resolved_efforts()
+    resolved_efforts = state.get_resolved_efforts() if state else []
     if resolved_efforts:
         sections.append("# Resolved Efforts (Past Work)")
         for effort in resolved_efforts:
@@ -158,13 +158,32 @@ def build_turn_context(state, session_dir):
         sections.append("")
 
     # Section 3: Archived Efforts
-    archived_efforts = state.get_archived_efforts()
+    archived_efforts = state.get_archived_efforts() if state else []
     if archived_efforts:
         sections.append("# Archived Efforts (Inactive)")
         for effort in archived_efforts:
             sections.append(f"- {effort.summary}")
             if effort.tags:
                 sections.append(f"  Tags: {', '.join(effort.tags)}")
+        sections.append("")
+
+    # Section 4: Recent Conversation (ambient messages from raw.jsonl)
+    raw_log = session_dir / "raw.jsonl"
+    if raw_log.exists():
+        sections.append("# Recent Conversation")
+        try:
+            with open(raw_log, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            # Read lines in reverse order to show most recent first
+            for line in reversed(lines):
+                line = line.strip()
+                if line:
+                    entry = json.loads(line)
+                    role = entry.get('role', 'unknown')
+                    content = entry.get('content', '')
+                    sections.append(f"{role.capitalize()}: {content}")
+        except (json.JSONDecodeError, IOError):
+            pass
         sections.append("")
 
     return "\n".join(sections)
