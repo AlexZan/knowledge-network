@@ -357,7 +357,38 @@ def detect_effort_conclusion(state, user_message):
 # --- TDD Stubs (auto-generated, implement these) ---
 
 def detect_effort_start_phrase(message):
-    raise NotImplementedError('detect_effort_start_phrase')
+    """Detect if a user message contains a phrase that starts a new effort.
+    
+    Args:
+        message: User message to check
+        
+    Returns:
+        True if message contains effort start phrase, False otherwise
+    """
+    import re
+    
+    lower_message = message.lower()
+    
+    # Patterns for effort opening
+    patterns = [
+        r"i want to work on",
+        r"let's work on",
+        r"lets work on",
+        r"can we work on",
+        r"work on",
+        r"let's debug",
+        r"lets debug",
+        r"i want to start a new effort",
+        r"start a new effort",
+        r"can we look at",
+        r"let's look at",
+    ]
+    
+    for pattern in patterns:
+        if re.search(pattern, lower_message):
+            return True
+    
+    return False
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
