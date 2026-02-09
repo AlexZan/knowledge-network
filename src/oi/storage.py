@@ -47,23 +47,35 @@ def load_state(state_dir: Path = DEFAULT_STATE_DIR) -> ConversationState:
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def save_exchange_and_update_state(*args, **kwargs):
+def save_exchange_and_update_state(session_dir, target, user_message, assistant_response, state):
     raise NotImplementedError('save_exchange_and_update_state')
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def conclude_effort(*args, **kwargs):
+def conclude_effort(arg0, session_dir, arg2):
     raise NotImplementedError('conclude_effort')
 
-def save_to_effort_log(*args, **kwargs):
+def save_to_effort_log(arg0, efforts_dir, arg2, user_message):
     raise NotImplementedError('save_to_effort_log')
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def create_new_effort_file(*args, **kwargs):
+def create_new_effort_file(session_dir, effort_id, arg2):
     raise NotImplementedError('create_new_effort_file')
 
-def update_manifest_for_new_effort(*args, **kwargs):
+def update_manifest_for_new_effort(session_dir, effort_id, effort_summary):
     raise NotImplementedError('update_manifest_for_new_effort')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def save_message_to_effort_log(session_dir, arg1, user_message):
+    raise NotImplementedError('save_message_to_effort_log')
+
+def add_effort_to_manifest(session_dir, arg1, arg2):
+    raise NotImplementedError('add_effort_to_manifest')
+
+def create_effort_file(session_dir, arg1):
+    raise NotImplementedError('create_effort_file')

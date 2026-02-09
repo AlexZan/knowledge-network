@@ -92,11 +92,11 @@ def calculate_effort_stats(messages: list[dict], artifact_text: str, model: str 
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def measure_context_size(*args, **kwargs):
+def measure_context_size(session_dir, arg1):
     raise NotImplementedError('measure_context_size')
 
-def calculate_effort_savings(*args, **kwargs):
+def calculate_effort_savings(arg0, session_dir, arg2):
     raise NotImplementedError('calculate_effort_savings')
 
-def compare_effort_to_summary(*args, **kwargs):
+def compare_effort_to_summary(arg0, session_dir, arg2):
     raise NotImplementedError('compare_effort_to_summary')

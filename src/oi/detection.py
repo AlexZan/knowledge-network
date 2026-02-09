@@ -304,11 +304,17 @@ class ResolutionDetector:
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def detect_effort_conclusion(*args, **kwargs):
+def detect_effort_conclusion(state, user_message):
     raise NotImplementedError('detect_effort_conclusion')
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def detect_effort_start_phrase(*args, **kwargs):
+def detect_effort_start_phrase(message):
     raise NotImplementedError('detect_effort_start_phrase')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def detect_effort_opening(message):
+    raise NotImplementedError('detect_effort_opening')

@@ -86,5 +86,17 @@ def search(
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def log_exchange(*args, **kwargs):
+def log_exchange(session_dir, arg1, arg2, arg3, arg4, arg5):
     raise NotImplementedError('log_exchange')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def save_ambient_exchange(role, content, raw_log):
+    raise NotImplementedError('save_ambient_exchange')
+
+def save_ambient_message(state, message, raw_log):
+    raise NotImplementedError('save_ambient_message')
+
+def save_ambient_response(response, raw_log):
+    raise NotImplementedError('save_ambient_response')

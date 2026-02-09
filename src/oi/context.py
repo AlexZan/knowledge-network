@@ -51,17 +51,23 @@ def build_context(state: ConversationState, recent_messages: list) -> str:
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def build_ambient_context(*args, **kwargs):
+def build_ambient_context(session_dir, user_message):
     raise NotImplementedError('build_ambient_context')
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def format_conclusion_confirmation(*args, **kwargs):
+def format_conclusion_confirmation(effort_id, summary):
     raise NotImplementedError('format_conclusion_confirmation')
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def build_turn_context(*args, **kwargs):
+def build_turn_context(state, session_dir):
     raise NotImplementedError('build_turn_context')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def build_conversation_context(state, raw_log):
+    raise NotImplementedError('build_conversation_context')

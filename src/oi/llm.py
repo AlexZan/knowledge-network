@@ -68,5 +68,5 @@ def extract_conclusion(thread_messages: list[dict], model: str = DEFAULT_MODEL) 
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def create_effort_summary(*args, **kwargs):
+def create_effort_summary(effort_content, arg1):
     raise NotImplementedError('create_effort_summary')
