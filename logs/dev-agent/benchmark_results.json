@@ -1,0 +1,29 @@
+[
+  {
+    "model": "deepseek/deepseek-chat",
+    "passed": true,
+    "time_s": 8.3,
+    "wall_s": 10.0,
+    "tokens_in": 10853,
+    "tokens_out": 196,
+    "error": null
+  },
+  {
+    "model": "glm/glm-4.7-thinking",
+    "passed": true,
+    "time_s": 16.8,
+    "wall_s": 18.8,
+    "tokens_in": 10197,
+    "tokens_out": 833,
+    "error": null
+  },
+  {
+    "model": "deepseek/deepseek-reasoner",
+    "passed": true,
+    "time_s": 71.8,
+    "wall_s": 73.9,
+    "tokens_in": 10853,
+    "tokens_out": 2254,
+    "error": null
+  }
+]
