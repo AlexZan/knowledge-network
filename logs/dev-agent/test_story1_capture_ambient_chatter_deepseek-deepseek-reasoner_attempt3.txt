@@ -1,0 +1,119 @@
+FILE: src/oi\chatlog.py
+FIND:
+def save_ambient_exchange(role, content, raw_log):
+    raise NotImplementedError('save_ambient_exchange')
+REPLACE:
+def save_ambient_exchange(role, content, raw_log):
+    """Save an ambient exchange (user or assistant) to the raw log."""
+    from datetime import datetime
+    import json
+    
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "role": role,
+        "content": content
+    }
+    
+    raw_log.parent.mkdir(parents=True, exist_ok=True)
+    with open(raw_log, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+END
+
+FILE: src\oi\chatlog.py
+FIND:
+def save_ambient_message(state, message, raw_log):
+    raise NotImplementedError('save_ambient_message')
+REPLACE:
+def save_ambient_message(state, message, raw_log):
+    """Save an ambient user message to the raw log."""
+    save_ambient_exchange("user", message, raw_log)
+END
+
+FILE: src\oi\chatlog.py
+FIND:
+def save_ambient_response(response, raw_log):
+    raise NotImplementedError('save_ambient_response')
+REPLACE:
+def save_ambient_response(response, raw_log):
+    """Save an ambient assistant response to the raw log."""
+    save_ambient_exchange("assistant", response, raw_log)
+END
+
+FILE: src\oi\context.py
+FIND:
+def build_conversation_context(state, raw_log):
+    raise NotImplementedError('build_conversation_context')
+REPLACE:
+def build_conversation_context(state, raw_log):
+    """Build context string from ambient exchanges in raw log.
+
+    Most recent exchanges appear first (newest at top).
+    """
+    import json
+    
+    if not raw_log.exists():
+        return ""
+
+    with open(raw_log, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    # Parse each line as JSON
+    exchanges = [json.loads(line) for line in lines]
+    # Get the last 10 exchanges (or fewer if less available)
+    recent_exchanges = exchanges[-10:]
+
+    # Build the context string with a header
+    context_lines = ["# Recent Ambient Chat", ""]
+    for exchange in reversed(recent_exchanges):
+        role = exchange.get("role", "unknown")
+        content = exchange.get("content", "")
+        context_lines.append(f"{role.capitalize()}: {content}")
+
+    return "\n".join(context_lines)
+END
+
+FILE: src\oi\routing.py
+FIND:
+def route_message(state, message):
+    raise NotImplementedError('route_message')
+REPLACE:
+def route_message(state, message):
+    """Route a message to either an open effort or ambient.
+
+    Returns:
+        "ambient" if no open efforts or message not related to any open effort.
+        Otherwise, returns the effort ID that the message relates to.
+    """
+    # Check for open efforts
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
+        return "ambient"
+
+    # Otherwise, try to detect which effort it relates to
+    from oi.detection import detect_effort_relation
+    return detect_effort_relation(message, state)
+END
+
+FILE: src\oi\detection.py
+FIND:
+def detect_effort_opening(message):
+    raise NotImplementedError('detect_effort_opening')
+REPLACE:
+def detect_effort_opening(message):
+    raise NotImplementedError('detect_effort_opening')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def detect_effort_relation(message, state):
+    """Detect which open effort a message relates to.
+
+    Args:
+        message: User message string
+        state: ConversationState
+
+    Returns:
+        String effort ID or "ambient" if no relation found.
+    """
+    raise NotImplementedError('detect_effort_relation')
+END

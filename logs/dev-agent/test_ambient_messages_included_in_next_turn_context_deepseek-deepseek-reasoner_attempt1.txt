@@ -1,0 +1,74 @@
+FILE: src\oi\context.py
+FIND:
+"""Build context strings for LLM from conversation state and messages."""
+
+from oi.models import ConversationState
+REPLACE:
+"""Build context strings for LLM from conversation state and messages."""
+
+import json
+from pathlib import Path
+from oi.models import ConversationState
+END
+
+FILE: src\oi\context.py
+FIND:
+def build_conversation_context(state, raw_log):
+    raise NotImplementedError('build_conversation_context')
+REPLACE:
+def build_conversation_context(state: ConversationState, raw_log: Path) -> str:
+    """Build conversation context from state and raw log.
+
+    Args:
+        state: ConversationState with artifacts
+        raw_log: Path to raw.jsonl file with ambient exchanges
+
+    Returns:
+        String containing formatted context for LLM
+    """
+    sections = []
+
+    # Section 1: Open Efforts (current work) - highest priority
+    open_efforts = state.get_open_efforts()
+    if open_efforts:
+        sections.append("# Open Efforts (Current Work)")
+        for effort in open_efforts:
+            sections.append(f"- {effort.summary}")
+            if effort.tags:
+                sections.append(f"  Tags: {', '.join(effort.tags)}")
+        sections.append("")
+
+    # Section 2: Resolved Artifacts (past work with conclusions)
+    resolved_efforts = state.get_resolved_efforts()
+    if resolved_efforts:
+        sections.append("# Resolved Efforts (Past Work)")
+        for effort in resolved_efforts:
+            sections.append(f"- {effort.summary}")
+            if effort.resolution:
+                sections.append(f"  Resolution: {effort.resolution}")
+            if effort.tags:
+                sections.append(f"  Tags: {', '.join(effort.tags)}")
+        sections.append("")
+
+    # Section 3: Ambient Conversation from raw log
+    ambient_exchanges = []
+    if raw_log.exists():
+        with open(raw_log, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    exchange = json.loads(line)
+                    ambient_exchanges.append(exchange)
+                except json.JSONDecodeError:
+                    # Skip invalid lines
+                    continue
+
+    if ambient_exchanges:
+        sections.append("# Ambient Chat")
+        for exchange in ambient_exchanges:
+            role = exchange.get('role', 'unknown').capitalize()
+            content = exchange.get('content', '')
+            sections.append(f"{role}: {content}")
+        sections.append("")
+
+    return "\n".join(sections)
+END

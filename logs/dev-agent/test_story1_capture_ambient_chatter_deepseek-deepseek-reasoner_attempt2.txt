@@ -1,0 +1,41 @@
+FILE: src/oi/routing.py
+FIND:
+def route_message(state, message):
+    raise NotImplementedError('route_message')
+REPLACE:
+def route_message(state, message):
+    """Route a message to either an open effort or ambient chat.
+    
+    Returns:
+        - If no open efforts: "ambient"
+        - If open efforts and message is related to one: effort id
+        - If open efforts but message not related: "ambient"
+    """
+    # Get open efforts
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
+        return "ambient"
+    
+    # Check if message is related to any open effort
+    effort_id = detect_effort_relation(message, state)
+    if effort_id:
+        return effort_id
+    else:
+        return "ambient"
+END
+
+FILE: src/oi/routing.py
+FIND:
+# --- TDD Stubs (auto-generated, implement these) ---
+REPLACE:
+def detect_effort_relation(message, state):
+    """Detect if a message is related to an open effort.
+    
+    Returns:
+        The id of the related effort, or None if not related.
+    """
+    # For now, return None. This can be enhanced with keyword matching or LLM.
+    return None
+
+# --- TDD Stubs (auto-generated, implement these) ---
+END

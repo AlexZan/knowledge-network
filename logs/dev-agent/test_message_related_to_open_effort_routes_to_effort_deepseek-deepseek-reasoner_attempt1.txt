@@ -1,0 +1,56 @@
+FILE: src/oi/routing.py
+FIND:
+"""Stub module: oi.routing (auto-generated for TDD)."""
+
+def route_message(state, message):
+    """Route a message to either an open effort or ambient chat."""
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
+        return "ambient"
+    # TODO: Implement effort routing logic
+    return "effort"
+
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def route_message_to_effort(state, arg1):
+    raise NotImplementedError('route_message_to_effort')
+
+def save_message_appropriately(session_dir, message, current_effort):
+    raise NotImplementedError('save_message_appropriately')
+REPLACE:
+"""Stub module: oi.routing (auto-generated for TDD)."""
+
+def detect_effort_relation(message, state):
+    """Detect which open effort a message is related to.
+    
+    Returns:
+        The ID of the related effort, or None if no relation is detected.
+    """
+    # TODO: Implement proper detection (e.g., using LLM or keyword matching)
+    return None
+
+def route_message(state, message):
+    """Route a message to either an open effort or ambient chat."""
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
+        return "ambient"
+    
+    effort_id = detect_effort_relation(message, state)
+    if effort_id:
+        return effort_id
+    else:
+        # If we cannot determine which effort, then we treat it as ambient.
+        return "ambient"
+
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def route_message_to_effort(state, arg1):
+    raise NotImplementedError('route_message_to_effort')
+
+def save_message_appropriately(session_dir, message, current_effort):
+    raise NotImplementedError('save_message_appropriately')
+END

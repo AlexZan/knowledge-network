@@ -1,0 +1,43 @@
+FILE: src\oi\chatlog.py
+FIND:
+"""Raw chat log - append-only permanent record."""
+
+import json
+from pathlib import Path
+from datetime import datetime
+from typing import Any
+
+DEFAULT_STATE_DIR = Path.home() / ".oi"
+
+
+def get_chatlog_path(state_dir: Path = DEFAULT_STATE_DIR) -> Path:
+REPLACE:
+"""Raw chat log - append-only permanent record."""
+
+import json
+from pathlib import Path
+from datetime import datetime
+from typing import Any
+
+DEFAULT_STATE_DIR = Path.home() / ".oi"
+
+
+def append_message(role: str, content: str, log_file: Path) -> None:
+    """Append a single message to a log file.
+
+    Args:
+        role: Message role (e.g., "user", "assistant")
+        content: Message content
+        log_file: Path to the log file
+    """
+    entry = {
+        "role": role,
+        "content": content,
+    }
+
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def get_chatlog_path(state_dir: Path = DEFAULT_STATE_DIR) -> Path:
+END

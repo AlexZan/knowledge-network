@@ -1,0 +1,13 @@
+FILE: src\oi\routing.py
+FIND:
+def route_message(state, message):
+    raise NotImplementedError('route_message')
+REPLACE:
+def route_message(state, message):
+    """Route a message to either an open effort or ambient chat."""
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
+        return "ambient"
+    # TODO: Implement effort routing logic
+    return "effort"
+END

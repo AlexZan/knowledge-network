@@ -1,0 +1,167 @@
+Looking at the failing test, I need to implement several new functions that are currently stubs. The test is testing Story 1: Capture Ambient Chatter, which involves:
+
+1. Functions in `oi.chatlog`: `save_ambient_message`, `save_ambient_response`, `save_ambient_exchange`
+2. Function in `oi.context`: `build_conversation_context`
+3. Function in `oi.routing`: `route_message`
+
+I need to implement these functions according to the test expectations.
+
+FILE: src\oi\chatlog.py
+FIND:
+def save_ambient_message(state, message, raw_log):
+    raise NotImplementedError('save_ambient_message')
+
+REPLACE:
+def save_ambient_message(state, message, raw_log):
+    """Save an ambient user message to raw.jsonl."""
+    from datetime import datetime
+    import json
+    
+    entry = {
+        "role": "user",
+        "content": message,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    raw_log.parent.mkdir(parents=True, exist_ok=True)
+    with open(raw_log, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+END
+
+FILE: src\oi\chatlog.py
+FIND:
+def save_ambient_response(response, raw_log):
+    raise NotImplementedError('save_ambient_response')
+
+REPLACE:
+def save_ambient_response(response, raw_log):
+    """Save an ambient assistant response to raw.jsonl."""
+    from datetime import datetime
+    import json
+    
+    entry = {
+        "role": "assistant",
+        "content": response,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    raw_log.parent.mkdir(parents=True, exist_ok=True)
+    with open(raw_log, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+END
+
+FILE: src\oi\chatlog.py
+FIND:
+def save_ambient_exchange(role, content, raw_log):
+    raise NotImplementedError('save_ambient_exchange')
+
+REPLACE:
+def save_ambient_exchange(role, content, raw_log):
+    """Save an ambient exchange to raw.jsonl."""
+    from datetime import datetime
+    import json
+    
+    entry = {
+        "role": role,
+        "content": content,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    raw_log.parent.mkdir(parents=True, exist_ok=True)
+    with open(raw_log, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+END
+
+FILE: src\oi\context.py
+FIND:
+def build_conversation_context(state, raw_log):
+    raise NotImplementedError('build_conversation_context')
+
+REPLACE:
+def build_conversation_context(state, raw_log):
+    """Build context from ambient conversation in raw.jsonl.
+    
+    Args:
+        state: ConversationState with artifacts
+        raw_log: Path to raw.jsonl file
+        
+    Returns:
+        String containing formatted ambient context
+    """
+    import json
+    from pathlib import Path
+    
+    if not Path(raw_log).exists():
+        return ""
+    
+    # Read all exchanges
+    exchanges = []
+    with open(raw_log, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                entry = json.loads(line.strip())
+                exchanges.append(entry)
+            except json.JSONDecodeError:
+                continue
+    
+    # Sort by timestamp in reverse order (most recent first)
+    exchanges.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    
+    # Build context string
+    sections = ["# Ambient Chat (Most Recent First)"]
+    
+    for exchange in exchanges:
+        role = exchange.get("role", "unknown").capitalize()
+        content = exchange.get("content", "")
+        sections.append(f"{role}: {content}")
+    
+    return "\n".join(sections)
+END
+
+FILE: src\oi\routing.py
+FIND:
+def route_message(state, message):
+    raise NotImplementedError('route_message')
+
+REPLACE:
+def route_message(state, message):
+    """Route a message to either an open effort or ambient chat.
+    
+    Args:
+        state: ConversationState with artifacts
+        message: User message
+        
+    Returns:
+        "ambient" or effort ID string
+    """
+    open_efforts = state.get_open_efforts()
+    
+    if not open_efforts:
+        return "ambient"
+    
+    # Try to detect which effort this message relates to
+    # For now, return the first open effort ID
+    # In a real implementation, this would use more sophisticated detection
+    return open_efforts[0].id
+END
+
+FILE: src\oi\routing.py
+FIND:
+def save_message_appropriately(session_dir, message, current_effort):
+    raise NotImplementedError('save_message_appropriately')
+
+REPLACE:
+def save_message_appropriately(session_dir, message, current_effort):
+    raise NotImplementedError('save_message_appropriately')
+
+def detect_effort_relation(message, state):
+    """Detect which open effort a message relates to.
+    
+    This is a stub that would be implemented with LLM or keyword matching.
+    For now, returns the ID of the first open effort.
+    """
+    open_efforts = state.get_open_efforts()
+    if open_efforts:
+        return open_efforts[0].id
+    return None
+END

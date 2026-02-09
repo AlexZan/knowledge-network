@@ -1,0 +1,167 @@
+FILE: src/oi/conversation.py
+FIND:
+import uuid
+from datetime import datetime
+
+from .models import ConversationState, Artifact
+from .storage import load_state, save_state
+from .chatlog import append_exchange, read_recent
+REPLACE:
+import uuid
+from datetime import datetime
+from pathlib import Path
+
+from .models import ConversationState, Artifact
+from .storage import load_state, save_state
+from .session import append_exchange, read_recent
+END
+
+FILE: src/oi/conversation.py
+FIND:
+def build_context(state: ConversationState) -> list[dict]:
+    """Build context for LLM from artifacts and recent chat history.
+
+    Includes:
+    - System prompt with artifacts summary
+    - Recent chat history (for conversation continuity)
+    """
+    system_parts = [
+        load_prompt("system").strip(),
+        ""
+    ]
+
+    # Add open efforts
+    open_efforts = state.get_open_efforts()
+    if open_efforts:
+        system_parts.append("Current open efforts (work in progress):")
+        for e in open_efforts:
+            system_parts.append(f"- {e.summary}")
+        system_parts.append("")
+
+    # Add recent resolved efforts
+    resolved = state.get_resolved_efforts()[-5:]  # Last 5
+    if resolved:
+        system_parts.append("Recent decisions/conclusions:")
+        for e in resolved:
+            system_parts.append(f"- {e.summary}: {e.resolution}")
+        system_parts.append("")
+
+    # Add facts
+    facts = state.get_facts()[-10:]  # Last 10
+    if facts:
+        system_parts.append("Known facts:")
+        for f in facts:
+            system_parts.append(f"- {f.summary}")
+        system_parts.append("")
+
+    messages = [{"role": "system", "content": "\n".join(system_parts)}]
+
+    # Add recent chat history for continuity
+    recent = read_recent(limit=5)
+    for exchange in recent:
+        messages.append({"role": "user", "content": exchange["user"]})
+        messages.append({"role": "assistant", "content": exchange["assistant"]})
+
+    return messages
+REPLACE:
+def build_context(state: ConversationState, state_dir: Path = None) -> list[dict]:
+    """Build context for LLM from artifacts and recent chat history.
+
+    Includes:
+    - System prompt with artifacts summary
+    - Recent chat history (for conversation continuity)
+    """
+    system_parts = [
+        load_prompt("system").strip(),
+        ""
+    ]
+
+    # Add open efforts
+    open_efforts = state.get_open_efforts()
+    if open_efforts:
+        system_parts.append("Current open efforts (work in progress):")
+        for e in open_efforts:
+            system_parts.append(f"- {e.summary}")
+        system_parts.append("")
+
+    # Add recent resolved efforts
+    resolved = state.get_resolved_efforts()[-5:]  # Last 5
+    if resolved:
+        system_parts.append("Recent decisions/conclusions:")
+        for e in resolved:
+            system_parts.append(f"- {e.summary}: {e.resolution}")
+        system_parts.append("")
+
+    # Add facts
+    facts = state.get_facts()[-10:]  # Last 10
+    if facts:
+        system_parts.append("Known facts:")
+        for f in facts:
+            system_parts.append(f"- {f.summary}")
+        system_parts.append("")
+
+    messages = [{"role": "system", "content": "\n".join(system_parts)}]
+
+    # Add recent chat history for continuity
+    recent = read_recent(limit=5, state_dir=state_dir)
+    for exchange in recent:
+        messages.append({"role": "user", "content": exchange["user"]})
+        messages.append({"role": "assistant", "content": exchange["assistant"]})
+
+    return messages
+END
+
+FILE: src/oi/conversation.py
+FIND:
+def process_turn(
+    state: ConversationState,
+    user_input: str,
+    model: str
+) -> tuple[str, Artifact | None]:
+    """Process a single conversation turn.
+
+    Args:
+        state: Current conversation state
+        user_input: User's message
+        model: LLM model to use
+
+    Returns:
+        Tuple of (ai_response, artifact_if_created)
+    """
+    # Build context from artifacts
+    context = build_context(state)
+    context.append({"role": "user", "content": user_input})
+
+    # Get AI response
+    ai_response = chat(context, model)
+
+    # Always append to raw chat log (permanent record)
+    append_exchange(user_input, ai_response)
+REPLACE:
+def process_turn(
+    state: ConversationState,
+    user_input: str,
+    model: str,
+    state_dir: Path = None
+) -> tuple[str, Artifact | None]:
+    """Process a single conversation turn.
+
+    Args:
+        state: Current conversation state
+        user_input: User's message
+        model: LLM model to use
+        state_dir: Directory for state files
+
+    Returns:
+        Tuple of (ai_response, artifact_if_created)
+    """
+    # Build context from artifacts
+    context = build_context(state, state_dir)
+    context.append({"role": "user", "content": user_input})
+
+    # Get AI response
+    ai_response = chat(context, model)
+
+    # Always append to raw chat log (permanent record)
+    append_exchange(user_input, ai_response, state_dir=state_dir)
+END

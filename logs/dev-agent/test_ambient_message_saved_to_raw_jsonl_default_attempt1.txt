@@ -1,0 +1,6 @@
+```json
+{
+  "FIND": "from oi.chatlog import save_ambient_message",
+  "REPLACE": "from oi.storage import save_state"
+}
+```

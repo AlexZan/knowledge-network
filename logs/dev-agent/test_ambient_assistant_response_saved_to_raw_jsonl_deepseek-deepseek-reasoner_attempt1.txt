@@ -1,0 +1,19 @@
+FILE: src\oi\chatlog.py
+FIND:
+def save_ambient_response(response, raw_log):
+    raise NotImplementedError('save_ambient_response')
+REPLACE:
+def save_ambient_response(response, raw_log):
+    """Save an assistant response to the raw log when not in an effort."""
+    # Ensure parent directory exists
+    raw_log.parent.mkdir(parents=True, exist_ok=True)
+    
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "role": "assistant",
+        "content": response
+    }
+    
+    with open(raw_log, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+END

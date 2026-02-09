@@ -1,0 +1,56 @@
+FILE: src/oi/chatlog.py
+FIND:
+def append_exchange(
+    user_message: str,
+    assistant_message: str,
+    metadata: dict[str, Any] | None = None,
+    state_dir: Path = DEFAULT_STATE_DIR
+) -> None:
+REPLACE:
+def append_message(role: str, content: str, log_file: Path) -> None:
+    """Append a single message to the raw chat log."""
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "role": role,
+        "content": content,
+    }
+
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+
+
+def append_exchange(
+    user_message: str,
+    assistant_message: str,
+    metadata: dict[str, Any] | None = None,
+    state_dir: Path = DEFAULT_STATE_DIR
+) -> None:
+END
+
+FILE: src/oi/chatlog.py
+FIND:
+    with open(chatlog_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+REPLACE:
+    # Call append_message for user message
+    append_message("user", user_message, chatlog_path)
+    
+    # Call append_message for assistant message  
+    append_message("assistant", assistant_message, chatlog_path)
+END
+
+FILE: src/oi/chatlog.py
+FIND:
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "user": user_message,
+        "assistant": assistant_message,
+    }
+    if metadata:
+        entry["metadata"] = metadata
+REPLACE:
+    # Metadata is not stored in individual messages, only in exchange context
+    # Individual messages will be written by append_message calls
+END

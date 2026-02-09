@@ -1,0 +1,33 @@
+FILE: src/oi/routing.py
+FIND:
+def route_message(state, message):
+    """Route a message to either an open effort or ambient chat."""
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
+        return "ambient"
+    # TODO: Implement effort routing logic
+    return "effort"
+REPLACE:
+def route_message(state, message):
+    """Route a message to either an open effort or ambient chat."""
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
+        return "ambient"
+    effort_id = detect_effort_relation(message, state)
+    if effort_id:
+        return effort_id
+    return "ambient"
+END
+
+FILE: src/oi/routing.py
+FIND:
+def route_message_to_effort(state, arg1):
+    raise NotImplementedError('route_message_to_effort')
+REPLACE:
+def route_message_to_effort(state, arg1):
+    raise NotImplementedError('route_message_to_effort')
+
+def detect_effort_relation(message, state):
+    # TODO: Implement effort relation detection
+    return None
+END

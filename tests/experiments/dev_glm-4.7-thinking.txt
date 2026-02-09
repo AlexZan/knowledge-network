@@ -1,0 +1,42 @@
+FILE: src/oi/conversation.py
+FIND:
+from .chatlog import append_exchange, read_recent
+REPLACE:
+from .session import append_exchange, read_recent
+END
+
+FILE: src/oi/conversation.py
+FIND:
+def process_turn(
+    state: ConversationState,
+    user_input: str,
+    model: str
+) -> tuple[str, Artifact | None]:
+REPLACE:
+def process_turn(
+    state: ConversationState,
+    user_input: str,
+    model: str,
+    state_dir: Path = None
+) -> tuple[str, Artifact | None]:
+END
+
+FILE: src/oi/conversation.py
+FIND:
+    # Always append to raw chat log (permanent record)
+    append_exchange(user_input, ai_response)
+REPLACE:
+    # Always append to raw chat log (permanent record)
+    append_exchange(user_input, ai_response, state_dir=state_dir)
+END
+
+FILE: src/oi/conversation.py
+FIND:
+    # Agentic interpretation: LLM decides what artifact to create
+    # Pass recent context so interpreter can resolve references like "that one"
+    recent = read_recent(limit=5)
+REPLACE:
+    # Agentic interpretation: LLM decides what artifact to create
+    # Pass recent context so interpreter can resolve references like "that one"
+    recent = read_recent(limit=5, state_dir=state_dir)
+END

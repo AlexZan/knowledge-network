@@ -1,0 +1,69 @@
+FILE: src/oi/chatlog.py
+FIND:
+def search(
+    query: str,
+    state_dir: Path = DEFAULT_STATE_DIR
+) -> list[dict[str, Any]]:
+    """Search the chat log for matching exchanges.
+
+    Simple text search for now.
+    """
+    chatlog_path = get_chatlog_path(state_dir)
+    if not chatlog_path.exists():
+        return []
+
+    results = []
+    query_lower = query.lower()
+
+    with open(chatlog_path, "r", encoding="utf-8") as f:
+        for line in f:
+            entry = json.loads(line)
+            if query_lower in entry.get("user", "").lower() or \
+               query_lower in entry.get("assistant", "").lower():
+                results.append(entry)
+
+    return results
+REPLACE:
+def search(
+    query: str,
+    state_dir: Path = DEFAULT_STATE_DIR
+) -> list[dict[str, Any]]:
+    """Search the chat log for matching exchanges.
+
+    Simple text search for now.
+    """
+    chatlog_path = get_chatlog_path(state_dir)
+    if not chatlog_path.exists():
+        return []
+
+    results = []
+    query_lower = query.lower()
+
+    with open(chatlog_path, "r", encoding="utf-8") as f:
+        for line in f:
+            entry = json.loads(line)
+            if query_lower in entry.get("user", "").lower() or \
+               query_lower in entry.get("assistant", "").lower():
+                results.append(entry)
+
+    return results
+
+
+def append_message(role: str, content: str, log_file: Path) -> None:
+    """Append a single message to the raw log.
+
+    Args:
+        role: The role of the message sender (e.g., "user", "assistant")
+        content: The message content
+        log_file: Path to the log file
+    """
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    entry = {
+        "role": role,
+        "content": content
+    }
+    
+    with open(log_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
+END
