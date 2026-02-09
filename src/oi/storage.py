@@ -69,13 +69,13 @@ def save_exchange_and_update_state(session_dir, target, user_message, assistant_
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def conclude_effort(effort_id, session_dir, resolution):
+def conclude_effort(effort_id, session_dir, summary):
     """Conclude an effort by updating its status in the manifest.
     
     Args:
         effort_id: Unique identifier for the effort
         session_dir: Path to session directory
-        resolution: Resolution text describing what was concluded
+        summary: Summary text describing what was concluded
     """
     import yaml
     from datetime import datetime
@@ -94,8 +94,8 @@ def conclude_effort(effort_id, session_dir, resolution):
         if effort["id"] == effort_id:
             effort["status"] = "concluded"
             effort["updated"] = now
-            if resolution:
-                effort["resolution"] = resolution
+            if summary:
+                effort["summary"] = summary
             break
     
     with open(manifest_path, "w", encoding="utf-8") as f:
