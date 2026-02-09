@@ -93,7 +93,26 @@ def log_exchange(session_dir, arg1, arg2, arg3, arg4, arg5):
 # --- TDD Stubs (auto-generated, implement these) ---
 
 def save_ambient_exchange(role, content, raw_log):
-    raise NotImplementedError('save_ambient_exchange')
+    """Save an ambient (non-effort) exchange to raw.jsonl.
+    
+    Args:
+        role: "user" or "assistant"
+        content: Message content
+        raw_log: Path to raw.jsonl file
+    """
+    import json
+    from datetime import datetime
+    
+    raw_log.parent.mkdir(parents=True, exist_ok=True)
+    
+    entry = {
+        "role": role,
+        "content": content,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    with open(raw_log, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
 
 def save_ambient_message(state, message, raw_log):
     """Save an ambient (non-effort) message to raw.jsonl.
