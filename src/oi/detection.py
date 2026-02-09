@@ -330,12 +330,15 @@ def extract_effort_opening(message):
     """
     import re
     
-    # Patterns for effort opening - capture the effort name (first word/phrase after the pattern)
+    # Patterns for effort opening - capture the effort name (full phrase after the pattern)
     patterns = [
-        r"let's work on\s+(\S+)",
-        r"lets work on\s+(\S+)",
-        r"i want to work on\s+(\S+)",
-        r"work on\s+(\S+)",
+        r"i want to work on\s+(.+)",
+        r"let's work on\s+(.+)",
+        r"lets work on\s+(.+)",
+        r"can we work on\s+(.+)",
+        r"work on\s+(.+)",
+        r"let's debug\s+(.+)",
+        r"lets debug\s+(.+)",
     ]
     
     lower_message = message.lower()
@@ -343,7 +346,11 @@ def extract_effort_opening(message):
     for pattern in patterns:
         match = re.search(pattern, lower_message)
         if match:
-            return match.group(1)
+            effort_name = match.group(1).strip()
+            # Clean up the effort name: remove leading "the ", trailing punctuation
+            effort_name = re.sub(r'^the\s+', '', effort_name)
+            effort_name = effort_name.rstrip('?.!')
+            return effort_name
     
     return None
 
