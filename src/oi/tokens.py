@@ -95,8 +95,55 @@ def calculate_effort_stats(messages: list[dict], artifact_text: str, model: str 
 def measure_context_size(session_dir, arg1):
     raise NotImplementedError('measure_context_size')
 
-def calculate_effort_savings(arg0, session_dir, arg2):
-    raise NotImplementedError('calculate_effort_savings')
+def calculate_effort_savings(effort_id, session_dir, model="gpt-4"):
+    """Calculate token savings percentage for a concluded effort.
+    
+    Args:
+        effort_id: Unique identifier for the effort
+        session_dir: Path to session directory
+        model: Model to use for tokenization
+        
+    Returns:
+        Float percentage savings (0-100)
+    """
+    from .llm import summarize_effort
+    
+    # Read effort log
+    effort_log_path = session_dir / "efforts" / f"{effort_id}.jsonl"
+    if not effort_log_path.exists():
+        return 0.0
+    
+    with open(effort_log_path, 'r', encoding='utf-8') as f:
+        effort_content = f.read()
+    
+    # Count raw tokens in effort log
+    raw_tokens = count_tokens(effort_content, model)
+    
+    # Get summary from manifest
+    import yaml
+    manifest_path = session_dir / "manifest.yaml"
+    if not manifest_path.exists():
+        return 0.0
+    
+    manifest = yaml.safe_load(manifest_path.read_text())
+    summary = ""
+    for effort in manifest.get("efforts", []):
+        if effort.get("id") == effort_id:
+            summary = effort.get("summary", "")
+            break
+    
+    if not summary:
+        # Fallback to generating summary
+        summary = summarize_effort(effort_content)
+    
+    # Count summary tokens
+    summary_tokens = count_tokens(summary, model)
+    
+    if raw_tokens == 0:
+        return 0.0
+    
+    savings = ((raw_tokens - summary_tokens) / raw_tokens) * 100
+    return savings
 
 def compare_effort_to_summary(arg0, session_dir, arg2):
     raise NotImplementedError('compare_effort_to_summary')
