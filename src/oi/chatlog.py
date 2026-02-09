@@ -86,8 +86,43 @@ def search(
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def log_exchange(session_dir, arg1, arg2, arg3, arg4, arg5):
-    raise NotImplementedError('log_exchange')
+def log_exchange(session_dir, target, role1, content1, role2, content2):
+    """Log an exchange (two messages) to the appropriate log file.
+    
+    Args:
+        session_dir: Path to session directory
+        target: "ambient" or effort ID
+        role1: Role of first message ("user" or "assistant")
+        content1: Content of first message
+        role2: Role of second message ("user" or "assistant")
+        content2: Content of second message
+    """
+    import json
+    from datetime import datetime
+    
+    if target == "ambient":
+        raw_log = session_dir / "raw.jsonl"
+        raw_log.parent.mkdir(parents=True, exist_ok=True)
+        
+        entry1 = {
+            "role": role1,
+            "content": content1,
+            "timestamp": datetime.now().isoformat()
+        }
+        entry2 = {
+            "role": role2,
+            "content": content2,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        with open(raw_log, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry1) + "\n")
+            f.write(json.dumps(entry2) + "\n")
+    else:
+        # For effort exchanges, save to effort log
+        from .effort_log import save_message_to_effort_log
+        save_message_to_effort_log(session_dir, target, role1, content1)
+        save_message_to_effort_log(session_dir, target, role2, content2)
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
