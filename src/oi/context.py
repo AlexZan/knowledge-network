@@ -93,7 +93,16 @@ def build_ambient_context(session_dir, user_message):
 # --- TDD Stubs (auto-generated, implement these) ---
 
 def format_conclusion_confirmation(effort_id, summary):
-    raise NotImplementedError('format_conclusion_confirmation')
+    """Format a confirmation message when concluding an effort.
+    
+    Args:
+        effort_id: Unique identifier for the effort
+        summary: Summary of the effort
+        
+    Returns:
+        String containing confirmation message
+    """
+    return f"I've concluded the effort '{effort_id}' ({summary})."
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
