@@ -110,13 +110,15 @@ def build_conversation_context(state, raw_log):
         sections.append("# Recent Chat")
         try:
             with open(raw_log, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line:
-                        entry = json.loads(line)
-                        role = entry.get('role', 'unknown')
-                        content = entry.get('content', '')
-                        sections.append(f"{role.capitalize()}: {content}")
+                lines = f.readlines()
+            # Read lines in reverse order to show most recent first
+            for line in reversed(lines):
+                line = line.strip()
+                if line:
+                    entry = json.loads(line)
+                    role = entry.get('role', 'unknown')
+                    content = entry.get('content', '')
+                    sections.append(f"{role.capitalize()}: {content}")
         except (json.JSONDecodeError, IOError):
             pass
         sections.append("")
