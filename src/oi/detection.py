@@ -343,6 +343,8 @@ def detect_effort_conclusion(state, user_message):
                     f"finished with {name}",
                     f"resolved {name}",
                     f"fixed {name}",
+                    f"{name} looks good",
+                    f"looks good {name}",
                 ]
                 
                 for phrase in conclusion_phrases:
