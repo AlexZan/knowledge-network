@@ -69,8 +69,37 @@ def save_exchange_and_update_state(session_dir, target, user_message, assistant_
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def conclude_effort(arg0, session_dir, arg2):
-    raise NotImplementedError('conclude_effort')
+def conclude_effort(effort_id, session_dir, resolution):
+    """Conclude an effort by updating its status in the manifest.
+    
+    Args:
+        effort_id: Unique identifier for the effort
+        session_dir: Path to session directory
+        resolution: Resolution text describing what was concluded
+    """
+    import yaml
+    from datetime import datetime
+    
+    manifest_path = session_dir / "manifest.yaml"
+    if not manifest_path.exists():
+        return
+    
+    manifest = yaml.safe_load(manifest_path.read_text())
+    if "efforts" not in manifest:
+        return
+    
+    now = datetime.now().isoformat()
+    
+    for effort in manifest["efforts"]:
+        if effort["id"] == effort_id:
+            effort["status"] = "concluded"
+            effort["updated"] = now
+            if resolution:
+                effort["resolution"] = resolution
+            break
+    
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        yaml.dump(manifest, f)
 
 def save_to_effort_log(arg0, efforts_dir, arg2, user_message):
     raise NotImplementedError('save_to_effort_log')
