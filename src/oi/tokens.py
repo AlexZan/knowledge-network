@@ -145,5 +145,49 @@ def calculate_effort_savings(effort_id, session_dir, model="gpt-4"):
     savings = ((raw_tokens - summary_tokens) / raw_tokens) * 100
     return savings
 
-def compare_effort_to_summary(arg0, session_dir, arg2):
-    raise NotImplementedError('compare_effort_to_summary')
+def compare_effort_to_summary(effort_id, session_dir, model="gpt-4"):
+    """Calculate ratio of raw effort tokens to summary tokens.
+    
+    Args:
+        effort_id: Unique identifier for the effort
+        session_dir: Path to session directory
+        model: Model to use for tokenization
+        
+    Returns:
+        Float ratio (raw_tokens / summary_tokens)
+    """
+    import yaml
+    
+    # Read effort log
+    effort_log_path = session_dir / "efforts" / f"{effort_id}.jsonl"
+    if not effort_log_path.exists():
+        return 0.0
+    
+    with open(effort_log_path, 'r', encoding='utf-8') as f:
+        effort_content = f.read()
+    
+    # Count raw tokens in effort log
+    raw_tokens = count_tokens(effort_content, model)
+    
+    # Get summary from manifest
+    manifest_path = session_dir / "manifest.yaml"
+    if not manifest_path.exists():
+        return 0.0
+    
+    manifest = yaml.safe_load(manifest_path.read_text())
+    summary = ""
+    for effort in manifest.get("efforts", []):
+        if effort.get("id") == effort_id:
+            summary = effort.get("summary", "")
+            break
+    
+    if not summary:
+        return 0.0
+    
+    # Count summary tokens
+    summary_tokens = count_tokens(summary, model)
+    
+    if summary_tokens == 0:
+        return 0.0
+    
+    return raw_tokens / summary_tokens
