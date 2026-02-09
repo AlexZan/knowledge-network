@@ -54,7 +54,40 @@ def build_context(state: ConversationState, recent_messages: list) -> str:
 # --- TDD Stubs (auto-generated, implement these) ---
 
 def build_ambient_context(session_dir, user_message):
-    raise NotImplementedError('build_ambient_context')
+    """Build context for ambient (non-effort) response.
+    
+    Args:
+        session_dir: Path to session directory
+        user_message: User message that triggered ambient response
+        
+    Returns:
+        String containing formatted context for LLM
+    """
+    sections = []
+    
+    # Add the interruption message itself
+    sections.append("# Recent Chat")
+    sections.append(f"user: {user_message}")
+    sections.append("")
+    
+    # Add recent ambient chat history from raw.jsonl
+    raw_log = session_dir / "raw.jsonl"
+    if raw_log.exists():
+        try:
+            with open(raw_log, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            # Read lines in reverse order to show most recent first
+            for line in reversed(lines):
+                line = line.strip()
+                if line:
+                    entry = json.loads(line)
+                    role = entry.get('role', 'unknown')
+                    content = entry.get('content', '')
+                    sections.append(f"{role.capitalize()}: {content}")
+        except (json.JSONDecodeError, IOError):
+            pass
+    
+    return "\n".join(sections)
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
