@@ -320,7 +320,32 @@ def detect_effort_opening(message):
     raise NotImplementedError('detect_effort_opening')
 
 def extract_effort_opening(message):
-    raise NotImplementedError('extract_effort_opening')
+    """Extract effort name from a user message that opens a new effort.
+    
+    Args:
+        message: User message like "Let's work on auth-bug - users are getting 401s"
+        
+    Returns:
+        The extracted effort name (e.g., "auth-bug")
+    """
+    import re
+    
+    # Patterns for effort opening - capture the effort name (first word/phrase after the pattern)
+    patterns = [
+        r"let's work on\s+(\S+)",
+        r"lets work on\s+(\S+)",
+        r"i want to work on\s+(\S+)",
+        r"work on\s+(\S+)",
+    ]
+    
+    lower_message = message.lower()
+    
+    for pattern in patterns:
+        match = re.search(pattern, lower_message)
+        if match:
+            return match.group(1)
+    
+    return None
 
 def extract_effort_name_from_llm_response(response_text):
     raise NotImplementedError('extract_effort_name_from_llm_response')
