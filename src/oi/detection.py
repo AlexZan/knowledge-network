@@ -318,3 +318,9 @@ def detect_effort_start_phrase(message):
 
 def detect_effort_opening(message):
     raise NotImplementedError('detect_effort_opening')
+
+def extract_effort_opening(message):
+    raise NotImplementedError('extract_effort_opening')
+
+def extract_effort_name_from_llm_response(response_text):
+    raise NotImplementedError('extract_effort_name_from_llm_response')
