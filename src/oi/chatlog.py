@@ -118,4 +118,22 @@ def save_ambient_message(state, message, raw_log):
         f.write(json.dumps(entry) + "\n")
 
 def save_ambient_response(response, raw_log):
-    raise NotImplementedError('save_ambient_response')
+    """Save an ambient assistant response to raw.jsonl.
+    
+    Args:
+        response: Assistant response content
+        raw_log: Path to raw.jsonl file
+    """
+    import json
+    from datetime import datetime
+    
+    raw_log.parent.mkdir(parents=True, exist_ok=True)
+    
+    entry = {
+        "role": "assistant",
+        "content": response,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    with open(raw_log, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
