@@ -305,7 +305,51 @@ class ResolutionDetector:
 # --- TDD Stubs (auto-generated, implement these) ---
 
 def detect_effort_conclusion(state, user_message):
-    raise NotImplementedError('detect_effort_conclusion')
+    """Detect if user message concludes an open effort.
+    
+    Args:
+        state: ConversationState with artifacts
+        user_message: User message to check
+        
+    Returns:
+        Effort ID if message concludes an open effort, None otherwise
+    """
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
+        return None
+    
+    lower_message = user_message.lower()
+    
+    # Check for "X is done" pattern
+    for effort in open_efforts:
+        # Simple pattern: "auth bug is done" matches effort with id "auth-bug"
+        # We'll check if the effort id appears in the message with "is done" or similar
+        effort_id_lower = effort.id.lower()
+        effort_name_variations = [
+            effort_id_lower,
+            effort_id_lower.replace('-', ' '),  # "auth-bug" -> "auth bug"
+        ]
+        
+        for name in effort_name_variations:
+            if name in lower_message:
+                # Check for conclusion phrases
+                conclusion_phrases = [
+                    f"{name} is done",
+                    f"{name} is finished",
+                    f"{name} is resolved",
+                    f"{name} is complete",
+                    f"{name} is fixed",
+                    f"done with {name}",
+                    f"finished with {name}",
+                    f"resolved {name}",
+                    f"fixed {name}",
+                ]
+                
+                for phrase in conclusion_phrases:
+                    if phrase in lower_message:
+                        return effort.id
+    
+    return None
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
