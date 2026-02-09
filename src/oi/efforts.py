@@ -41,12 +41,15 @@ def open_new_effort(session_dir, effort_id, user_message):
     now = datetime.now().isoformat()
     
     # Check if effort already exists in manifest
+    effort_found = False
     for effort in manifest["efforts"]:
         if effort["id"] == effort_id:
             effort["status"] = "open"
             effort["updated"] = now
+            effort_found = True
             break
-    else:
+    
+    if not effort_found:
         # Add new effort entry
         manifest["efforts"].append({
             "id": effort_id,
