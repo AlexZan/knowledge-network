@@ -101,8 +101,29 @@ def conclude_effort(effort_id, session_dir, summary):
     with open(manifest_path, "w", encoding="utf-8") as f:
         yaml.dump(manifest, f)
 
-def save_to_effort_log(arg0, efforts_dir, arg2, user_message):
-    raise NotImplementedError('save_to_effort_log')
+def save_to_effort_log(effort_id, efforts_dir, role, content):
+    """Save a message to an effort's raw log.
+    
+    Args:
+        effort_id: Unique identifier for the effort
+        efforts_dir: Path to efforts directory
+        role: "user" or "assistant"
+        content: Message content
+    """
+    import json
+    from datetime import datetime
+    
+    effort_file = efforts_dir / f"{effort_id}.jsonl"
+    effort_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    entry = {
+        "role": role,
+        "content": content,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    with open(effort_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
