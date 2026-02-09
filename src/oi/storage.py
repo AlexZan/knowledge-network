@@ -146,8 +146,30 @@ def save_to_effort_log(effort_id, efforts_dir, role, content):
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def create_new_effort_file(session_dir, effort_id, arg2):
-    raise NotImplementedError('create_new_effort_file')
+def create_new_effort_file(session_dir, effort_id, user_message):
+    """Create a new effort file with the opening user message.
+    
+    Args:
+        session_dir: Path to session directory
+        effort_id: Unique identifier for the effort
+        user_message: User message that opened the effort
+    """
+    import json
+    from datetime import datetime
+    
+    efforts_dir = session_dir / "efforts"
+    efforts_dir.mkdir(parents=True, exist_ok=True)
+    
+    effort_file = efforts_dir / f"{effort_id}.jsonl"
+    
+    entry = {
+        "role": "user",
+        "content": user_message,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    with open(effort_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
 
 def update_manifest_for_new_effort(session_dir, effort_id, effort_summary):
     raise NotImplementedError('update_manifest_for_new_effort')
