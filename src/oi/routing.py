@@ -11,12 +11,14 @@ def route_message(state, message):
         "ambient" if no open efforts, otherwise "effort"
     """
     # If there are no open efforts, route to ambient
-    if not state.get_open_efforts():
+    open_efforts = state.get_open_efforts()
+    if not open_efforts:
         return "ambient"
     
     # For now, default to effort if there are open efforts
     # (more sophisticated routing could be added later)
-    return "effort"
+    # Return the ID of the first open effort
+    return open_efforts[0].id
 
 
 
