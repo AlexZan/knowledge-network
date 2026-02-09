@@ -86,16 +86,16 @@ def search(
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def log_exchange(session_dir, target, role1, content1, role2, content2):
+def log_exchange(session_dir, target, role_user, content_user, role_assistant, content_assistant):
     """Log an exchange (two messages) to the appropriate log file.
     
     Args:
         session_dir: Path to session directory
         target: "ambient" or effort ID
-        role1: Role of first message ("user" or "assistant")
-        content1: Content of first message
-        role2: Role of second message ("user" or "assistant")
-        content2: Content of second message
+        role_user: Role of the user message ("user" or "assistant")
+        content_user: Content of the user message
+        role_assistant: Role of the assistant message ("user" or "assistant")
+        content_assistant: Content of the assistant message
     """
     import json
     from datetime import datetime
@@ -105,13 +105,13 @@ def log_exchange(session_dir, target, role1, content1, role2, content2):
         raw_log.parent.mkdir(parents=True, exist_ok=True)
         
         entry1 = {
-            "role": role1,
-            "content": content1,
+            "role": role_user,
+            "content": content_user,
             "timestamp": datetime.now().isoformat()
         }
         entry2 = {
-            "role": role2,
-            "content": content2,
+            "role": role_assistant,
+            "content": content_assistant,
             "timestamp": datetime.now().isoformat()
         }
         
@@ -121,8 +121,8 @@ def log_exchange(session_dir, target, role1, content1, role2, content2):
     else:
         # For effort exchanges, save to effort log
         from .effort_log import save_message_to_effort_log
-        save_message_to_effort_log(session_dir, target, role1, content1)
-        save_message_to_effort_log(session_dir, target, role2, content2)
+        save_message_to_effort_log(session_dir, target, role_user, content_user)
+        save_message_to_effort_log(session_dir, target, role_assistant, content_assistant)
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
