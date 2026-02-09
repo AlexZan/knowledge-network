@@ -359,4 +359,34 @@ def extract_effort_opening(message):
     return None
 
 def extract_effort_name_from_llm_response(response_text):
-    raise NotImplementedError('extract_effort_name_from_llm_response')
+    import re
+    
+    # Pattern 1: Extract text in single quotes
+    single_quote_pattern = r"'([^']+)'"
+    match = re.search(single_quote_pattern, response_text)
+    if match:
+        return match.group(1)
+    
+    # Pattern 2: Extract text in double quotes  
+    double_quote_pattern = r'"([^"]+)"'
+    match = re.search(double_quote_pattern, response_text)
+    if match:
+        return match.group(1)
+    
+    # Pattern 3: Extract after "Let's work on the " or similar patterns
+    patterns = [
+        r"Let's work on the (.+?)(?:\.| together|$)",
+        r"Opening effort (.+?) now",
+        r"I see you want to work on (.+?)\."
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, response_text, re.IGNORECASE)
+        if match:
+            effort_name = match.group(1).strip()
+            # Remove common trailing words
+            effort_name = re.sub(r'\s+together$', '', effort_name, flags=re.IGNORECASE)
+            effort_name = effort_name.rstrip(' .')
+            return effort_name
+    
+    return None
