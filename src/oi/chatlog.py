@@ -82,3 +82,9 @@ def search(
                 results.append(entry)
 
     return results
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def log_exchange(*args, **kwargs):
+    raise NotImplementedError('log_exchange')

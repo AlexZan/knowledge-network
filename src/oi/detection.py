@@ -300,3 +300,15 @@ class ResolutionDetector:
                 return True
 
         return False
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def detect_effort_conclusion(*args, **kwargs):
+    raise NotImplementedError('detect_effort_conclusion')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def detect_effort_start_phrase(*args, **kwargs):
+    raise NotImplementedError('detect_effort_start_phrase')

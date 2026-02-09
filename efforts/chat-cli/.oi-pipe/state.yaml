@@ -5,13 +5,12 @@ artifacts:
   stories:
   - stories/stories.md
   tests:
-  - tests\test_story2_explicitly_open_a_new_effort.py
+  - tests\test_story9_verify_token_savings_from_effort_management.py
   tests_validation:
     total: 4
-    passed: 1
-    failed: 3
+    passed: 0
+    failed: 4
     errors: 0
-    review:
-      test_ambient_messages_included_in_context_next_turn: A
+    review: {}
     valid_red_phase: true
-last_updated: '2026-02-09T02:03:40.839685'
+last_updated: '2026-02-09T02:46:12.136474'

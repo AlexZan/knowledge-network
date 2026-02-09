@@ -47,3 +47,21 @@ def build_context(state: ConversationState, recent_messages: list) -> str:
         sections.append("")
 
     return "\n".join(sections)
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def build_ambient_context(*args, **kwargs):
+    raise NotImplementedError('build_ambient_context')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def format_conclusion_confirmation(*args, **kwargs):
+    raise NotImplementedError('format_conclusion_confirmation')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def build_turn_context(*args, **kwargs):
+    raise NotImplementedError('build_turn_context')

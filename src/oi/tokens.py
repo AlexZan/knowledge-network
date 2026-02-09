@@ -88,3 +88,15 @@ def calculate_effort_stats(messages: list[dict], artifact_text: str, model: str 
         total_raw=raw_count,
         total_compacted=compacted_count
     )
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def measure_context_size(*args, **kwargs):
+    raise NotImplementedError('measure_context_size')
+
+def calculate_effort_savings(*args, **kwargs):
+    raise NotImplementedError('calculate_effort_savings')
+
+def compare_effort_to_summary(*args, **kwargs):
+    raise NotImplementedError('compare_effort_to_summary')

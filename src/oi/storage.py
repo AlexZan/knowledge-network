@@ -43,3 +43,27 @@ def load_state(state_dir: Path = DEFAULT_STATE_DIR) -> ConversationState:
         return ConversationState(artifacts=[Artifact.model_validate(a) for a in artifacts])
 
     return ConversationState.model_validate(data)
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def save_exchange_and_update_state(*args, **kwargs):
+    raise NotImplementedError('save_exchange_and_update_state')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def conclude_effort(*args, **kwargs):
+    raise NotImplementedError('conclude_effort')
+
+def save_to_effort_log(*args, **kwargs):
+    raise NotImplementedError('save_to_effort_log')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def create_new_effort_file(*args, **kwargs):
+    raise NotImplementedError('create_new_effort_file')
+
+def update_manifest_for_new_effort(*args, **kwargs):
+    raise NotImplementedError('update_manifest_for_new_effort')
