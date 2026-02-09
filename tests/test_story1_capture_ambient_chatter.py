@@ -124,16 +124,11 @@ class TestStory1CaptureAmbientChatter:
             )
         ])
         
-        # Mock LLM detection of effort relation
-        with patch('oi.routing.detect_effort_relation') as mock_detect:
-            mock_detect.return_value = "auth-bug"
-            
-            # Act
-            result = route_message(state, message)
-            
-            # Assert
-            assert result == "auth-bug"
-            mock_detect.assert_called_once_with(message, state)
+        # Act - don't mock internal function, just test behavior
+        result = route_message(state, message)
+        
+        # Assert - should route to the effort ID
+        assert result == "auth-bug"
 
     def test_ambient_log_preserves_all_exchanges_chronologically(self, tmp_path):
         """raw.jsonl preserves chronological order of all ambient exchanges"""
