@@ -157,6 +157,16 @@ def build_turn_context(state, session_dir):
                 sections.append(f"  Tags: {', '.join(effort.tags)}")
         sections.append("")
 
+    # Section 3: Archived Efforts
+    archived_efforts = state.get_archived_efforts()
+    if archived_efforts:
+        sections.append("# Archived Efforts (Inactive)")
+        for effort in archived_efforts:
+            sections.append(f"- {effort.summary}")
+            if effort.tags:
+                sections.append(f"  Tags: {', '.join(effort.tags)}")
+        sections.append("")
+
     return "\n".join(sections)
 
 
