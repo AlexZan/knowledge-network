@@ -17,8 +17,19 @@ def open_new_effort(session_dir, effort_id, user_message):
     efforts_dir.mkdir(parents=True, exist_ok=True)
     
     effort_file = efforts_dir / f"{effort_id}.jsonl"
-    # Create empty file
-    effort_file.touch()
+    
+    # Save the opening message to the effort log
+    from datetime import datetime
+    import json
+    
+    entry = {
+        "role": "user",
+        "content": user_message,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    with open(effort_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
     
     # Update manifest.yaml
     manifest_path = session_dir / "manifest.yaml"
@@ -27,7 +38,6 @@ def open_new_effort(session_dir, effort_id, user_message):
     else:
         manifest = {"efforts": []}
     
-    from datetime import datetime
     now = datetime.now().isoformat()
     
     # Check if effort already exists in manifest
