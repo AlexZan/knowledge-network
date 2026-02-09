@@ -8,17 +8,28 @@ def route_message(state, message):
         message: User message to route
         
     Returns:
-        "ambient" if no open efforts, otherwise "effort"
+        "ambient" if no open efforts or message doesn't relate to any open effort, 
+        otherwise the effort ID of the first open effort
     """
     # If there are no open efforts, route to ambient
     open_efforts = state.get_open_efforts()
     if not open_efforts:
         return "ambient"
     
-    # For now, default to effort if there are open efforts
-    # (more sophisticated routing could be added later)
-    # Return the ID of the first open effort
-    return open_efforts[0].id
+    # Check if the message relates to the open effort
+    # For now, simple check: if message contains effort-related terms
+    for effort in open_efforts:
+        # Simple keyword matching - in real implementation would be more sophisticated
+        effort_terms = set(effort.summary.lower().split())
+        message_terms = set(message.lower().split())
+        common_terms = effort_terms.intersection(message_terms)
+        
+        # If there are common terms, assume it's related
+        if common_terms and len(common_terms) > 0:
+            return effort.id
+    
+    # If no relation found, treat as ambient interruption
+    return "ambient"
 
 
 
