@@ -62,4 +62,27 @@ def open_new_effort(session_dir, effort_id, user_message):
         yaml.dump(manifest, f)
 
 def add_assistant_confirmation_to_effort(session_dir, effort_id, confirmation_message):
-    raise NotImplementedError('add_assistant_confirmation_to_effort')
+    """Add assistant confirmation message to an effort log.
+    
+    Args:
+        session_dir: Path to session directory
+        effort_id: Unique identifier for the effort
+        confirmation_message: Assistant message confirming effort opening
+    """
+    efforts_dir = session_dir / "efforts"
+    effort_file = efforts_dir / f"{effort_id}.jsonl"
+    
+    if not effort_file.exists():
+        return
+    
+    from datetime import datetime
+    import json
+    
+    entry = {
+        "role": "assistant",
+        "content": confirmation_message,
+        "timestamp": datetime.now().isoformat()
+    }
+    
+    with open(effort_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry) + "\n")
