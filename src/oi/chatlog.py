@@ -96,23 +96,7 @@ def save_ambient_exchange(role, content, raw_log):
     raise NotImplementedError('save_ambient_exchange')
 
 def save_ambient_message(state, message, raw_log):
-    """Save an ambient (non-effort) user message to the raw log.
-
-    Args:
-        state: ConversationState (unused in ambient messages)
-        message: The user message content
-        raw_log: Path to the raw JSONL log file
-    """
-    raw_log.parent.mkdir(parents=True, exist_ok=True)
-
-    entry = {
-        "timestamp": datetime.now().isoformat(),
-        "role": "user",
-        "content": message
-    }
-
-    with open(raw_log, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry) + "\n")
+    raise NotImplementedError('save_ambient_message')
 
 def save_ambient_response(response, raw_log):
     raise NotImplementedError('save_ambient_response')
