@@ -48,7 +48,23 @@ def load_state(state_dir: Path = DEFAULT_STATE_DIR) -> ConversationState:
 # --- TDD Stubs (auto-generated, implement these) ---
 
 def save_exchange_and_update_state(session_dir, target, user_message, assistant_response, state):
-    raise NotImplementedError('save_exchange_and_update_state')
+    """Save an exchange and update state accordingly.
+    
+    Args:
+        session_dir: Path to session directory
+        target: "ambient" or effort ID
+        user_message: User message content
+        assistant_response: Assistant response content
+        state: ConversationState to update
+    """
+    from .chatlog import log_exchange
+    
+    # Log the exchange to appropriate log file
+    log_exchange(session_dir, target, "user", user_message, "assistant", assistant_response)
+    
+    # For ambient exchanges, no state update needed
+    # For effort exchanges, the effort should already be in state
+    # (This function doesn't modify the manifest - that's done by other functions)
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
