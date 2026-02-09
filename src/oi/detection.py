@@ -350,6 +350,10 @@ def extract_effort_opening(message):
             # Clean up the effort name: remove leading "the ", trailing punctuation
             effort_name = re.sub(r'^the\s+', '', effort_name)
             effort_name = effort_name.rstrip('?.!')
+            # Split on common separators like hyphens with spaces, colons, etc.
+            for separator in [' - ', ': ', '; ', ', ']:
+                if separator in effort_name:
+                    effort_name = effort_name.split(separator)[0]
             return effort_name
     
     return None
