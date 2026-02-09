@@ -70,3 +70,16 @@ def extract_conclusion(thread_messages: list[dict], model: str = DEFAULT_MODEL) 
 
 def create_effort_summary(effort_content, arg1):
     raise NotImplementedError('create_effort_summary')
+
+
+def summarize_effort(effort_content):
+    """Summarize the content of an effort.
+    
+    Args:
+        effort_content: The raw content of the effort log as a string.
+        
+    Returns:
+        A string summary of the effort.
+    """
+    # For now, just return a placeholder.
+    return "Summary of effort"
