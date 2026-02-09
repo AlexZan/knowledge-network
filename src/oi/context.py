@@ -1,5 +1,7 @@
 """Build context strings for LLM from conversation state and messages."""
 
+import json
+from pathlib import Path
 from oi.models import ConversationState
 
 
@@ -70,4 +72,53 @@ def build_turn_context(state, session_dir):
 # --- TDD Stubs (auto-generated, implement these) ---
 
 def build_conversation_context(state, raw_log):
-    raise NotImplementedError('build_conversation_context')
+    """Build conversation context from state and raw chat log.
+
+    Args:
+        state: ConversationState with artifacts
+        raw_log: Path to raw.jsonl file with ambient exchanges
+
+    Returns:
+        String containing formatted context for LLM
+    """
+    sections = []
+
+    # Section 1: Open Efforts (current work) - highest priority
+    open_efforts = state.get_open_efforts()
+    if open_efforts:
+        sections.append("# Open Efforts (Current Work)")
+        for effort in open_efforts:
+            sections.append(f"- {effort.summary}")
+            if effort.tags:
+                sections.append(f"  Tags: {', '.join(effort.tags)}")
+        sections.append("")
+
+    # Section 2: Resolved Artifacts (past work with conclusions)
+    resolved_efforts = state.get_resolved_efforts()
+    if resolved_efforts:
+        sections.append("# Resolved Efforts (Past Work)")
+        for effort in resolved_efforts:
+            sections.append(f"- {effort.summary}")
+            if effort.resolution:
+                sections.append(f"  Resolution: {effort.resolution}")
+            if effort.tags:
+                sections.append(f"  Tags: {', '.join(effort.tags)}")
+        sections.append("")
+
+    # Section 3: Ambient Chat (from raw log)
+    if raw_log and isinstance(raw_log, Path) and raw_log.exists():
+        sections.append("# Recent Chat")
+        try:
+            with open(raw_log, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line:
+                        entry = json.loads(line)
+                        role = entry.get('role', 'unknown')
+                        content = entry.get('content', '')
+                        sections.append(f"{role.capitalize()}: {content}")
+        except (json.JSONDecodeError, IOError):
+            pass
+        sections.append("")
+
+    return "\n".join(sections)
