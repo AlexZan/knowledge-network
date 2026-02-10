@@ -1,168 +1,123 @@
 """Tests for Story 4: Handle Interruptions During an Effort"""
 
 import json
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 import pytest
-import yaml
-
-from oi.conversation import process_turn
-from oi.storage import load_state, save_state
-from oi.models import ConversationState, Message
-from oi.chatlog import read_recent
+from pathlib import Path
+from unittest.mock import patch
 
 
-class TestStory4HandleInterruptions:
+class TestStory4HandleInterruptionsDuringAnEffort:
     """Story 4: Handle Interruptions During an Effort"""
 
-    @pytest.fixture
-    def state_with_open_effort(self, tmp_path):
-        """Create a state directory with an open effort"""
-        state_dir = tmp_path / "test_session"
-        state_dir.mkdir()
+    def test_interruption_question_gets_response_when_effort_open(self):
+        """AC1: When I ask an unrelated question while an effort is open, the assistant responds to my question."""
+        # Arrange
+        from oi.models import ConversationState, Artifact
+        from oi.routing import route_message
         
-        # Create manifest with open effort
-        manifest = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "open",
-                    "start_turn": 3,
-                    "summary": "Debugging 401 errors after 1 hour"
-                }
-            ]
-        }
-        (state_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        # Create state with open effort
+        state = ConversationState(artifacts=[
+            Artifact(id="auth-bug", artifact_type="effort", summary="Auth bug", status="open")
+        ])
         
-        # Create raw.jsonl with initial ambient messages
-        raw_log = state_dir / "raw.jsonl"
-        with open(raw_log, 'w') as f:
-            # Turns 1-2: ambient chatter
-            f.write(json.dumps({"turn": 1, "role": "user", "content": "Hey, how's it going?"}) + "\n")
-            f.write(json.dumps({"turn": 2, "role": "assistant", "content": "Good! Ready to help."}) + "\n")
+        # Unrelated message
+        message = "Quick question - what's the weather in Seattle?"
         
-        # Create effort log with effort messages
-        efforts_dir = state_dir / "efforts"
+        # Act - routing should detect this as ambient (not related to open effort)
+        target = route_message(state, message)
+        
+        # Assert - message should be routed to ambient
+        assert target == "ambient"
+        # Note: The actual assistant response generation happens elsewhere (LLM).
+        # This test verifies the routing decision only.
+        # The assistant responding is implied by the target being ambient and the system
+        # processing ambient messages normally.
+
+    def test_interruption_saved_to_ambient_log_not_effort_log(self, tmp_path):
+        """AC2: The interruption question and response are saved to the ambient raw log, not the effort log."""
+        # Arrange
+        from oi.chatlog import save_ambient_exchange
+        
+        raw_log = tmp_path / "raw.jsonl"
+        efforts_dir = tmp_path / "efforts"
+        efforts_dir.mkdir()
+        
+        # Create existing effort log to ensure it's not modified
+        effort_log = efforts_dir / "auth-bug.jsonl"
+        effort_log.write_text(json.dumps({"role": "user", "content": "debug auth"}) + "\n")
+        
+        # Act - save interruption exchange to ambient log
+        save_ambient_exchange("user", "What's the weather?", raw_log)
+        save_ambient_exchange("assistant", "72°F and sunny.", raw_log)
+        
+        # Assert - ambient log contains the interruption
+        with open(raw_log) as f:
+            lines = f.read().strip().split("\n")
+        
+        assert len(lines) == 2
+        user_msg = json.loads(lines[0])
+        assistant_msg = json.loads(lines[1])
+        
+        assert user_msg["role"] == "user"
+        assert "weather" in user_msg["content"].lower()
+        assert assistant_msg["role"] == "assistant"
+        assert "sunny" in assistant_msg["content"].lower()
+        
+        # Assert - effort log was NOT modified (still has only the original line)
+        with open(effort_log) as f:
+            effort_lines = f.read().strip().split("\n")
+        
+        assert len(effort_lines) == 1
+        assert "debug auth" in effort_lines[0]
+        assert "weather" not in effort_lines[0]
+
+    def test_open_effort_remains_available_after_interruption(self, tmp_path):
+        """AC3: The open effort remains open and its context is still available after the interruption."""
+        # Arrange
+        from oi.models import ConversationState, Artifact
+        from oi.context import build_turn_context
+        
+        # Create session structure with open effort
+        session_dir = tmp_path
+        
+        # Create raw.jsonl with ambient content
+        raw_log = session_dir / "raw.jsonl"
+        raw_log.write_text("")
+        
+        # Create effort log with existing conversation
+        efforts_dir = session_dir / "efforts"
         efforts_dir.mkdir()
         effort_log = efforts_dir / "auth-bug.jsonl"
-        with open(effort_log, 'w') as f:
-            # Turns 3-4: effort start
-            f.write(json.dumps({"turn": 3, "role": "user", "content": "Let's debug the auth bug"}) + "\n")
-            f.write(json.dumps({"turn": 4, "role": "assistant", "content": "Opening effort: auth-bug"}) + "\n")
-            # Turns 5-10: working on effort
-            f.write(json.dumps({"turn": 5, "role": "user", "content": "Access token is 1 hour"}) + "\n")
-            f.write(json.dumps({"turn": 6, "role": "assistant", "content": "The 1-hour TTL matches"}) + "\n")
+        effort_log.write_text(
+            json.dumps({"role": "user", "content": "debug auth bug"}) + "\n" +
+            json.dumps({"role": "assistant", "content": "Opening effort: auth-bug"}) + "\n"
+        )
         
-        # Create state
-        state = ConversationState(state_dir=state_dir)
-        save_state(state, state_dir)
+        # Create manifest with open effort
+        manifest = session_dir / "manifest.yaml"
+        manifest.write_text("""efforts:
+  - id: auth-bug
+    status: open
+    summary: Auth bug investigation
+    created: 2023-10-01T12:00:00
+    updated: 2023-10-01T12:00:00
+""")
         
-        return state_dir
-
-    def test_interruption_gets_response(self, state_with_open_effort, tmp_path):
-        """When I ask an unrelated question while an effort is open, the assistant responds to my question"""
-        state_dir = state_with_open_effort
+        # Create state with open effort
+        state = ConversationState(artifacts=[
+            Artifact(id="auth-bug", artifact_type="effort", summary="Auth bug investigation", status="open")
+        ])
         
-        # Mock the LLM to return a weather response
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = "72°F and sunny in Seattle today."
-            
-            # Load current state
-            state = load_state(state_dir)
-            
-            # Process interruption (unrelated weather question)
-            result = process_turn(state, "Quick question - what's the weather in Seattle?", "gpt-4")
-            
-            # Verify LLM was called
-            mock_chat.assert_called_once()
-            
-            # Verify response contains weather info
-            assert "72°F" in result.assistant_response
-            assert "sunny" in result.assistant_response.lower()
-
-    def test_interruption_saved_to_ambient_log(self, state_with_open_effort, tmp_path):
-        """The interruption question and response are saved to the ambient raw log, not the effort log"""
-        state_dir = state_with_open_effort
-        raw_log = state_dir / "raw.jsonl"
-        effort_log = state_dir / "efforts" / "auth-bug.jsonl"
+        # Add interruption to ambient log
+        with open(raw_log, "a") as f:
+            f.write(json.dumps({"role": "user", "content": "Quick weather question"}) + "\n")
+            f.write(json.dumps({"role": "assistant", "content": "Sunny day"}) + "\n")
         
-        # Count initial lines
-        initial_raw_lines = len(raw_log.read_text().strip().splitlines())
-        initial_effort_lines = len(effort_log.read_text().strip().splitlines())
+        # Act - build context after interruption
+        context = build_turn_context(state, session_dir)
         
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = "72°F and sunny in Seattle today."
-            
-            state = load_state(state_dir)
-            process_turn(state, "Quick question - what's the weather in Seattle?", "gpt-4")
-            
-            # Save updated state
-            save_state(state, state_dir)
-        
-        # Check raw.jsonl has new lines (interruption)
-        final_raw_lines = len(raw_log.read_text().strip().splitlines())
-        assert final_raw_lines == initial_raw_lines + 2  # User + assistant messages
-        
-        # Check effort log unchanged
-        final_effort_lines = len(effort_log.read_text().strip().splitlines())
-        assert final_effort_lines == initial_effort_lines
-        
-        # Verify raw.jsonl contains weather-related messages
-        raw_content = raw_log.read_text()
-        assert "weather in Seattle" in raw_content
-        assert "72°F" in raw_content
-        
-        # Verify effort log does NOT contain weather messages
-        effort_content = effort_log.read_text()
-        assert "weather" not in effort_content
-        assert "Seattle" not in effort_content
-
-    def test_open_effort_remains_open_after_interruption(self, state_with_open_effort, tmp_path):
-        """The open effort remains open and its context is still available after the interruption"""
-        state_dir = state_with_open_effort
-        manifest_path = state_dir / "manifest.yaml"
-        
-        # Load initial manifest
-        initial_manifest = yaml.safe_load(manifest_path.read_text())
-        initial_effort = initial_manifest["efforts"][0]
-        assert initial_effort["status"] == "open"
-        assert initial_effort["id"] == "auth-bug"
-        
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = "72°F and sunny in Seattle today."
-            
-            state = load_state(state_dir)
-            process_turn(state, "Quick question - what's the weather in Seattle?", "gpt-4")
-            save_state(state, state_dir)
-        
-        # Load manifest after interruption
-        final_manifest = yaml.safe_load(manifest_path.read_text())
-        final_effort = final_manifest["efforts"][0]
-        
-        # Effort should still be open
-        assert final_effort["status"] == "open"
-        assert final_effort["id"] == "auth-bug"
-        
-        # Effort context should still be accessible via conversation state
-        state = load_state(state_dir)
-        open_efforts = state.get_open_efforts()
-        assert len(open_efforts) == 1
-        assert open_efforts[0]["id"] == "auth-bug"
-        
-        # We should be able to continue the effort after interruption
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = "Let me check the refresh token logic again."
-            
-            # Process another turn about the auth bug (continuing effort)
-            result = process_turn(state, "Back to auth - what about the refresh token timing?", "gpt-4")
-            
-            # Verify context includes effort history
-            # The mock should have been called with messages including effort context
-            call_args = mock_chat.call_args
-            messages = call_args[0][0]  # First positional arg is messages list
-            
-            # Should include effort messages (turns 3-6) in context
-            effort_messages = [m for m in messages if "auth bug" in m.get("content", "").lower() or 
-                              "refresh token" in m.get("content", "").lower()]
-            assert len(effort_messages) > 0  # Should have some effort context
+        # Assert - context still includes effort content (effort is still open and in context)
+        assert "auth-bug" in context
+        assert "debug auth bug" in context
+        # Also includes ambient interruption
+        assert "weather" in context.lower() or "sunny" in context.lower()

@@ -3,288 +3,146 @@
 import pytest
 import json
 import yaml
-from unittest.mock import patch, MagicMock
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
+from datetime import datetime
 
 
-class TestStory5ConcludeEffort:
-    """Story 5: When user says they're done with a task, conclude the effort."""
-
-    def test_user_concluding_message_triggers_summary_creation(self, tmp_path):
-        """When user says 'X is done' about an open effort, assistant creates summary."""
-        # Arrange
-        from oi.conversation import process_turn
-        from oi.storage import save_state, load_state
-        from oi.models import ConversationState
-        
-        # Create state with open effort
-        state_dir = tmp_path / "session"
-        state_dir.mkdir()
-        
-        state = ConversationState(
-            efforts=[
-                {
-                    "id": "auth-bug",
-                    "status": "open",
-                    "title": "Debug auth 401 errors",
-                    "summary": ""
-                }
-            ],
-            facts=[]
-        )
-        save_state(state, state_dir)
-        
-        # Create effort log
-        effort_log = state_dir / "efforts" / "auth-bug.jsonl"
-        effort_log.parent.mkdir(exist_ok=True)
-        effort_log.write_text(json.dumps({"role": "user", "content": "Let's debug the auth bug"}) + "\n")
-        effort_log.write_text(json.dumps({"role": "assistant", "content": "Opening effort: auth-bug"}) + "\n")
-        
-        # Mock LLM to return a summary
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = "Debugged 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor for proactive refresh."
-            
-            # Act - User says effort is done
-            result_state = process_turn(state, "auth bug is done", model="gpt-4")
-        
-        # Assert - LLM was called to create summary
-        assert mock_chat.called
-        call_args = mock_chat.call_args[0][0]  # messages argument
-        assert any("summary" in msg.get("content", "").lower() for msg in call_args)
-        assert any("auth" in msg.get("content", "").lower() for msg in call_args)
-
-    def test_assistant_confirms_conclusion_by_name(self, tmp_path):
-        """Assistant confirms the effort has been concluded by name in response."""
-        # Arrange
-        from oi.conversation import process_turn
-        from oi.storage import save_state, load_state
-        from oi.models import ConversationState
-        
-        state_dir = tmp_path / "session"
-        state_dir.mkdir()
-        
-        state = ConversationState(
-            efforts=[
-                {
-                    "id": "auth-bug",
-                    "status": "open",
-                    "title": "Debug auth 401 errors",
-                    "summary": ""
-                }
-            ],
-            facts=[]
-        )
-        save_state(state, state_dir)
-        
-        effort_log = state_dir / "efforts" / "auth-bug.jsonl"
-        effort_log.parent.mkdir(exist_ok=True)
-        effort_log.write_text(json.dumps({"role": "user", "content": "Let's debug auth"}) + "\n")
-        
-        # Mock LLM for summary
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = "Summary of auth fix"
-            
-            # Act
-            result_state = process_turn(state, "looks good, auth is done", model="gpt-4")
-            
-            # Get the assistant's response (we need to capture it from the mocked chat or from state)
-            # Since process_turn returns a state, we need to check what was written to chatlog
-            pass
-        
-        # This test requires checking the assistant's confirmation message
-        # We'll need to mock the chat function to capture what it returns as response
-        # and assert that "auth-bug" is in the confirmation
-        
-        # For now, we'll test the confirmation is saved in effort log
-        with open(effort_log, 'r') as f:
-            lines = f.readlines()
-            last_line = json.loads(lines[-1]) if lines else {}
-            assert "auth" in last_line.get("content", "").lower() or "auth-bug" in last_line.get("content", "").lower()
-
-    def test_effort_status_changes_from_open_to_concluded_in_manifest(self, tmp_path):
-        """Effort's status in manifest changes from 'open' to 'concluded'."""
-        # Arrange
-        from oi.conversation import conclude_effort
-        from oi.storage import save_state, load_state
-        from oi.models import ConversationState
-        
-        state_dir = tmp_path / "session"
-        state_dir.mkdir()
-        
-        # Create manifest with open effort
-        manifest_path = state_dir / "manifest.yaml"
-        manifest_data = {
+class TestStory5ExplicitlyConcludeEffort:
+    """Story 5: Explicitly Conclude an Effort"""
+    
+    def test_conclude_effort_updates_manifest_status_to_concluded(self, tmp_path):
+        """When effort is concluded, its status in manifest changes from 'open' to 'concluded'"""
+        # Arrange - create manifest with open effort using standard library
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest = {
             "efforts": [
                 {
                     "id": "auth-bug",
                     "status": "open",
-                    "title": "Debug auth 401 errors",
-                    "summary": "",
-                    "created_at": "2024-01-01T00:00:00"
+                    "summary": "Debug 401 errors",
+                    "created": "2024-01-01T00:00:00",
+                    "updated": "2024-01-01T00:00:00"
                 }
             ]
         }
-        manifest_path.write_text(yaml.dump(manifest_data))
+        manifest_path.write_text(yaml.dump(manifest))
         
-        # Mock LLM summary
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = "Debugged 401 errors"
-            
-            # Act
-            conclude_effort("auth-bug", state_dir, model="gpt-4")
+        # Act - call the implementation function (will fail if doesn't exist)
+        from oi.storage import conclude_effort
+        conclude_effort("auth-bug", tmp_path, "Debugged 401 errors after 1 hour")
         
-        # Assert
-        loaded = yaml.safe_load(manifest_path.read_text())
-        effort = next(e for e in loaded["efforts"] if e["id"] == "auth-bug")
+        # Assert - status changed to "concluded"
+        updated_manifest = yaml.safe_load(manifest_path.read_text())
+        effort = next(eff for eff in updated_manifest["efforts"] if eff["id"] == "auth-bug")
         assert effort["status"] == "concluded"
-
-    def test_summary_is_added_to_manifest(self, tmp_path):
-        """The summary is added to the manifest for the concluded effort."""
-        # Arrange
-        from oi.conversation import conclude_effort
-        from oi.storage import save_state, load_state
-        from oi.models import ConversationState
-        
-        state_dir = tmp_path / "session"
-        state_dir.mkdir()
-        
-        manifest_path = state_dir / "manifest.yaml"
-        manifest_data = {
+    
+    def test_conclude_effort_adds_summary_to_manifest(self, tmp_path):
+        """When effort is concluded, the summary is added to the manifest"""
+        # Arrange - create manifest with open effort
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest = {
             "efforts": [
                 {
                     "id": "auth-bug",
                     "status": "open",
-                    "title": "Debug auth 401 errors",
-                    "summary": "",
-                    "created_at": "2024-01-01T00:00:00"
+                    "summary": "Debug 401 errors",
+                    "created": "2024-01-01T00:00:00",
+                    "updated": "2024-01-01T00:00:00"
                 }
             ]
         }
-        manifest_path.write_text(yaml.dump(manifest_data))
+        manifest_path.write_text(yaml.dump(manifest))
         
-        expected_summary = "Debugged 401 errors occurring after 1 hour. Root cause was refresh tokens existing but never being called automatically."
+        # Act - call with new summary
+        from oi.storage import conclude_effort
+        new_summary = "Debugged 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor for proactive refresh."
+        conclude_effort("auth-bug", tmp_path, new_summary)
         
-        # Mock LLM to return specific summary
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = expected_summary
-            
-            # Act
-            conclude_effort("auth-bug", state_dir, model="gpt-4")
-        
-        # Assert
-        loaded = yaml.safe_load(manifest_path.read_text())
-        effort = next(e for e in loaded["efforts"] if e["id"] == "auth-bug")
-        assert effort["summary"] == expected_summary
-        assert len(effort["summary"]) > 0
-
-    def test_concluding_message_and_confirmation_saved_to_effort_raw_log(self, tmp_path):
-        """User's concluding message and assistant's confirmation are saved to effort's raw log."""
-        # Arrange
-        from oi.conversation import process_turn
-        from oi.chatlog import read_recent
-        from oi.storage import save_state, load_state
-        from oi.models import ConversationState
-        
-        state_dir = tmp_path / "session"
-        state_dir.mkdir()
-        
-        state = ConversationState(
-            efforts=[
+        # Assert - summary was updated
+        updated_manifest = yaml.safe_load(manifest_path.read_text())
+        effort = next(eff for eff in updated_manifest["efforts"] if eff["id"] == "auth-bug")
+        assert effort["summary"] == new_summary
+        assert "refresh tokens" in effort["summary"]
+    
+    def test_conclude_effort_updates_updated_timestamp(self, tmp_path):
+        """When effort is concluded, the updated timestamp is refreshed"""
+        # Arrange - create manifest with old timestamp
+        manifest_path = tmp_path / "manifest.yaml"
+        old_time = "2024-01-01T00:00:00"
+        manifest = {
+            "efforts": [
                 {
                     "id": "auth-bug",
                     "status": "open",
-                    "title": "Debug auth 401 errors",
-                    "summary": ""
+                    "summary": "Debug 401 errors",
+                    "created": old_time,
+                    "updated": old_time
                 }
-            ],
-            facts=[]
-        )
-        save_state(state, state_dir)
+            ]
+        }
+        manifest_path.write_text(yaml.dump(manifest))
         
-        # Create effort log with some existing messages
-        effort_log = state_dir / "efforts" / "auth-bug.jsonl"
-        effort_log.parent.mkdir(exist_ok=True)
-        with open(effort_log, 'w') as f:
-            f.write(json.dumps({"role": "user", "content": "Let's debug auth"}) + "\n")
-            f.write(json.dumps({"role": "assistant", "content": "Opening effort"}) + "\n")
+        # Act
+        from oi.storage import conclude_effort
+        conclude_effort("auth-bug", tmp_path, "Debugged")
         
-        # Mock LLM for summary
-        with patch('oi.llm.chat') as mock_chat:
-            mock_chat.return_value = "Summary here"
-            
-            # Act - User concludes
-            process_turn(state, "auth bug is fixed and done", model="gpt-4")
-        
-        # Assert - Both user concluding message and assistant confirmation are in effort log
-        with open(effort_log, 'r') as f:
-            lines = f.readlines()
-            messages = [json.loads(line) for line in lines]
-            
-            # Find user concluding message
-            user_msgs = [m for m in messages if m["role"] == "user"]
-            assert any("done" in m.get("content", "").lower() or "fixed" in m.get("content", "").lower() for m in user_msgs)
-            
-            # Find assistant confirmation
-            assistant_msgs = [m for m in messages if m["role"] == "assistant"]
-            assert any("conclud" in m.get("content", "").lower() or "auth-bug" in m.get("content", "").lower() for m in assistant_msgs)
-
-    def test_multiple_conclusion_triggers_work(self, tmp_path):
-        """Various phrases like 'X is done', 'looks good', 'finished' trigger conclusion."""
+        # Assert - updated timestamp changed, created unchanged
+        updated_manifest = yaml.safe_load(manifest_path.read_text())
+        effort = next(eff for eff in updated_manifest["efforts"] if eff["id"] == "auth-bug")
+        assert effort["created"] == old_time
+        assert effort["updated"] != old_time
+        # Check it's a valid ISO datetime
+        parsed_time = datetime.fromisoformat(effort["updated"].replace('Z', '+00:00'))
+        assert isinstance(parsed_time, datetime)
+    
+    def test_save_to_effort_log_appends_user_concluding_message(self, tmp_path):
+        """When user says 'X is done', the concluding message is saved to effort's raw log"""
         # Arrange
-        from oi.conversation import process_turn
-        from oi.storage import save_state, load_state
-        from oi.models import ConversationState
-        
-        state_dir = tmp_path / "session"
-        state_dir.mkdir()
-        
-        test_cases = [
-            ("auth bug is done", True),
-            ("looks good to me", True),
-            ("finished with auth", True),
-            ("let's move on", False),  # Not a clear conclusion
-            ("what about this other thing", False),
+        efforts_dir = tmp_path / "efforts"
+        efforts_dir.mkdir()
+        effort_log = efforts_dir / "auth-bug.jsonl"
+        # Add some existing messages using standard library
+        existing = [
+            {"role": "user", "content": "Let's debug auth", "timestamp": "2024-01-01T00:00:00"},
+            {"role": "assistant", "content": "Opening effort", "timestamp": "2024-01-01T00:00:01"}
         ]
+        effort_log.write_text("\n".join(json.dumps(msg) for msg in existing) + "\n")
         
-        for user_input, should_conclude in test_cases:
-            # Reset state for each test case
-            state = ConversationState(
-                efforts=[
-                    {
-                        "id": "auth-bug",
-                        "status": "open",
-                        "title": "Debug auth",
-                        "summary": ""
-                    }
-                ],
-                facts=[]
-            )
-            save_state(state, state_dir)
-            
-            # Clear effort log
-            effort_log = state_dir / "efforts" / "auth-bug.jsonl"
-            effort_log.parent.mkdir(exist_ok=True)
-            effort_log.write_text("")
-            
-            # Mock LLM
-            with patch('oi.llm.chat') as mock_chat:
-                mock_chat.return_value = "Summary"
-                
-                # Act
-                result_state = process_turn(state, user_input, model="gpt-4")
-                
-                # Assert
-                if should_conclude:
-                    # Check effort was concluded
-                    manifest_path = state_dir / "manifest.yaml"
-                    if manifest_path.exists():
-                        loaded = yaml.safe_load(manifest_path.read_text())
-                        effort = next(e for e in loaded["efforts"] if e["id"] == "auth-bug")
-                        assert effort["status"] == "concluded"
-                else:
-                    # Effort should still be open
-                    manifest_path = state_dir / "manifest.yaml"
-                    if manifest_path.exists():
-                        loaded = yaml.safe_load(manifest_path.read_text())
-                        effort = next(e for e in loaded["efforts"] if e["id"] == "auth-bug")
-                        assert effort["status"] == "open"
+        # Act
+        from oi.storage import save_to_effort_log
+        save_to_effort_log("auth-bug", tmp_path, "user", "Back to auth - I implemented the interceptor and it works. Bug is fixed!")
+        
+        # Assert - new message appended
+        lines = effort_log.read_text().strip().split("\n")
+        saved = json.loads(lines[-1])  # Last line
+        assert saved["role"] == "user"
+        assert "interceptor" in saved["content"]
+        assert "Bug is fixed" in saved["content"]
+        assert len(lines) == 3  # Original 2 + 1 new
+    
+    def test_save_to_effort_log_appends_assistant_confirmation(self, tmp_path):
+        """When assistant confirms conclusion, the confirmation message is saved to effort's raw log"""
+        # Arrange
+        efforts_dir = tmp_path / "efforts"
+        efforts_dir.mkdir()
+        effort_log = efforts_dir / "auth-bug.jsonl"
+        # Add existing messages including user concluding message
+        existing = [
+            {"role": "user", "content": "Let's debug auth", "timestamp": "2024-01-01T00:00:00"},
+            {"role": "user", "content": "Bug is fixed!", "timestamp": "2024-01-01T00:01:00"}
+        ]
+        effort_log.write_text("\n".join(json.dumps(msg) for msg in existing) + "\n")
+        
+        # Act
+        from oi.storage import save_to_effort_log
+        save_to_effort_log("auth-bug", tmp_path, "assistant", "Concluding effort: auth-bug\n\nSummary: Debugged 401 errors...")
+        
+        # Assert - assistant message appended
+        lines = effort_log.read_text().strip().split("\n")
+        saved = json.loads(lines[-1])
+        assert saved["role"] == "assistant"
+        assert "Concluding effort: auth-bug" in saved["content"]
+        assert "Summary:" in saved["content"]
+        assert len(lines) == 3
