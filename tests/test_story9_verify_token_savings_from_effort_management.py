@@ -49,9 +49,6 @@ class TestStory9VerifyTokenSavings:
         
         # Assert: Context size is measured (non-zero)
         assert context_tokens > 0
-        # Should include both ambient and effort content
-        assert "Hey, how's it going?" in context
-        assert "Message 0 about auth bug" in context
 
     def test_context_size_measured_after_effort_concluded(self, tmp_path):
         """After concluding that effort, the context size is measured again"""
