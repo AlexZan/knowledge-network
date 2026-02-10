@@ -107,10 +107,11 @@ def format_conclusion_confirmation(effort_id, summary):
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def build_turn_context(session_dir):
+def build_turn_context(state, session_dir):
     """Build context for a turn, including open effort logs.
     
     Args:
+        state: ConversationState with artifacts
         session_dir: Path to session directory
         
     Returns:
