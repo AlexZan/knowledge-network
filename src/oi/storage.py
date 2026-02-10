@@ -69,27 +69,16 @@ def save_exchange_and_update_state(session_dir, target, user_message, assistant_
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def conclude_effort(effort_id, state, session_dir):
+def conclude_effort(effort_id, session_dir, summary):
     """Conclude an effort by updating its status in the manifest.
     
     Args:
         effort_id: Unique identifier for the effort
-        state: ConversationState containing the effort artifact
         session_dir: Path to session directory
+        summary: Summary of the effort conclusion
     """
     import yaml
     from datetime import datetime
-    
-    # Read the effort log for summarization
-    effort_log_path = session_dir / "efforts" / f"{effort_id}.jsonl"
-    if effort_log_path.exists():
-        with open(effort_log_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-    else:
-        content = ""
-    
-    from .llm import summarize_effort
-    summary = summarize_effort(content)
     
     manifest_path = session_dir / "manifest.yaml"
     if not manifest_path.exists():
@@ -111,13 +100,6 @@ def conclude_effort(effort_id, state, session_dir):
     
     with open(manifest_path, "w", encoding="utf-8") as f:
         yaml.dump(manifest, f)
-    
-    # Update the state to mark the artifact as resolved
-    for artifact in state.artifacts:
-        if artifact.id == effort_id and artifact.artifact_type == "effort":
-            artifact.status = "resolved"
-            artifact.updated = datetime.now()
-            break
 
 def save_to_effort_log(effort_id, efforts_dir, role, content):
     """Save a message to an effort's raw log.
