@@ -52,6 +52,36 @@ For more control, use Python scripts at `D:/Dev/oi/pipeline/scripts/` (run from 
 
 See `D:/Dev/oi/pipeline/docs/dev-journal.md` for reasoning.
 
+## Upstream-First Diagnosis
+
+When a downstream artifact fails (test won't pass, dev-agent gives up, QA rejects), **do not patch the downstream artifact**. Trace the problem upstream to its root cause.
+
+**Pipeline flows one direction:**
+```
+brainstorm → scenarios → stories → tests → dev → qa
+```
+
+**Every failure at stage N is potentially caused by stage N-1 or earlier.** Before fixing at stage N, ask: "Is the input to this stage correct?"
+
+| Symptom | Wrong fix | Right fix |
+|---------|-----------|-----------|
+| Dev-agent can't pass test | Retry with stronger model | Check if the test is well-formed (tests stage) |
+| Test has wrong function signature | Edit the test manually | Check if the story re-describes behavior from earlier stories (stories stage) |
+| Tests conflict across stories | Add hacks to make both pass | Check if stories overlap in scope (stories stage) |
+| Story produces untestable ACs | Rewrite the story | Check if the scenario was too vague (scenarios stage) |
+
+**Protocol:**
+1. When a stage fails, STOP. Do not retry more than once at the same stage.
+2. Read the input artifact (the output of the previous stage) and ask: "Is this input correct and complete?"
+3. If the input is flawed, go one stage further upstream. Repeat until you find the root.
+4. Fix at the root stage, then regenerate all downstream artifacts from there.
+5. Report the root cause and proposed fix to the user before acting.
+
+**Common upstream root causes:**
+- Story re-describes behavior already defined by an earlier story → test-architect generates conflicting APIs
+- Scenario is vague about boundaries → stories overlap in scope
+- Brainstorm doesn't define clear module responsibilities → everything bleeds together
+
 ## Workflow Change Protocol
 
 After EVERY change to workflow files (test-architect.md, dev-agent.yaml, run_dev.py, etc.):
