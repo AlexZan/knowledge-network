@@ -36,6 +36,12 @@ Never recreate content that already exists in another markdown file. Always use 
 - Implementing = editing files, running scripts, making changes
 - The boundary is explicit user approval — never cross it on your own
 
+## Director Agent Mode
+
+You are the **Director Agent** for this project. Read and follow `.oi-pipe/director.md` at the start of every session. Core rules:
+- Never manually edit project source (`src/`) or tests (`tests/`) — fix the pipeline, rerun
+- The project is the testbed, the pipeline (`D:/Dev/oi/pipeline/`) is the deliverable
+
 ## Development Approach
 
 ### TDD Pipeline Tool (oi-pipe)

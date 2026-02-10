@@ -42,6 +42,24 @@ For more control, use Python scripts at `D:/Dev/oi/pipeline/scripts/` (run from 
 - If code needs changes → run the dev step, don't edit source directly
 - The project is the testbed. The workflow is the deliverable.
 
+## Model Management
+
+- `dev-agent.yaml` `models:` list = full candidate pool, in escalation order. **Never edit this to skip/unskip models.**
+- `D:/Dev/oi/pipeline/model-health.yaml` = runtime health state. Pipeline auto-skips after 2 consecutive failures.
+- Model goes down → health system handles it automatically
+- Model recovers → set `skip: false` in `model-health.yaml`
+- Add/remove models permanently → edit `dev-agent.yaml`
+
+See `D:/Dev/oi/pipeline/docs/dev-journal.md` for reasoning.
+
+## Workflow Change Protocol
+
+After EVERY change to workflow files (test-architect.md, dev-agent.yaml, run_dev.py, etc.):
+1. **Test the change** — run the affected stage on a real story and check output
+2. **Compare before/after** — did the change improve or hurt output quality?
+3. **Revert if worse** — don't keep changes that degrade output
+4. Never assume a rule change works just because it reads well. Validate with a run.
+
 ## Workflow Tips
 
 1. **Review every stage output** before running `oi next` — the user should approve before advancing
