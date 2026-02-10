@@ -41,8 +41,8 @@
 **So that** I can get immediate help without breaking my flow
 
 **Acceptance Criteria:**
-- [ ] When I ask an unrelated question while an effort is open, the assistant responds to my question
-- [ ] The interruption question and response are saved to the ambient raw log (`raw.jsonl`), not the effort log
+- [ ] When I ask an unrelated question while an effort is open, the message is routed to ambient (not to the effort)
+- [ ] The effort log is not modified by the interruption
 - [ ] The open effort remains open and its context is still available after the interruption
 
 ## Story 5: Explicitly Conclude an Effort
