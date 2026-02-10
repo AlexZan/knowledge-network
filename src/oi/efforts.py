@@ -86,3 +86,36 @@ def add_assistant_confirmation_to_effort(session_dir, effort_id, confirmation_me
     
     with open(effort_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def conclude_effort(arg0, session_dir, summary):
+    raise NotImplementedError('conclude_effort')
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def start_new_effort(state, session_dir, user_message, assistant_response):
+    """Start a new effort by creating an effort file and logging the initial exchange.
+    
+    Args:
+        state: ConversationState (not used in current implementation)
+        session_dir: Path to session directory
+        user_message: User message that opened the effort
+        assistant_response: Assistant response confirming the effort opening
+    """
+    # Extract effort_id from assistant_response (assuming format "Opening effort: <effort_id>")
+    if assistant_response.startswith("Opening effort: "):
+        effort_id = assistant_response[len("Opening effort: "):].strip()
+    else:
+        # Fallback: generate a kebab-case effort_id from the first few words of user_message
+        import re
+        words = user_message.split()[:3]
+        effort_id = "-".join(re.sub(r'[^a-z0-9]', '', word.lower()) for word in words if word)
+    
+    # Open the effort with the user message
+    open_new_effort(session_dir, effort_id, user_message)
+    
+    # Add the assistant confirmation
+    add_assistant_confirmation_to_effort(session_dir, effort_id, assistant_response)
