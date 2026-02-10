@@ -56,7 +56,6 @@
 - [ ] The assistant confirms the effort has been concluded by name
 - [ ] The effort's status in the manifest changes from "open" to "concluded"
 - [ ] The summary is added to the manifest
-- [ ] My concluding message and the assistant's confirmation are saved to the effort's raw log
 
 ## Story 6: Remove Concluded Effort from Active Context
 
@@ -77,8 +76,6 @@
 
 **Acceptance Criteria:**
 - [ ] The context for each turn includes: all ambient messages (`raw.jsonl`), all effort summaries (from `manifest.yaml`), and the full raw logs of all open efforts
-- [ ] The context does NOT include the raw logs of concluded efforts
-- [ ] When I open a new effort after concluding one, the context includes: ambient + all summaries + new effort's raw log
 
 ## Story 8: Start a New Effort After Concluding One
 
@@ -87,10 +84,8 @@
 **So that** I can maintain productivity without context pollution
 
 **Acceptance Criteria:**
-- [ ] After concluding an effort, I can say "Let's work on Y" to start a new effort
-- [ ] The assistant creates a new effort file for Y
-- [ ] The new effort is marked as "open" in the manifest
-- [ ] The context includes: ambient + all summaries (including the just-concluded effort) + new effort's raw log
+- [ ] After concluding an effort, starting a new effort works the same as Story 2
+- [ ] The context includes the just-concluded effort's summary alongside the new effort's raw log
 
 ## Story 9: Verify Token Savings from Effort Management
 
