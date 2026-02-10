@@ -1,6 +1,7 @@
 """Effort management - opening, updating, and concluding efforts."""
 
 import yaml
+from .models import Artifact
 
 
 # --- TDD Stubs (auto-generated, implement these) ---
@@ -100,10 +101,13 @@ def start_new_effort(state, session_dir, user_message, assistant_response):
     """Start a new effort by creating an effort file and logging the initial exchange.
     
     Args:
-        state: ConversationState (not used in current implementation)
+        state: ConversationState to update with the new effort artifact
         session_dir: Path to session directory
         user_message: User message that opened the effort
         assistant_response: Assistant response confirming the effort opening
+        
+    Returns:
+        The effort_id of the newly created effort.
     """
     # Extract effort_id from assistant_response (assuming format "Opening effort: <effort_id>")
     if assistant_response.startswith("Opening effort: "):
@@ -154,3 +158,14 @@ def start_new_effort(state, session_dir, user_message, assistant_response):
     
     with open(manifest_path, "w", encoding="utf-8") as f:
         yaml.dump(manifest, f)
+    
+    # Create a new artifact for the effort and add it to the state
+    artifact = Artifact(
+        id=effort_id,
+        artifact_type="effort",
+        summary=user_message,
+        status="open"
+    )
+    state.artifacts.append(artifact)
+    
+    return effort_id
