@@ -101,18 +101,19 @@ def conclude_effort(effort_id, session_dir, summary):
     with open(manifest_path, "w", encoding="utf-8") as f:
         yaml.dump(manifest, f)
 
-def save_to_effort_log(effort_id, efforts_dir, role, content):
+def save_to_effort_log(effort_id, session_dir, role, content):
     """Save a message to an effort's raw log.
     
     Args:
         effort_id: Unique identifier for the effort
-        efforts_dir: Path to efforts directory
+        session_dir: Path to session directory
         role: "user" or "assistant"
         content: Message content
     """
     import json
     from datetime import datetime
     
+    efforts_dir = session_dir / "efforts"
     effort_file = efforts_dir / f"{effort_id}.jsonl"
     effort_file.parent.mkdir(parents=True, exist_ok=True)
     
