@@ -99,7 +99,7 @@
 **So that** I can validate the core hypothesis of effort-based context management
 
 **Acceptance Criteria:**
-- [ ] After working on an effort for several turns, the context size is measured
-- [ ] After concluding that effort, the context size is measured again
-- [ ] The token count shows a significant reduction (e.g., 80%+ savings for that effort)
+- [ ] The token count of the current context can be measured
+- [ ] After concluding an effort, the measured token count is lower than before
+- [ ] The token reduction is significant (e.g., 80%+ savings for that effort)
 - [ ] The summary in the manifest is substantially smaller than the raw effort log it replaces
