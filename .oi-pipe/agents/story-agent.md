@@ -37,6 +37,7 @@ Write user stories with acceptance criteria that a Product Owner can verify.
 3. **No implementation details** - No code, APIs, technical jargon
 4. **Complete coverage** - Every behavior in the scenario gets a story
 5. **Plain English** - Write for the PO, not developers
+6. **No scope overlap** - Each story's ACs describe only NEW behavior introduced by that story. If earlier stories already cover a behavior (e.g., "messages are saved to the log"), do NOT re-describe it. Reference it as a given and focus on what's new.
 
 ## Examples
 

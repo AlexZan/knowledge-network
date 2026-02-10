@@ -6,6 +6,13 @@ stages:
 - dev
 - qa
 - done
+
+# Error inspection policy
+# When a stage fails, how many retries before stopping to inspect the workflow
+# 0 = stop on first failure (recommended during early dev)
+# Higher values for mature workflows where flaky failures are expected
+error_policy:
+  max_failures_before_inspect: 0
 agents:
   scenarios:
     model: deepseek/deepseek-chat

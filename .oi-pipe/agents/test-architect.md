@@ -58,3 +58,4 @@ class TestFeatureName:
 ❌ Testing implementation details
 ❌ Missing edge cases
 ❌ Assertions without clear connection to stories
+❌ Re-testing behavior already covered by earlier stories - If the import map shows a function is already tested, don't generate a new test for it. Only test the NEW behavior this story introduces.
