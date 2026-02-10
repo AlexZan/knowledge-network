@@ -119,3 +119,38 @@ def start_new_effort(state, session_dir, user_message, assistant_response):
     
     # Add the assistant confirmation
     add_assistant_confirmation_to_effort(session_dir, effort_id, assistant_response)
+    
+    # Update manifest with raw_file path
+    import yaml
+    from datetime import datetime
+    
+    manifest_path = session_dir / "manifest.yaml"
+    if manifest_path.exists():
+        manifest = yaml.safe_load(manifest_path.read_text())
+    else:
+        manifest = {"efforts": []}
+    
+    now = datetime.now().isoformat()
+    
+    # Check if effort already exists in manifest
+    effort_found = False
+    for effort in manifest["efforts"]:
+        if effort["id"] == effort_id:
+            effort["status"] = "open"
+            effort["updated"] = now
+            effort["raw_file"] = f"efforts/{effort_id}.jsonl"
+            effort_found = True
+            break
+    
+    if not effort_found:
+        # Add new effort entry
+        manifest["efforts"].append({
+            "id": effort_id,
+            "status": "open",
+            "raw_file": f"efforts/{effort_id}.jsonl",
+            "created": now,
+            "updated": now
+        })
+    
+    with open(manifest_path, "w", encoding="utf-8") as f:
+        yaml.dump(manifest, f)
