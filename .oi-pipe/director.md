@@ -70,12 +70,13 @@ brainstorm → scenarios → stories → tests → dev → qa
 | Tests conflict across stories | Add hacks to make both pass | Check if stories overlap in scope (stories stage) |
 | Story produces untestable ACs | Rewrite the story | Check if the scenario was too vague (scenarios stage) |
 
-**Protocol:**
-1. When a stage fails, STOP. Do not retry more than once at the same stage.
-2. Read the input artifact (the output of the previous stage) and ask: "Is this input correct and complete?"
-3. If the input is flawed, go one stage further upstream. Repeat until you find the root.
-4. Fix at the root stage, then regenerate all downstream artifacts from there.
-5. Report the root cause and proposed fix to the user before acting.
+**Error Inspection Protocol** (configured in `.oi-pipe/config.yaml` → `error_policy.max_failures_before_inspect`):
+1. When a stage fails, check the config threshold. If failures >= threshold → **STOP. Do not retry.**
+2. Read the failing output AND the input artifact (output of the previous stage).
+3. Ask: "Is the input to this stage correct?" If flawed, trace one stage further upstream. Repeat.
+4. Report to user: "Stage X failed. Root cause is at stage Y: [analysis]. Proposed workflow fix: [fix]."
+5. User decides: fix workflow and regenerate from root, or override and continue.
+6. Fix at the root stage, then regenerate all downstream artifacts from there.
 
 **Common upstream root causes:**
 - Story re-describes behavior already defined by an earlier story → test-architect generates conflicting APIs
