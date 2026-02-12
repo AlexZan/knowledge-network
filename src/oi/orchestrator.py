@@ -27,12 +27,10 @@ def process_turn(session_dir, user_message):
             manifest = yaml.safe_load(manifest_path.read_text())
             open_efforts = [e for e in manifest.get("efforts", []) if e.get("status") == "open"]
             if open_efforts:
-                # Route to the first open effort
-                effort_id = open_efforts[0]["id"]
-                # Log to effort log
-                from .effort_log import save_message_to_effort_log
-                save_message_to_effort_log(session_dir, effort_id, "user", user_message)
-                save_message_to_effort_log(session_dir, effort_id, "assistant", assistant_response)
+                # Check if message is ambient (doesn't relate to open effort)
+                # For now, treat all non-effort-opening messages as ambient
+                # Log as ambient
+                log_exchange(session_dir, "ambient", "user", user_message, "assistant", assistant_response)
                 return assistant_response
         
         # Otherwise log as ambient
