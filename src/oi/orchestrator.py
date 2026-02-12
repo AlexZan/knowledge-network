@@ -3,6 +3,7 @@
 from .llm import chat
 from .chatlog import log_exchange
 from .efforts import open_new_effort, add_assistant_confirmation_to_effort
+import yaml
 
 def process_turn(session_dir, user_message):
     """Process a single turn: get LLM response and log the exchange."""
@@ -20,7 +21,21 @@ def process_turn(session_dir, user_message):
         # Do not log to ambient
         return assistant_response
     else:
-        # Log the exchange as ambient
+        # Check if there are open efforts
+        manifest_path = session_dir / "manifest.yaml"
+        if manifest_path.exists():
+            manifest = yaml.safe_load(manifest_path.read_text())
+            open_efforts = [e for e in manifest.get("efforts", []) if e.get("status") == "open"]
+            if open_efforts:
+                # Route to the first open effort
+                effort_id = open_efforts[0]["id"]
+                # Log to effort log
+                from .effort_log import save_message_to_effort_log
+                save_message_to_effort_log(session_dir, effort_id, "user", user_message)
+                save_message_to_effort_log(session_dir, effort_id, "assistant", assistant_response)
+                return assistant_response
+        
+        # Otherwise log as ambient
         log_exchange(session_dir, "ambient", "user", user_message, "assistant", assistant_response)
         return assistant_response
 
