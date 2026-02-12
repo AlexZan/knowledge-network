@@ -20,6 +20,25 @@ def process_turn(session_dir, user_message):
         add_assistant_confirmation_to_effort(session_dir, effort_id, assistant_response)
         # Do not log to ambient
         return assistant_response
+    elif assistant_response.startswith("Concluding effort: "):
+        # Extract effort ID from the assistant response
+        effort_id = assistant_response.split("Concluding effort: ")[1].split("\n")[0].strip()
+        # Extract summary from the response
+        summary = ""
+        if "Summary:" in assistant_response:
+            summary_part = assistant_response.split("Summary:")[1].split("\n\n")[0].strip()
+            summary = summary_part
+        
+        # Log the exchange to the effort log
+        from .storage import save_to_effort_log
+        save_to_effort_log(effort_id, session_dir, "user", user_message)
+        save_to_effort_log(effort_id, session_dir, "assistant", assistant_response)
+        
+        # Update manifest to conclude the effort
+        from .storage import conclude_effort
+        conclude_effort(effort_id, session_dir, summary)
+        
+        return assistant_response
     else:
         # Check if there are open efforts
         manifest_path = session_dir / "manifest.yaml"
