@@ -46,13 +46,18 @@ def process_turn(session_dir, user_message):
             manifest = yaml.safe_load(manifest_path.read_text())
             open_efforts = [e for e in manifest.get("efforts", []) if e.get("status") == "open"]
             if open_efforts:
-                # Route to the first open effort
+                # Check if the user message is related to the open effort
                 effort_id = open_efforts[0]["id"]
-                # Log to effort log
-                from .storage import save_to_effort_log
-                save_to_effort_log(effort_id, session_dir, "user", user_message)
-                save_to_effort_log(effort_id, session_dir, "assistant", assistant_response)
-                return assistant_response
+                # Convert effort_id to lower case and split by hyphens to get keywords
+                effort_keywords = effort_id.lower().replace('-', ' ').split()
+                user_message_lower = user_message.lower()
+                # Check if any of the effort keywords are in the user message
+                if any(keyword in user_message_lower for keyword in effort_keywords):
+                    # Route to effort
+                    from .storage import save_to_effort_log
+                    save_to_effort_log(effort_id, session_dir, "user", user_message)
+                    save_to_effort_log(effort_id, session_dir, "assistant", assistant_response)
+                    return assistant_response
         
         # Otherwise log as ambient
         log_exchange(session_dir, "ambient", "user", user_message, "assistant", assistant_response)
