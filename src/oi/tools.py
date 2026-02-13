@@ -19,3 +19,43 @@ def handle_open_effort_tool(effort_id, user_message, session_dir):
     
     return {"status": "opened", "effort_id": effort_id}
 
+
+
+# --- TDD Stubs (auto-generated, implement these) ---
+
+def should_conclude_effort(message, state_artifacts):
+    """Check if a message indicates an effort should be concluded.
+    
+    Args:
+        message: User message
+        state_artifacts: List of artifact dicts from state
+        
+    Returns:
+        effort_id if message concludes an effort, None otherwise
+    """
+    message_lower = message.lower()
+    
+    # Check for patterns like "X is done" or "X looks good"
+    for artifact in state_artifacts:
+        if artifact.get("artifact_type") == "effort" and artifact.get("status") == "open":
+            effort_id = artifact.get("id")
+            if effort_id:
+                # Check if message contains effort_id followed by conclusion phrase
+                if f"{effort_id} is done" in message_lower:
+                    return effort_id
+                if f"{effort_id} looks good" in message_lower:
+                    return effort_id
+    
+    return None
+
+def generate_conclusion_response(effort_id, summary):
+    """Generate a confirmation response for concluding an effort.
+    
+    Args:
+        effort_id: ID of the effort being concluded
+        summary: Summary of the effort conclusion
+        
+    Returns:
+        Assistant response text
+    """
+    return f"Concluding effort '{effort_id}' with summary: {summary}"
