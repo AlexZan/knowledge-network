@@ -7,8 +7,39 @@ import yaml
 
 def process_turn(session_dir, user_message):
     """Process a single turn: get LLM response and log the exchange."""
-    # Get LLM response
-    messages = [{"role": "user", "content": user_message}]
+    from .context import build_ambient_context, build_turn_context
+    from .storage import load_state
+    import yaml
+    
+    # Load state to build context
+    state = load_state(session_dir)
+    
+    # Check if there are open efforts and if this is an interruption
+    open_efforts = []
+    manifest_path = session_dir / "manifest.yaml"
+    if manifest_path.exists():
+        manifest = yaml.safe_load(manifest_path.read_text())
+        open_efforts = [e for e in manifest.get("efforts", []) if e.get("status") == "open"]
+    
+    is_interruption = False
+    if open_efforts:
+        lower_message = user_message.lower()
+        interruption_indicators = ["quick question", "weather", "unrelated"]
+        is_interruption = any(indicator in lower_message for indicator in interruption_indicators)
+    
+    # Build appropriate context
+    if is_interruption:
+        # For interruptions, use ambient context only
+        context = build_ambient_context(session_dir, user_message)
+    else:
+        # For regular turns, use full context including efforts
+        context = build_turn_context(state, session_dir)
+    
+    # Get LLM response with context
+    messages = [
+        {"role": "system", "content": context},
+        {"role": "user", "content": user_message}
+    ]
     assistant_response = chat(messages)
     
     # Check if this is an effort opening

@@ -55,6 +55,7 @@ def open_new_effort(session_dir, effort_id, user_message):
         manifest["efforts"].append({
             "id": effort_id,
             "status": "open",
+            "raw_file": f"efforts/{effort_id}.jsonl",
             "created": now,
             "updated": now
         })
