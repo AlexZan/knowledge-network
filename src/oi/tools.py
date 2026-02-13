@@ -12,8 +12,12 @@ def handle_open_effort_tool(effort_id, user_message, session_dir):
     # Create effort file with user message
     create_new_effort_file(session_dir, effort_id, user_message)
     
-    # Update manifest
-    update_manifest_for_new_effort(session_dir, effort_id, f"Effort: {effort_id}")
+    # Update manifest with summary from user message
+    summary = f"Effort: {effort_id}"
+    if user_message:
+        # Use a more descriptive summary based on user message
+        summary = user_message[:50] + "..." if len(user_message) > 50 else user_message
+    update_manifest_for_new_effort(session_dir, effort_id, summary)
     
     # Save assistant confirmation to effort log
     confirmation = generate_effort_opening_response(effort_id)

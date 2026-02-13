@@ -148,7 +148,7 @@ def build_turn_context(state, session_dir):
     if resolved_efforts:
         sections.append("# Resolved Efforts (Past Work)")
         for effort in resolved_efforts:
-            sections.append(f"- {effort.summary}")
+            sections.append(f"- {effort.id}: {effort.summary}")
         sections.append("")
 
     # Section 3: Archived Efforts
