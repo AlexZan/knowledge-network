@@ -92,8 +92,19 @@ def calculate_effort_stats(messages: list[dict], artifact_text: str, model: str 
 
 # --- TDD Stubs (auto-generated, implement these) ---
 
-def measure_context_size(session_dir, arg1):
-    raise NotImplementedError('measure_context_size')
+def measure_context_size(session_dir, state):
+    """Measure token count of the current context.
+    
+    Args:
+        session_dir: Path to session directory
+        state: ConversationState with artifacts
+        
+    Returns:
+        Integer token count
+    """
+    from .context import build_turn_context
+    context_str = build_turn_context(state, session_dir)
+    return count_tokens(context_str)
 
 def calculate_effort_savings(effort_id, session_dir, model="gpt-4"):
     """Calculate token savings percentage for a concluded effort.
@@ -106,8 +117,6 @@ def calculate_effort_savings(effort_id, session_dir, model="gpt-4"):
     Returns:
         Float percentage savings (0-100)
     """
-    from .llm import summarize_effort
-    
     # Read effort log
     effort_log_path = session_dir / "efforts" / f"{effort_id}.jsonl"
     if not effort_log_path.exists():
@@ -133,8 +142,7 @@ def calculate_effort_savings(effort_id, session_dir, model="gpt-4"):
             break
     
     if not summary:
-        # Fallback to generating summary
-        summary = summarize_effort(effort_content)
+        return 0.0
     
     # Count summary tokens
     summary_tokens = count_tokens(summary, model)
