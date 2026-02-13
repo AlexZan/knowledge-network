@@ -120,36 +120,14 @@ def build_turn_context(state, session_dir):
     sections = []
 
     # Section 1: Open Efforts (current work) - highest priority
-    # Read open efforts from manifest
-    import yaml
-    manifest_path = session_dir / "manifest.yaml"
-    open_efforts = []
-    resolved_efforts = []
-    archived_efforts = []
-    
-    if manifest_path.exists():
-        try:
-            manifest = yaml.safe_load(manifest_path.read_text())
-            for effort in manifest.get('efforts', []):
-                status = effort.get('status', '')
-                if status == 'open':
-                    open_efforts.append(effort)
-                elif status == 'concluded':
-                    resolved_efforts.append(effort)
-                elif status == 'archived':
-                    archived_efforts.append(effort)
-        except (yaml.YAMLError, IOError):
-            pass
-
+    open_efforts = state.get_open_efforts()
     if open_efforts:
         sections.append("# Open Efforts (Current Work)")
         for effort in open_efforts:
-            summary = effort.get('summary', '')
-            effort_id = effort.get('id', '')
-            sections.append(f"- {summary}")
+            sections.append(f"- {effort.summary}")
             
             # Include the effort's raw log content
-            effort_log_path = session_dir / "efforts" / f"{effort_id}.jsonl"
+            effort_log_path = session_dir / "efforts" / f"{effort.id}.jsonl"
             if effort_log_path.exists():
                 sections.append("  Recent messages in this effort:")
                 try:
@@ -166,19 +144,19 @@ def build_turn_context(state, session_dir):
         sections.append("")
 
     # Section 2: Resolved Artifacts (past work with conclusions)
+    resolved_efforts = state.get_resolved_efforts()
     if resolved_efforts:
         sections.append("# Resolved Efforts (Past Work)")
         for effort in resolved_efforts:
-            summary = effort.get('summary', '')
-            sections.append(f"- {summary}")
+            sections.append(f"- {effort.summary}")
         sections.append("")
 
     # Section 3: Archived Efforts
+    archived_efforts = state.get_archived_efforts()
     if archived_efforts:
         sections.append("# Archived Efforts (Inactive)")
         for effort in archived_efforts:
-            summary = effort.get('summary', '')
-            sections.append(f"- {summary}")
+            sections.append(f"- {effort.summary}")
         sections.append("")
 
     # Section 4: Recent Conversation (ambient messages from raw.jsonl)

@@ -28,6 +28,10 @@ def route_message(state, message):
         if common_terms and len(common_terms) > 0:
             return effort.id
     
+    # If only one open effort exists, route to it regardless of content
+    if len(open_efforts) == 1:
+        return open_efforts[0].id
+    
     # If no relation found, treat as ambient interruption
     return "ambient"
 
