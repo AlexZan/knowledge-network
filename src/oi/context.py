@@ -158,7 +158,7 @@ def build_turn_context(state, session_dir):
                     if manifest_effort.get("id") == effort.id and manifest_effort.get("status") == "concluded":
                         effort_summary = manifest_effort.get("summary", effort.summary)
                         break
-            sections.append(f"- {effort_summary}")
+            sections.append(f"- {effort.id}: {effort_summary}")
         sections.append("")
 
     # Section 3: Archived Efforts

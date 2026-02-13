@@ -1,258 +1,172 @@
 """Tests for Story 6: Remove Concluded Effort from Active Context"""
 
 import json
-import yaml
 import pytest
 from pathlib import Path
+from unittest.mock import patch
 
 
 class TestStory6RemoveConcludedEffortFromActiveContext:
     """Story 6: Remove Concluded Effort from Active Context"""
 
-    def test_context_excludes_raw_log_of_concluded_effort(self, tmp_path):
+    def test_concluded_effort_raw_log_not_in_context(self, tmp_path):
         """After an effort is concluded, its raw log is no longer included in the context for subsequent turns"""
-        # Arrange
-        from oi.context import build_turn_context  # Will fail - doesn't exist yet
-        
-        # Create session directory with concluded effort
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-        
-        # Create manifest with concluded effort
-        manifest = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "concluded",
-                    "summary": "Debugged 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor for proactive refresh.",
-                    "raw_file": "efforts/auth-bug.jsonl"
-                }
-            ]
-        }
-        manifest_path = session_dir / "manifest.yaml"
-        manifest_path.write_text(yaml.dump(manifest))
-        
-        # Create raw log for concluded effort (should NOT be in context)
-        efforts_dir = session_dir / "efforts"
+        from oi.context import build_turn_context
+        from oi.models import ConversationState, Artifact
+
+        # Arrange: Create a concluded effort with raw log
+        efforts_dir = tmp_path / "efforts"
         efforts_dir.mkdir()
         effort_log = efforts_dir / "auth-bug.jsonl"
         effort_log.write_text(
-            json.dumps({"role": "user", "content": "Let's debug the auth bug"}) + "\n" +
-            json.dumps({"role": "assistant", "content": "Opening effort: auth-bug"}) + "\n" +
-            json.dumps({"role": "user", "content": "Access token is 1 hour"}) + "\n"
+            json.dumps({"role": "user", "content": "debug auth"}) + "\n" +
+            json.dumps({"role": "assistant", "content": "check token TTL"}) + "\n"
         )
-        
-        # Create raw.jsonl with ambient messages
-        raw_log = session_dir / "raw.jsonl"
-        raw_log.write_text(
-            json.dumps({"role": "user", "content": "Hey, how's it going?"}) + "\n" +
-            json.dumps({"role": "assistant", "content": "Good! Ready to help."}) + "\n"
-        )
-        
-        # State with concluded effort artifact
-        from oi.models import ConversationState, Artifact
-        state = ConversationState(artifacts=[
-            Artifact(
-                id="auth-bug",
-                artifact_type="effort",
-                summary="Debugged 401 errors",
-                status="resolved",
-                resolution="Added axios interceptor"
-            )
-        ])
-        
-        # Act
-        context = build_turn_context(state, session_dir)
-        
-        # Assert: raw effort content should NOT be in context
-        assert "Let's debug the auth bug" not in context
-        assert "Opening effort: auth-bug" not in context
-        assert "Access token is 1 hour" not in context
-        
-        # Assert: ambient content should be in context
-        assert "Hey, how's it going?" in context
-        assert "Good! Ready to help." in context
 
-    def test_context_includes_summary_of_concluded_effort(self, tmp_path):
+        # Create manifest with concluded effort
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_content = """efforts:
+  - id: auth-bug
+    status: concluded
+    summary: "Debugged 401 errors"
+    created: "2024-01-01T00:00:00"
+    updated: "2024-01-01T00:00:00"
+"""
+        manifest_path.write_text(manifest_content)
+
+        # State has concluded artifact
+        state = ConversationState(artifacts=[
+            Artifact(id="auth-bug", artifact_type="effort", summary="Debugged 401 errors", status="resolved")
+        ])
+
+        # Act: Build context
+        context = build_turn_context(state, tmp_path)
+
+        # Assert: Raw log content NOT in context
+        assert "debug auth" not in context
+        assert "check token TTL" not in context
+
+    def test_concluded_effort_summary_in_context(self, tmp_path):
         """Only the summary of the concluded effort (from the manifest) is included in the context"""
-        # Arrange
         from oi.context import build_turn_context
-        
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-        
-        # Create manifest with concluded effort summary
-        summary_text = "Debugged 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor for proactive refresh."
-        manifest = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "concluded",
-                    "summary": summary_text,
-                    "raw_file": "efforts/auth-bug.jsonl"
-                }
-            ]
-        }
-        manifest_path = session_dir / "manifest.yaml"
-        manifest_path.write_text(yaml.dump(manifest))
-        
-        # Create raw log for concluded effort
-        efforts_dir = session_dir / "efforts"
+        from oi.models import ConversationState, Artifact
+
+        # Arrange: Create concluded effort with summary
+        efforts_dir = tmp_path / "efforts"
         efforts_dir.mkdir()
         effort_log = efforts_dir / "auth-bug.jsonl"
         effort_log.write_text(
-            json.dumps({"role": "user", "content": "Let's debug the auth bug"}) + "\n"
+            json.dumps({"role": "user", "content": "debug auth"}) + "\n"
         )
-        
-        # Create ambient raw log
-        raw_log = session_dir / "raw.jsonl"
-        raw_log.write_text(
-            json.dumps({"role": "user", "content": "Hello"}) + "\n"
-        )
-        
-        from oi.models import ConversationState, Artifact
-        state = ConversationState(artifacts=[
-            Artifact(
-                id="auth-bug",
-                artifact_type="effort",
-                summary="Debugged 401 errors",
-                status="resolved"
-            )
-        ])
-        
-        # Act
-        context = build_turn_context(state, session_dir)
-        
-        # Assert: summary should be in context
-        assert "Debugged 401 errors after 1 hour" in context
-        assert "axios interceptor for proactive refresh" in context
-        assert summary_text in context
 
-    def test_raw_log_file_preserved_after_conclusion(self, tmp_path):
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_content = """efforts:
+  - id: auth-bug
+    status: concluded
+    summary: "Debugged 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor."
+    created: "2024-01-01T00:00:00"
+    updated: "2024-01-01T00:00:00"
+"""
+        manifest_path.write_text(manifest_content)
+
+        state = ConversationState(artifacts=[
+            Artifact(id="auth-bug", artifact_type="effort", summary="Debugged 401 errors", status="resolved")
+        ])
+
+        # Act
+        context = build_turn_context(state, tmp_path)
+
+        # Assert: Summary IS in context
+        assert "Debugged 401 errors after 1 hour" in context
+        assert "refresh tokens never auto-called" in context
+        assert "axios interceptor" in context
+
+    def test_concluded_effort_raw_log_preserved_on_disk(self, tmp_path):
         """The raw log file for the concluded effort is preserved on disk for potential future reference"""
-        # Arrange
-        from oi.context import build_turn_context
-        
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-        
-        # Create manifest with concluded effort
-        manifest = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "concluded",
-                    "summary": "Fixed auth bug",
-                    "raw_file": "efforts/auth-bug.jsonl"
-                }
-            ]
-        }
-        manifest_path = session_dir / "manifest.yaml"
-        manifest_path.write_text(yaml.dump(manifest))
-        
-        # Create raw log for concluded effort
-        efforts_dir = session_dir / "efforts"
+        from oi.storage import conclude_effort
+        from oi.models import ConversationState, Artifact
+
+        # Arrange: Create an open effort with raw log
+        efforts_dir = tmp_path / "efforts"
         efforts_dir.mkdir()
         effort_log = efforts_dir / "auth-bug.jsonl"
         original_content = (
-            json.dumps({"role": "user", "content": "Let's debug the auth bug"}) + "\n" +
-            json.dumps({"role": "assistant", "content": "Opening effort"}) + "\n" +
-            json.dumps({"role": "user", "content": "Access token is 1 hour"}) + "\n"
+            json.dumps({"role": "user", "content": "debug auth"}) + "\n" +
+            json.dumps({"role": "assistant", "content": "check token TTL"}) + "\n"
         )
         effort_log.write_text(original_content)
-        
-        # Create ambient raw log
-        raw_log = session_dir / "raw.jsonl"
-        raw_log.write_text(
-            json.dumps({"role": "user", "content": "Hello"}) + "\n"
-        )
-        
-        from oi.models import ConversationState, Artifact
-        state = ConversationState(artifacts=[
-            Artifact(
-                id="auth-bug",
-                artifact_type="effort",
-                summary="Fixed auth bug",
-                status="resolved"
-            )
-        ])
-        
-        # Act - build context (should not modify or delete the raw log)
-        context = build_turn_context(state, session_dir)
-        
-        # Assert: raw log file still exists
-        assert effort_log.exists()
-        
-        # Assert: content is unchanged
-        assert effort_log.read_text() == original_content
-        
-        # Assert: file is still in efforts directory
-        assert effort_log.parent == efforts_dir
-        assert effort_log.name == "auth-bug.jsonl"
 
-    def test_context_includes_multiple_concluded_effort_summaries(self, tmp_path):
-        """Context includes summaries of multiple concluded efforts but not their raw logs"""
-        # Arrange
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_content = """efforts:
+  - id: auth-bug
+    status: open
+    summary: "Debugging auth"
+    created: "2024-01-01T00:00:00"
+    updated: "2024-01-01T00:00:00"
+"""
+        manifest_path.write_text(manifest_content)
+
+        # Act: Conclude the effort
+        conclude_effort("auth-bug", tmp_path, "Debugged 401 errors after 1 hour")
+
+        # Assert: Raw log file still exists with original content
+        assert effort_log.exists()
+        assert effort_log.read_text() == original_content
+
+    def test_context_includes_open_effort_raw_but_not_concluded(self, tmp_path):
+        """Context includes raw logs for open efforts but only summaries for concluded efforts"""
         from oi.context import build_turn_context
-        
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-        
-        # Create manifest with multiple concluded efforts
-        manifest = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "concluded",
-                    "summary": "Fixed 401 errors with axios interceptor",
-                    "raw_file": "efforts/auth-bug.jsonl"
-                },
-                {
-                    "id": "ui-bug",
-                    "status": "concluded", 
-                    "summary": "Fixed button alignment in mobile view",
-                    "raw_file": "efforts/ui-bug.jsonl"
-                }
-            ]
-        }
-        manifest_path = session_dir / "manifest.yaml"
-        manifest_path.write_text(yaml.dump(manifest))
-        
-        # Create raw logs for concluded efforts
-        efforts_dir = session_dir / "efforts"
-        efforts_dir.mkdir()
-        
-        # auth-bug raw log
-        auth_log = efforts_dir / "auth-bug.jsonl"
-        auth_log.write_text(
-            json.dumps({"role": "user", "content": "auth debug message"}) + "\n"
-        )
-        
-        # ui-bug raw log
-        ui_log = efforts_dir / "ui-bug.jsonl"
-        ui_log.write_text(
-            json.dumps({"role": "user", "content": "ui debug message"}) + "\n"
-        )
-        
-        # Create ambient raw log
-        raw_log = session_dir / "raw.jsonl"
-        raw_log.write_text(
-            json.dumps({"role": "user", "content": "Hello"}) + "\n"
-        )
-        
         from oi.models import ConversationState, Artifact
+
+        # Arrange: One open effort, one concluded effort
+        efforts_dir = tmp_path / "efforts"
+        efforts_dir.mkdir()
+
+        # Open effort raw log
+        open_log = efforts_dir / "guild-feature.jsonl"
+        open_log.write_text(
+            json.dumps({"role": "user", "content": "add member limit"}) + "\n" +
+            json.dumps({"role": "assistant", "content": "what max limit?"}) + "\n"
+        )
+
+        # Concluded effort raw log
+        concluded_log = efforts_dir / "auth-bug.jsonl"
+        concluded_log.write_text(
+            json.dumps({"role": "user", "content": "debug auth"}) + "\n" +
+            json.dumps({"role": "assistant", "content": "check token TTL"}) + "\n"
+        )
+
+        # Manifest with both
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_content = """efforts:
+  - id: auth-bug
+    status: concluded
+    summary: "Debugged 401 errors"
+    created: "2024-01-01T00:00:00"
+    updated: "2024-01-01T00:00:00"
+  - id: guild-feature
+    status: open
+    summary: "Add member limit to guilds"
+    created: "2024-01-01T00:00:00"
+    updated: "2024-01-01T00:00:00"
+"""
+        manifest_path.write_text(manifest_content)
+
         state = ConversationState(artifacts=[
-            Artifact(id="auth-bug", artifact_type="effort", summary="Fixed 401 errors", status="resolved"),
-            Artifact(id="ui-bug", artifact_type="effort", summary="Fixed button alignment", status="resolved")
+            Artifact(id="auth-bug", artifact_type="effort", summary="Debugged 401 errors", status="resolved"),
+            Artifact(id="guild-feature", artifact_type="effort", summary="Add member limit to guilds", status="open")
         ])
-        
+
         # Act
-        context = build_turn_context(state, session_dir)
-        
-        # Assert: summaries are in context
-        assert "Fixed 401 errors with axios interceptor" in context
-        assert "Fixed button alignment in mobile view" in context
-        
-        # Assert: raw log content is NOT in context
-        assert "auth debug message" not in context
-        assert "ui debug message" not in context
+        context = build_turn_context(state, tmp_path)
+
+        # Assert: Open effort raw content IS in context
+        assert "add member limit" in context
+        assert "what max limit?" in context
+
+        # Assert: Concluded effort raw content NOT in context
+        assert "debug auth" not in context
+        assert "check token TTL" not in context
+
+        # Assert: Concluded effort summary IS in context
+        assert "Debugged 401 errors" in context

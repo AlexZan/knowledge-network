@@ -5,14 +5,14 @@ artifacts:
   stories:
   - stories/stories.md
   tests:
-  - tests\test_story8_start_a_new_effort_after_concluding_one.py
+  - tests\test_story7_assemble_context_from_multiple_sources.py
   tests_validation:
-    total: 4
+    total: 7
     passed: 2
-    failed: 2
+    failed: 5
     errors: 0
     review:
-      test_context_includes_concluded_summary_and_new_effort_raw_log: A
-      test_llm_tool_use_for_new_effort_after_conclusion: A
-    valid_red_phase: true
-last_updated: '2026-02-13T21:27:14.592851'
+      test_build_turn_context_includes_ambient_raw_jsonl: A
+      test_build_turn_context_handles_missing_manifest_gracefully: B
+    valid_red_phase: false
+last_updated: '2026-02-13T22:03:40.010916'

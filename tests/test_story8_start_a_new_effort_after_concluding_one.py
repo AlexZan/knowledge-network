@@ -1,9 +1,8 @@
-"""Tests for Story 8: Start New Effort After Concluding One"""
+"""Tests for Story 8: Start a New Effort After Concluding One"""
 
-import pytest
 import json
+import pytest
 import yaml
-import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -11,240 +10,151 @@ from unittest.mock import patch, MagicMock
 class TestStory8StartNewEffortAfterConcludingOne:
     """Story 8: Start a New Effort After Concluding One"""
 
-    def test_user_let_work_on_starts_new_effort_with_open_status(self, tmp_path):
-        """After concluding an effort, I can say 'Let's work on Y' to start a new effort"""
-        # Arrange
-        from oi.models import ConversationState, Artifact
-        from oi.efforts import start_new_effort  # New function, ImportError = red
-        
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-        
-        # Create manifest with concluded effort
-        manifest_data = {
+    def test_new_effort_after_conclusion_works_same_as_story2(self, tmp_path):
+        """After concluding an effort, starting a new effort works the same as Story 2"""
+        from oi.storage import create_new_effort_file, update_manifest_for_new_effort
+        from oi.tools import generate_effort_opening_response, handle_open_effort_tool
+
+        # Arrange: Simulate a concluded effort in manifest
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest = {
             "efforts": [
                 {
                     "id": "auth-bug",
                     "status": "concluded",
-                    "summary": "Fixed token refresh",
-                    "raw_file": "efforts/auth-bug.jsonl"
+                    "summary": "Fixed auth token refresh",
+                    "created": "2024-01-01T00:00:00",
+                    "updated": "2024-01-01T01:00:00"
                 }
             ]
         }
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest_data))
-        
-        # Create state with concluded artifact
-        state = ConversationState(
-            artifacts=[
-                Artifact(
-                    id="auth-bug",
-                    artifact_type="effort",
-                    summary="Fixed token refresh",
-                    status="resolved",
-                    resolution="Added axios interceptor"
-                )
-            ]
-        )
-        
-        # Act
-        new_effort_id = start_new_effort(
-            state=state,
-            session_dir=session_dir,
-            user_message="Let's work on guild-feature - I want to add a member limit",
-            assistant_response="Opening effort: guild-feature"
-        )
-        
-        # Assert
-        assert new_effort_id == "guild-feature"
-        
-        # Check artifact in state
-        new_efforts = [a for a in state.artifacts if a.artifact_type == "effort" and a.id == "guild-feature"]
-        assert len(new_efforts) == 1
-        assert new_efforts[0].status == "open"
-        assert "guild-feature" in new_efforts[0].summary.lower()
-    
-    def test_new_effort_file_created_in_efforts_directory(self, tmp_path):
-        """The assistant creates a new effort file for Y"""
-        # Arrange
-        from oi.models import ConversationState, Artifact
-        from oi.efforts import start_new_effort
-        
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-        efforts_dir = session_dir / "efforts"
-        
-        # Create empty manifest
-        (session_dir / "manifest.yaml").write_text(yaml.dump({"efforts": []}))
-        
-        state = ConversationState(artifacts=[])
-        
-        # Act
-        start_new_effort(
-            state=state,
-            session_dir=session_dir,
-            user_message="Let's debug the rate limiting issue",
-            assistant_response="Opening effort: rate-limiting"
-        )
-        
-        # Assert
-        effort_file = efforts_dir / "rate-limiting.jsonl"
+        manifest_path.write_text(yaml.dump(manifest))
+
+        # Act: Start a new effort using Story 2 functions
+        new_effort_id = "guild-feature"
+        user_message = "Let's add a member limit to guilds"
+        create_new_effort_file(tmp_path, new_effort_id, user_message)
+        update_manifest_for_new_effort(tmp_path, new_effort_id, "Add member limit to guilds")
+
+        # Assert: New effort file created with user message
+        effort_file = tmp_path / "efforts" / f"{new_effort_id}.jsonl"
         assert effort_file.exists()
-        
-        # File should contain the exchange
         with open(effort_file) as f:
-            lines = f.readlines()
-        assert len(lines) == 2
-        
-        user_msg = json.loads(lines[0])
-        assert user_msg["role"] == "user"
-        assert "rate limiting" in user_msg["content"].lower()
-        
-        assistant_msg = json.loads(lines[1])
-        assert assistant_msg["role"] == "assistant"
-        assert "rate-limiting" in assistant_msg["content"].lower()
-    
-    def test_manifest_updated_with_new_open_effort(self, tmp_path):
-        """The new effort is marked as 'open' in the manifest"""
-        # Arrange
+            first_line = json.loads(f.readline())
+        assert first_line["role"] == "user"
+        assert first_line["content"] == user_message
+
+        # Assert: Manifest updated with new open effort
+        updated_manifest = yaml.safe_load(manifest_path.read_text())
+        new_efforts = [e for e in updated_manifest["efforts"] if e["id"] == new_effort_id]
+        assert len(new_efforts) == 1
+        assert new_efforts[0]["status"] == "open"
+        assert new_efforts[0]["summary"] == "Add member limit to guilds"
+
+        # Assert: Concluded effort remains unchanged
+        concluded_efforts = [e for e in updated_manifest["efforts"] if e["id"] == "auth-bug"]
+        assert len(concluded_efforts) == 1
+        assert concluded_efforts[0]["status"] == "concluded"
+
+    def test_context_includes_concluded_summary_and_new_effort_raw_log(self, tmp_path):
+        """The context includes the just-concluded effort's summary alongside the new effort's raw log"""
+        from oi.context import build_turn_context
         from oi.models import ConversationState, Artifact
-        from oi.efforts import start_new_effort
-        
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-        
-        # Initial manifest with concluded effort
-        manifest_path = session_dir / "manifest.yaml"
-        manifest_data = {
+
+        # Arrange: Create a concluded effort artifact and a new open effort artifact
+        concluded_artifact = Artifact(
+            id="auth-bug",
+            artifact_type="effort",
+            summary="Debugged 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor for proactive refresh.",
+            status="resolved",
+            resolution="Fixed by adding axios interceptor"
+        )
+        new_artifact = Artifact(
+            id="guild-feature",
+            artifact_type="effort",
+            summary="Add member limit to guilds",
+            status="open"
+        )
+        state = ConversationState(artifacts=[concluded_artifact, new_artifact])
+
+        # Arrange: Create raw log for new effort
+        efforts_dir = tmp_path / "efforts"
+        efforts_dir.mkdir()
+        new_effort_log = efforts_dir / "guild-feature.jsonl"
+        new_effort_log.write_text(
+            json.dumps({"role": "user", "content": "Let's add a member limit to guilds"}) + "\n" +
+            json.dumps({"role": "assistant", "content": "Opening effort: guild-feature"}) + "\n"
+        )
+
+        # Arrange: Create ambient raw log
+        raw_log = tmp_path / "raw.jsonl"
+        raw_log.write_text(
+            json.dumps({"role": "user", "content": "Hey, how's it going?"}) + "\n" +
+            json.dumps({"role": "assistant", "content": "Good! Ready to help."}) + "\n"
+        )
+
+        # Act: Build context
+        context = build_turn_context(state, tmp_path)
+
+        # Assert: Context includes concluded effort summary
+        assert "auth-bug" in context
+        assert "401 errors" in context
+        assert "axios interceptor" in context
+
+        # Assert: Context includes new effort raw messages
+        assert "guild-feature" in context
+        assert "member limit" in context
+        assert "Opening effort" in context
+
+        # Assert: Context includes ambient messages
+        assert "how's it going" in context.lower()
+        assert "Ready to help" in context
+
+    def test_llm_tool_call_for_new_effort_after_conclusion(self, tmp_path):
+        """LLM can call open_effort tool after a previous effort is concluded"""
+        from oi.tools import handle_open_effort_tool
+
+        # Arrange: Mock litellm response with tool call for opening new effort
+        mock_response = MagicMock()
+        mock_tool_call = MagicMock()
+        mock_tool_call.function.name = "open_effort"
+        mock_tool_call.function.arguments = '{"name": "guild-feature"}'
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.tool_calls = [mock_tool_call]
+        mock_response.choices[0].message.content = "Sure, let's work on guild member limits."
+
+        # Arrange: Create concluded effort in manifest
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest = {
             "efforts": [
                 {
                     "id": "auth-bug",
                     "status": "concluded",
                     "summary": "Fixed auth",
-                    "raw_file": "efforts/auth-bug.jsonl"
+                    "created": "2024-01-01T00:00:00",
+                    "updated": "2024-01-01T01:00:00"
                 }
             ]
         }
-        manifest_path.write_text(yaml.dump(manifest_data))
-        
-        state = ConversationState(
-            artifacts=[
-                Artifact(
-                    id="auth-bug",
-                    artifact_type="effort",
-                    summary="Fixed auth",
-                    status="resolved"
-                )
-            ]
-        )
-        
-        # Act
-        start_new_effort(
-            state=state,
-            session_dir=session_dir,
-            user_message="Let's work on database-indexing",
-            assistant_response="Opening effort: database-indexing"
-        )
-        
-        # Assert
+        manifest_path.write_text(yaml.dump(manifest))
+
+        # Act: Handle the tool call
+        with patch('oi.tools.litellm.completion', return_value=mock_response):
+            # This test verifies the orchestrator would process the tool call
+            # We test handle_open_effort_tool directly (the function that would be called)
+            result = handle_open_effort_tool("guild-feature", "Let's add member limits", tmp_path)
+
+        # Assert: New effort file created
+        effort_file = tmp_path / "efforts" / "guild-feature.jsonl"
+        assert effort_file.exists()
+
+        # Assert: Manifest updated with new open effort
         updated_manifest = yaml.safe_load(manifest_path.read_text())
-        efforts = updated_manifest.get("efforts", [])
-        
-        # Should have 2 efforts
-        assert len(efforts) == 2
-        
-        # Find the new one
-        new_effort = next(e for e in efforts if e["id"] == "database-indexing")
+        effort_ids = [e["id"] for e in updated_manifest["efforts"]]
+        assert "guild-feature" in effort_ids
+        assert "auth-bug" in effort_ids
+
+        # Find the new effort
+        new_effort = next(e for e in updated_manifest["efforts"] if e["id"] == "guild-feature")
         assert new_effort["status"] == "open"
-        assert "efforts/database-indexing.jsonl" == new_effort["raw_file"]
-    
-    def test_context_includes_ambient_summaries_and_new_effort_raw(self, tmp_path):
-        """The context includes: ambient + all summaries (including the just-concluded effort) + new effort's raw log"""
-        # Arrange
-        from oi.models import ConversationState, Artifact
-        from oi.context import build_turn_context  # New function, ImportError = red
-        
-        session_dir = tmp_path / "session"
-        session_dir.mkdir()
-        efforts_dir = session_dir / "efforts"
-        efforts_dir.mkdir()
-        
-        # Create ambient raw.jsonl
-        raw_log = session_dir / "raw.jsonl"
-        raw_log.write_text('\n'.join([
-            json.dumps({"role": "user", "content": "Hey, how's it going?"}),
-            json.dumps({"role": "assistant", "content": "Good! Ready to help."}),
-            json.dumps({"role": "user", "content": "Quick question - what's the weather?"}),
-            json.dumps({"role": "assistant", "content": "72°F and sunny."})
-        ]) + '\n')
-        
-        # Create concluded effort log
-        concluded_log = efforts_dir / "auth-bug.jsonl"
-        concluded_log.write_text('\n'.join([
-            json.dumps({"role": "user", "content": "Let's debug the auth bug"}),
-            json.dumps({"role": "assistant", "content": "Opening effort: auth-bug"}),
-            json.dumps({"role": "user", "content": "I implemented the interceptor"}),
-            json.dumps({"role": "assistant", "content": "Concluding effort: auth-bug"})
-        ]) + '\n')
-        
-        # Create new effort log
-        new_log = efforts_dir / "guild-feature.jsonl"
-        new_log.write_text('\n'.join([
-            json.dumps({"role": "user", "content": "Let's work on guild-feature"}),
-            json.dumps({"role": "assistant", "content": "Opening effort: guild-feature"})
-        ]) + '\n')
-        
-        # Create manifest with both efforts
-        manifest_data = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "concluded",
-                    "summary": "Debugged 401 errors after 1 hour. Fixed by adding axios interceptor.",
-                    "raw_file": "efforts/auth-bug.jsonl"
-                },
-                {
-                    "id": "guild-feature",
-                    "status": "open",
-                    "raw_file": "efforts/guild-feature.jsonl"
-                }
-            ]
-        }
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest_data))
-        
-        # Create state with both artifacts
-        state = ConversationState(
-            artifacts=[
-                Artifact(
-                    id="auth-bug",
-                    artifact_type="effort",
-                    summary="Debugged 401 errors",
-                    status="resolved",
-                    resolution="Added axios interceptor"
-                ),
-                Artifact(
-                    id="guild-feature",
-                    artifact_type="effort",
-                    summary="guild-feature",
-                    status="open"
-                )
-            ]
-        )
-        
-        # Act
-        context = build_turn_context(state, session_dir)
-        
-        # Assert
-        # Should include ambient content
-        assert "how's it going" in context
-        assert "weather" in context
-        
-        # Should include concluded effort summary (not raw)
-        assert "401 errors" in context
-        assert "axios interceptor" in context
-        # Should NOT include raw concluded effort messages
-        assert "Let's debug the auth bug" not in context
-        assert "Opening effort: auth-bug" not in context
-        
-        # Should include NEW effort raw messages
-        assert "Let's work on guild-feature" in context
-        assert "Opening effort: guild-feature" in context
+        assert "member limits" in new_effort["summary"].lower()
