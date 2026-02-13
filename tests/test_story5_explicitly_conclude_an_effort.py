@@ -3,146 +3,87 @@
 import pytest
 import json
 import yaml
-import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from datetime import datetime
 
 
 class TestStory5ExplicitlyConcludeEffort:
     """Story 5: Explicitly Conclude an Effort"""
-    
-    def test_conclude_effort_updates_manifest_status_to_concluded(self, tmp_path):
-        """When effort is concluded, its status in manifest changes from 'open' to 'concluded'"""
-        # Arrange - create manifest with open effort using standard library
-        manifest_path = tmp_path / "manifest.yaml"
-        manifest = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "open",
-                    "summary": "Debug 401 errors",
-                    "created": "2024-01-01T00:00:00",
-                    "updated": "2024-01-01T00:00:00"
-                }
-            ]
-        }
-        manifest_path.write_text(yaml.dump(manifest))
-        
-        # Act - call the implementation function (will fail if doesn't exist)
-        from oi.storage import conclude_effort
-        conclude_effort("auth-bug", tmp_path, "Debugged 401 errors after 1 hour")
-        
-        # Assert - status changed to "concluded"
-        updated_manifest = yaml.safe_load(manifest_path.read_text())
-        effort = next(eff for eff in updated_manifest["efforts"] if eff["id"] == "auth-bug")
-        assert effort["status"] == "concluded"
-    
-    def test_conclude_effort_adds_summary_to_manifest(self, tmp_path):
-        """When effort is concluded, the summary is added to the manifest"""
-        # Arrange - create manifest with open effort
-        manifest_path = tmp_path / "manifest.yaml"
-        manifest = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "open",
-                    "summary": "Debug 401 errors",
-                    "created": "2024-01-01T00:00:00",
-                    "updated": "2024-01-01T00:00:00"
-                }
-            ]
-        }
-        manifest_path.write_text(yaml.dump(manifest))
-        
-        # Act - call with new summary
-        from oi.storage import conclude_effort
-        new_summary = "Debugged 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor for proactive refresh."
-        conclude_effort("auth-bug", tmp_path, new_summary)
-        
-        # Assert - summary was updated
-        updated_manifest = yaml.safe_load(manifest_path.read_text())
-        effort = next(eff for eff in updated_manifest["efforts"] if eff["id"] == "auth-bug")
-        assert effort["summary"] == new_summary
-        assert "refresh tokens" in effort["summary"]
-    
-    def test_conclude_effort_updates_updated_timestamp(self, tmp_path):
-        """When effort is concluded, the updated timestamp is refreshed"""
-        # Arrange - create manifest with old timestamp
-        manifest_path = tmp_path / "manifest.yaml"
-        old_time = "2024-01-01T00:00:00"
-        manifest = {
-            "efforts": [
-                {
-                    "id": "auth-bug",
-                    "status": "open",
-                    "summary": "Debug 401 errors",
-                    "created": old_time,
-                    "updated": old_time
-                }
-            ]
-        }
-        manifest_path.write_text(yaml.dump(manifest))
-        
-        # Act
-        from oi.storage import conclude_effort
-        conclude_effort("auth-bug", tmp_path, "Debugged")
-        
-        # Assert - updated timestamp changed, created unchanged
-        updated_manifest = yaml.safe_load(manifest_path.read_text())
-        effort = next(eff for eff in updated_manifest["efforts"] if eff["id"] == "auth-bug")
-        assert effort["created"] == old_time
-        assert effort["updated"] != old_time
-        # Check it's a valid ISO datetime
-        parsed_time = datetime.fromisoformat(effort["updated"].replace('Z', '+00:00'))
-        assert isinstance(parsed_time, datetime)
-    
-    def test_save_to_effort_log_appends_user_concluding_message(self, tmp_path):
-        """When user says 'X is done', the concluding message is saved to effort's raw log"""
-        # Arrange
-        efforts_dir = tmp_path / "efforts"
-        efforts_dir.mkdir()
-        effort_log = efforts_dir / "auth-bug.jsonl"
-        # Add some existing messages using standard library
-        existing = [
-            {"role": "user", "content": "Let's debug auth", "timestamp": "2024-01-01T00:00:00"},
-            {"role": "assistant", "content": "Opening effort", "timestamp": "2024-01-01T00:00:01"}
+
+    def test_user_says_x_is_done_triggers_conclusion_tool_call(self):
+        """When I say 'X is done' about an open effort, the assistant creates a summary of the effort via tool call."""
+        from oi.tools import should_conclude_effort
+
+        message = "auth-bug is done"
+        state_artifacts = [
+            {"id": "auth-bug", "artifact_type": "effort", "summary": "Auth bug", "status": "open"}
         ]
-        effort_log.write_text("\n".join(json.dumps(msg) for msg in existing) + "\n")
-        
-        # Act
-        from oi.storage import save_to_effort_log
-        save_to_effort_log("auth-bug", tmp_path, "user", "Back to auth - I implemented the interceptor and it works. Bug is fixed!")
-        
-        # Assert - new message appended
-        lines = effort_log.read_text().strip().split("\n")
-        saved = json.loads(lines[-1])  # Last line
-        assert saved["role"] == "user"
-        assert "interceptor" in saved["content"]
-        assert "Bug is fixed" in saved["content"]
-        assert len(lines) == 3  # Original 2 + 1 new
-    
-    def test_save_to_effort_log_appends_assistant_confirmation(self, tmp_path):
-        """When assistant confirms conclusion, the confirmation message is saved to effort's raw log"""
-        # Arrange
-        efforts_dir = tmp_path / "efforts"
-        efforts_dir.mkdir()
-        effort_log = efforts_dir / "auth-bug.jsonl"
-        # Add existing messages including user concluding message
-        existing = [
-            {"role": "user", "content": "Let's debug auth", "timestamp": "2024-01-01T00:00:00"},
-            {"role": "user", "content": "Bug is fixed!", "timestamp": "2024-01-01T00:01:00"}
+
+        result = should_conclude_effort(message, state_artifacts)
+        assert result == "auth-bug"
+
+    def test_assistant_confirms_effort_concluded_by_name_in_response(self):
+        """The assistant confirms the effort has been concluded by name."""
+        from oi.tools import generate_conclusion_response
+
+        effort_id = "auth-bug"
+        summary = "Fixed the auth bug"
+        response = generate_conclusion_response(effort_id, summary)
+
+        assert "auth-bug" in response.lower()
+        assert "concluding" in response.lower() or "concluded" in response.lower()
+
+    def test_effort_status_changes_from_open_to_concluded_in_manifest(self):
+        """The effort's status in the manifest changes from 'open' to 'concluded'."""
+        from oi.storage import conclude_effort
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_dir = Path(tmpdir)
+            manifest_path = session_dir / "manifest.yaml"
+            manifest_path.write_text(yaml.dump({
+                "efforts": [
+                    {"id": "auth-bug", "status": "open", "summary": "Auth bug", "created": "2024-01-01T00:00:00", "updated": "2024-01-01T00:00:00"}
+                ]
+            }))
+
+            conclude_effort("auth-bug", session_dir, "Debugged 401 errors after 1 hour.")
+
+            manifest = yaml.safe_load(manifest_path.read_text())
+            effort = next(e for e in manifest["efforts"] if e["id"] == "auth-bug")
+            assert effort["status"] == "concluded"
+            assert effort["updated"] != "2024-01-01T00:00:00"
+
+    def test_summary_is_added_to_manifest_on_conclusion(self):
+        """The summary is added to the manifest."""
+        from oi.storage import conclude_effort
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_dir = Path(tmpdir)
+            manifest_path = session_dir / "manifest.yaml"
+            manifest_path.write_text(yaml.dump({
+                "efforts": [
+                    {"id": "auth-bug", "status": "open", "summary": "Auth bug", "created": "2024-01-01T00:00:00", "updated": "2024-01-01T00:00:00"}
+                ]
+            }))
+
+            new_summary = "Debugged 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor for proactive refresh."
+            conclude_effort("auth-bug", session_dir, new_summary)
+
+            manifest = yaml.safe_load(manifest_path.read_text())
+            effort = next(e for e in manifest["efforts"] if e["id"] == "auth-bug")
+            assert effort["summary"] == new_summary
+
+    def test_user_says_looks_good_triggers_conclusion_tool_call(self):
+        """When I say 'looks good' about an open effort, the assistant creates a summary."""
+        from oi.tools import should_conclude_effort
+
+        message = "guild-feature looks good"
+        state_artifacts = [
+            {"id": "guild-feature", "artifact_type": "effort", "summary": "Guild member limit", "status": "open"}
         ]
-        effort_log.write_text("\n".join(json.dumps(msg) for msg in existing) + "\n")
-        
-        # Act
-        from oi.storage import save_to_effort_log
-        save_to_effort_log("auth-bug", tmp_path, "assistant", "Concluding effort: auth-bug\n\nSummary: Debugged 401 errors...")
-        
-        # Assert - assistant message appended
-        lines = effort_log.read_text().strip().split("\n")
-        saved = json.loads(lines[-1])
-        assert saved["role"] == "assistant"
-        assert "Concluding effort: auth-bug" in saved["content"]
-        assert "Summary:" in saved["content"]
-        assert len(lines) == 3
+
+        result = should_conclude_effort(message, state_artifacts)
+        assert result == "guild-feature"

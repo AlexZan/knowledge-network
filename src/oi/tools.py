@@ -1,5 +1,7 @@
 """Stub module: oi.tools (auto-generated for TDD)."""
 
+import litellm
+
 def generate_effort_opening_response(effort_id):
     return f"Opened effort: {effort_id}"
 

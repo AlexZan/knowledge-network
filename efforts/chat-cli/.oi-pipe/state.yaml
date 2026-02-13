@@ -1,16 +1,18 @@
-stage: dev
+stage: tests
 artifacts:
   scenarios:
   - scenarios/scenarios.md
   stories:
   - stories/stories.md
   tests:
-  - tests\test_story9_verify_token_savings_from_effort_management.py
+  - tests\test_story8_start_a_new_effort_after_concluding_one.py
   tests_validation:
     total: 4
-    passed: 0
-    failed: 4
+    passed: 2
+    failed: 2
     errors: 0
-    review: {}
+    review:
+      test_context_includes_concluded_summary_and_new_effort_raw_log: A
+      test_llm_tool_use_for_new_effort_after_conclusion: A
     valid_red_phase: true
-last_updated: '2026-02-13T13:37:44.351194'
+last_updated: '2026-02-13T21:27:14.592851'
