@@ -148,7 +148,17 @@ def build_turn_context(state, session_dir):
     if resolved_efforts:
         sections.append("# Resolved Efforts (Past Work)")
         for effort in resolved_efforts:
-            sections.append(f"- {effort.id}: {effort.summary}")
+            # Get summary from manifest if available
+            effort_summary = effort.summary
+            manifest_path = session_dir / "manifest.yaml"
+            if manifest_path.exists():
+                import yaml
+                manifest = yaml.safe_load(manifest_path.read_text())
+                for manifest_effort in manifest.get("efforts", []):
+                    if manifest_effort.get("id") == effort.id and manifest_effort.get("status") == "concluded":
+                        effort_summary = manifest_effort.get("summary", effort.summary)
+                        break
+            sections.append(f"- {effort_summary}")
         sections.append("")
 
     # Section 3: Archived Efforts
