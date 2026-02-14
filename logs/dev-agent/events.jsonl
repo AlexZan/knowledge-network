@@ -1,0 +1,479 @@
+{"ts": "2026-02-09T19:08:55", "event": "run_start", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:08:55", "event": "attempt_start", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:09:34", "event": "api_done", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "model": "deepseek/deepseek-chat", "elapsed": 38.29, "tokens": 15046}
+{"ts": "2026-02-09T19:12:14", "event": "run_start", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:12:14", "event": "attempt_start", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:12:45", "event": "api_done", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "model": "deepseek/deepseek-chat", "elapsed": 30.3, "tokens": 14786}
+{"ts": "2026-02-09T19:12:48", "event": "test_fail", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:12:48", "event": "attempt_start", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "attempt": 2, "model": "glm/glm-4.7-thinking", "escalated": true}
+{"ts": "2026-02-09T19:15:20", "event": "api_done", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "model": "glm/glm-4.7-thinking", "elapsed": 151.64, "tokens": 14331}
+{"ts": "2026-02-09T19:15:23", "event": "test_fail", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "model": "glm/glm-4.7-thinking", "attempt": 2}
+{"ts": "2026-02-09T19:15:23", "event": "attempt_start", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T19:17:03", "event": "api_done", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "model": "deepseek/deepseek-reasoner", "elapsed": 100.74, "tokens": 17139}
+{"ts": "2026-02-09T19:17:04", "event": "test_pass", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T19:17:10", "event": "no_regression", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "passed": 2, "baseline": 1}
+{"ts": "2026-02-09T19:17:10", "event": "committed", "test": "test_route_message_returns_ambient_for_unrelated_interruption_when_effort_open", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T19:17:41", "event": "run_start", "test": "test_log_exchange_appends_to_ambient_raw_jsonl", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:17:41", "event": "attempt_start", "test": "test_log_exchange_appends_to_ambient_raw_jsonl", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:17:55", "event": "api_done", "test": "test_log_exchange_appends_to_ambient_raw_jsonl", "model": "deepseek/deepseek-chat", "elapsed": 13.58, "tokens": 14430}
+{"ts": "2026-02-09T19:17:56", "event": "test_pass", "test": "test_log_exchange_appends_to_ambient_raw_jsonl", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:18:02", "event": "no_regression", "test": "test_log_exchange_appends_to_ambient_raw_jsonl", "passed": 4, "baseline": 2}
+{"ts": "2026-02-09T19:18:02", "event": "committed", "test": "test_log_exchange_appends_to_ambient_raw_jsonl", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:18:02", "event": "run_start", "test": "test_log_exchange_appends_to_effort_jsonl", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:18:02", "event": "attempt_start", "test": "test_log_exchange_appends_to_effort_jsonl", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:18:25", "event": "api_done", "test": "test_log_exchange_appends_to_effort_jsonl", "model": "deepseek/deepseek-chat", "elapsed": 22.35, "tokens": 15096}
+{"ts": "2026-02-09T19:18:25", "event": "test_pass", "test": "test_log_exchange_appends_to_effort_jsonl", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:18:32", "event": "no_regression", "test": "test_log_exchange_appends_to_effort_jsonl", "passed": 4, "baseline": 4}
+{"ts": "2026-02-09T19:18:32", "event": "committed", "test": "test_log_exchange_appends_to_effort_jsonl", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:18:32", "event": "run_start", "test": "test_open_effort_remains_open_after_interruption", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:18:32", "event": "attempt_start", "test": "test_open_effort_remains_open_after_interruption", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:18:41", "event": "api_done", "test": "test_open_effort_remains_open_after_interruption", "model": "deepseek/deepseek-chat", "elapsed": 8.61, "tokens": 14622}
+{"ts": "2026-02-09T19:18:42", "event": "test_pass", "test": "test_open_effort_remains_open_after_interruption", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:18:48", "event": "no_regression", "test": "test_open_effort_remains_open_after_interruption", "passed": 5, "baseline": 4}
+{"ts": "2026-02-09T19:18:48", "event": "committed", "test": "test_open_effort_remains_open_after_interruption", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:18:49", "event": "run_start", "test": "test_build_ambient_context_includes_interruption_message", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:18:49", "event": "attempt_start", "test": "test_build_ambient_context_includes_interruption_message", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:18:59", "event": "api_done", "test": "test_build_ambient_context_includes_interruption_message", "model": "deepseek/deepseek-chat", "elapsed": 10.71, "tokens": 14753}
+{"ts": "2026-02-09T19:19:00", "event": "test_pass", "test": "test_build_ambient_context_includes_interruption_message", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:19:06", "event": "no_regression", "test": "test_build_ambient_context_includes_interruption_message", "passed": 6, "baseline": 5}
+{"ts": "2026-02-09T19:19:06", "event": "committed", "test": "test_build_ambient_context_includes_interruption_message", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:19:07", "event": "run_start", "test": "test_generate_response_for_ambient_context_calls_llm", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:19:07", "event": "attempt_start", "test": "test_generate_response_for_ambient_context_calls_llm", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:19:41", "event": "api_done", "test": "test_generate_response_for_ambient_context_calls_llm", "model": "deepseek/deepseek-chat", "elapsed": 33.97, "tokens": 15761}
+{"ts": "2026-02-09T19:19:45", "event": "test_fail", "test": "test_generate_response_for_ambient_context_calls_llm", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:19:45", "event": "attempt_start", "test": "test_generate_response_for_ambient_context_calls_llm", "attempt": 2, "model": "glm/glm-4.7-thinking", "escalated": true}
+{"ts": "2026-02-09T19:20:33", "event": "api_done", "test": "test_generate_response_for_ambient_context_calls_llm", "model": "glm/glm-4.7-thinking", "elapsed": 48.23, "tokens": 15951}
+{"ts": "2026-02-09T19:20:36", "event": "test_fail", "test": "test_generate_response_for_ambient_context_calls_llm", "model": "glm/glm-4.7-thinking", "attempt": 2}
+{"ts": "2026-02-09T19:20:36", "event": "attempt_start", "test": "test_generate_response_for_ambient_context_calls_llm", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T19:22:33", "event": "api_done", "test": "test_generate_response_for_ambient_context_calls_llm", "model": "deepseek/deepseek-reasoner", "elapsed": 117.29, "tokens": 18583}
+{"ts": "2026-02-09T19:22:36", "event": "test_fail", "test": "test_generate_response_for_ambient_context_calls_llm", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T19:22:36", "event": "give_up", "test": "test_generate_response_for_ambient_context_calls_llm", "attempts": 3}
+{"ts": "2026-02-09T19:22:37", "event": "run_start", "test": "test_effort_log_unchanged_after_interruption", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:22:37", "event": "attempt_start", "test": "test_effort_log_unchanged_after_interruption", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:22:59", "event": "api_done", "test": "test_effort_log_unchanged_after_interruption", "model": "deepseek/deepseek-chat", "elapsed": 21.35, "tokens": 15540}
+{"ts": "2026-02-09T19:22:59", "event": "test_fail", "test": "test_effort_log_unchanged_after_interruption", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:22:59", "event": "attempt_start", "test": "test_effort_log_unchanged_after_interruption", "attempt": 2, "model": "glm/glm-4.7-thinking", "escalated": true}
+{"ts": "2026-02-09T19:25:03", "event": "api_error", "test": "test_effort_log_unchanged_after_interruption", "model": "glm/glm-4.7-thinking", "error": "RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"}
+{"ts": "2026-02-09T19:25:03", "event": "attempt_start", "test": "test_effort_log_unchanged_after_interruption", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T19:27:09", "event": "api_done", "test": "test_effort_log_unchanged_after_interruption", "model": "deepseek/deepseek-reasoner", "elapsed": 126.39, "tokens": 18947}
+{"ts": "2026-02-09T19:27:10", "event": "test_pass", "test": "test_effort_log_unchanged_after_interruption", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T19:27:17", "event": "no_regression", "test": "test_effort_log_unchanged_after_interruption", "passed": 7, "baseline": 6}
+{"ts": "2026-02-09T19:27:17", "event": "committed", "test": "test_effort_log_unchanged_after_interruption", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T19:30:23", "event": "run_start", "test": "test_format_conclusion_confirmation_includes_effort_name", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:30:23", "event": "attempt_start", "test": "test_format_conclusion_confirmation_includes_effort_name", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:30:29", "event": "api_done", "test": "test_format_conclusion_confirmation_includes_effort_name", "model": "deepseek/deepseek-chat", "elapsed": 6.13, "tokens": 14723}
+{"ts": "2026-02-09T19:30:30", "event": "test_pass", "test": "test_format_conclusion_confirmation_includes_effort_name", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:30:36", "event": "no_regression", "test": "test_format_conclusion_confirmation_includes_effort_name", "passed": 1, "baseline": 0}
+{"ts": "2026-02-09T19:30:36", "event": "committed", "test": "test_format_conclusion_confirmation_includes_effort_name", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:38:05", "event": "run_start", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_effort_is_done", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:38:05", "event": "attempt_start", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_effort_is_done", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:38:19", "event": "api_done", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_effort_is_done", "model": "deepseek/deepseek-chat", "elapsed": 13.96, "tokens": 15048}
+{"ts": "2026-02-09T19:38:21", "event": "test_pass", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_effort_is_done", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:38:27", "event": "no_regression", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_effort_is_done", "passed": 2, "baseline": 1}
+{"ts": "2026-02-09T19:38:27", "event": "committed", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_effort_is_done", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:38:28", "event": "run_start", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_looks_good", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:38:28", "event": "attempt_start", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_looks_good", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:38:52", "event": "api_done", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_looks_good", "model": "deepseek/deepseek-chat", "elapsed": 23.32, "tokens": 15691}
+{"ts": "2026-02-09T19:38:54", "event": "test_pass", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_looks_good", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:39:00", "event": "no_regression", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_looks_good", "passed": 3, "baseline": 2}
+{"ts": "2026-02-09T19:39:00", "event": "committed", "test": "test_detect_effort_conclusion_returns_effort_id_when_user_says_looks_good", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:39:01", "event": "run_start", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:39:01", "event": "attempt_start", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:39:11", "event": "api_done", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "model": "deepseek/deepseek-chat", "elapsed": 9.81, "tokens": 15377}
+{"ts": "2026-02-09T19:39:12", "event": "test_pass", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:39:18", "event": "no_regression", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "passed": 4, "baseline": 3}
+{"ts": "2026-02-09T19:39:18", "event": "committed", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:39:18", "event": "run_start", "test": "test_conclude_effort_adds_summary_to_manifest", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:39:18", "event": "attempt_start", "test": "test_conclude_effort_adds_summary_to_manifest", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:39:33", "event": "api_done", "test": "test_conclude_effort_adds_summary_to_manifest", "model": "deepseek/deepseek-chat", "elapsed": 14.8, "tokens": 15701}
+{"ts": "2026-02-09T19:39:34", "event": "test_pass", "test": "test_conclude_effort_adds_summary_to_manifest", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:39:40", "event": "no_regression", "test": "test_conclude_effort_adds_summary_to_manifest", "passed": 5, "baseline": 4}
+{"ts": "2026-02-09T19:39:40", "event": "committed", "test": "test_conclude_effort_adds_summary_to_manifest", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:39:41", "event": "run_start", "test": "test_conclude_effort_saves_messages_to_effort_raw_log", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:39:41", "event": "attempt_start", "test": "test_conclude_effort_saves_messages_to_effort_raw_log", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:39:50", "event": "api_done", "test": "test_conclude_effort_saves_messages_to_effort_raw_log", "model": "deepseek/deepseek-chat", "elapsed": 8.84, "tokens": 15525}
+{"ts": "2026-02-09T19:39:50", "event": "test_pass", "test": "test_conclude_effort_saves_messages_to_effort_raw_log", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:39:57", "event": "no_regression", "test": "test_conclude_effort_saves_messages_to_effort_raw_log", "passed": 6, "baseline": 5}
+{"ts": "2026-02-09T19:39:57", "event": "committed", "test": "test_conclude_effort_saves_messages_to_effort_raw_log", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:39:57", "event": "run_start", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:39:57", "event": "attempt_start", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:40:05", "event": "api_done", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "model": "deepseek/deepseek-chat", "elapsed": 7.4, "tokens": 15584}
+{"ts": "2026-02-09T19:40:08", "event": "test_fail", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:40:08", "event": "attempt_start", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "attempt": 2, "model": "glm/glm-4.7-thinking", "escalated": true}
+{"ts": "2026-02-09T19:40:20", "event": "api_done", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "model": "glm/glm-4.7-thinking", "elapsed": 12.37, "tokens": 15233}
+{"ts": "2026-02-09T19:40:23", "event": "test_fail", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "model": "glm/glm-4.7-thinking", "attempt": 2}
+{"ts": "2026-02-09T19:40:23", "event": "attempt_start", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T19:41:42", "event": "api_done", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "model": "deepseek/deepseek-reasoner", "elapsed": 78.67, "tokens": 18017}
+{"ts": "2026-02-09T19:41:45", "event": "test_fail", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T19:41:45", "event": "give_up", "test": "test_create_effort_summary_calls_llm_with_effort_content_and_returns_summary", "attempts": 3}
+{"ts": "2026-02-09T19:44:22", "event": "run_start", "test": "test_concluded_effort_raw_log_preserved_on_disk", "models": ["deepseek/deepseek-chat", "glm/glm-4.7-thinking", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:44:22", "event": "attempt_start", "test": "test_concluded_effort_raw_log_preserved_on_disk", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:44:38", "event": "api_done", "test": "test_concluded_effort_raw_log_preserved_on_disk", "model": "deepseek/deepseek-chat", "elapsed": 16.11, "tokens": 16078}
+{"ts": "2026-02-09T19:44:41", "event": "test_fail", "test": "test_concluded_effort_raw_log_preserved_on_disk", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:44:41", "event": "attempt_start", "test": "test_concluded_effort_raw_log_preserved_on_disk", "attempt": 2, "model": "glm/glm-4.7-thinking", "escalated": true}
+{"ts": "2026-02-09T19:46:44", "event": "api_error", "test": "test_concluded_effort_raw_log_preserved_on_disk", "model": "glm/glm-4.7-thinking", "error": "RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"}
+{"ts": "2026-02-09T19:46:44", "event": "attempt_start", "test": "test_concluded_effort_raw_log_preserved_on_disk", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T19:49:23", "event": "api_done", "test": "test_concluded_effort_raw_log_preserved_on_disk", "model": "deepseek/deepseek-reasoner", "elapsed": 158.93, "tokens": 20787}
+{"ts": "2026-02-09T19:49:26", "event": "test_pass", "test": "test_concluded_effort_raw_log_preserved_on_disk", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T19:49:32", "event": "no_regression", "test": "test_concluded_effort_raw_log_preserved_on_disk", "passed": 4, "baseline": 3}
+{"ts": "2026-02-09T19:49:32", "event": "committed", "test": "test_concluded_effort_raw_log_preserved_on_disk", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T19:49:33", "event": "run_start", "test": "test_context_includes_raw_log_only_for_open_efforts", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:49:33", "event": "attempt_start", "test": "test_context_includes_raw_log_only_for_open_efforts", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:50:05", "event": "api_done", "test": "test_context_includes_raw_log_only_for_open_efforts", "model": "deepseek/deepseek-chat", "elapsed": 31.9, "tokens": 16928}
+{"ts": "2026-02-09T19:50:06", "event": "test_pass", "test": "test_context_includes_raw_log_only_for_open_efforts", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:50:12", "event": "no_regression", "test": "test_context_includes_raw_log_only_for_open_efforts", "passed": 5, "baseline": 4}
+{"ts": "2026-02-09T19:50:12", "event": "committed", "test": "test_context_includes_raw_log_only_for_open_efforts", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:52:05", "event": "run_start", "test": "test_context_includes_ambient_messages_from_raw_jsonl", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:52:05", "event": "attempt_start", "test": "test_context_includes_ambient_messages_from_raw_jsonl", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:52:45", "event": "api_done", "test": "test_context_includes_ambient_messages_from_raw_jsonl", "model": "deepseek/deepseek-chat", "elapsed": 40.23, "tokens": 17015}
+{"ts": "2026-02-09T19:52:46", "event": "test_pass", "test": "test_context_includes_ambient_messages_from_raw_jsonl", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:52:48", "event": "no_regression", "test": "test_context_includes_ambient_messages_from_raw_jsonl", "passed": 5, "baseline": 3}
+{"ts": "2026-02-09T19:52:48", "event": "committed", "test": "test_context_includes_ambient_messages_from_raw_jsonl", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:52:48", "event": "run_start", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T19:52:48", "event": "attempt_start", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T19:53:34", "event": "api_done", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "model": "deepseek/deepseek-chat", "elapsed": 45.24, "tokens": 17834}
+{"ts": "2026-02-09T19:53:34", "event": "test_pass", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T19:53:36", "event": "regression", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "model": "deepseek/deepseek-chat", "before": 5, "after": 4}
+{"ts": "2026-02-09T19:53:36", "event": "attempt_start", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T19:57:19", "event": "api_done", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "model": "deepseek/deepseek-reasoner", "elapsed": 222.74, "tokens": 23554}
+{"ts": "2026-02-09T19:57:19", "event": "attempt_start", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T20:01:07", "event": "api_done", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "model": "deepseek/deepseek-reasoner", "elapsed": 228.02, "tokens": 23976}
+{"ts": "2026-02-09T20:01:07", "event": "give_up", "test": "test_new_effort_after_conclusion_includes_ambient_summaries_and_new_raw_log", "attempts": 3}
+{"ts": "2026-02-09T20:04:05", "event": "run_start", "test": "test_detect_new_effort_start_phrase", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T20:04:05", "event": "attempt_start", "test": "test_detect_new_effort_start_phrase", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T20:04:15", "event": "api_done", "test": "test_detect_new_effort_start_phrase", "model": "deepseek/deepseek-chat", "elapsed": 9.13, "tokens": 16101}
+{"ts": "2026-02-09T20:04:17", "event": "test_pass", "test": "test_detect_new_effort_start_phrase", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:04:23", "event": "no_regression", "test": "test_detect_new_effort_start_phrase", "passed": 1, "baseline": 0}
+{"ts": "2026-02-09T20:04:23", "event": "committed", "test": "test_detect_new_effort_start_phrase", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:04:24", "event": "run_start", "test": "test_create_new_effort_file_in_efforts_directory", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T20:04:24", "event": "attempt_start", "test": "test_create_new_effort_file_in_efforts_directory", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T20:04:34", "event": "api_done", "test": "test_create_new_effort_file_in_efforts_directory", "model": "deepseek/deepseek-chat", "elapsed": 9.62, "tokens": 16361}
+{"ts": "2026-02-09T20:04:34", "event": "test_pass", "test": "test_create_new_effort_file_in_efforts_directory", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:04:40", "event": "no_regression", "test": "test_create_new_effort_file_in_efforts_directory", "passed": 2, "baseline": 1}
+{"ts": "2026-02-09T20:04:40", "event": "committed", "test": "test_create_new_effort_file_in_efforts_directory", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:04:41", "event": "run_start", "test": "test_manifest_updated_with_new_open_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T20:04:41", "event": "attempt_start", "test": "test_manifest_updated_with_new_open_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T20:04:54", "event": "api_done", "test": "test_manifest_updated_with_new_open_effort", "model": "deepseek/deepseek-chat", "elapsed": 12.25, "tokens": 16694}
+{"ts": "2026-02-09T20:04:54", "event": "test_pass", "test": "test_manifest_updated_with_new_open_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:05:00", "event": "no_regression", "test": "test_manifest_updated_with_new_open_effort", "passed": 3, "baseline": 2}
+{"ts": "2026-02-09T20:05:00", "event": "committed", "test": "test_manifest_updated_with_new_open_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:05:01", "event": "run_start", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T20:05:01", "event": "attempt_start", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T20:06:00", "event": "api_done", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "model": "deepseek/deepseek-chat", "elapsed": 58.72, "tokens": 18860}
+{"ts": "2026-02-09T20:06:00", "event": "test_fail", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:06:00", "event": "attempt_start", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T20:11:00", "event": "api_done", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "model": "deepseek/deepseek-reasoner", "elapsed": 299.16, "tokens": 26856}
+{"ts": "2026-02-09T20:11:00", "event": "test_pass", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-09T20:11:06", "event": "no_regression", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "passed": 4, "baseline": 3}
+{"ts": "2026-02-09T20:11:06", "event": "committed", "test": "test_context_includes_ambient_summaries_and_new_effort_raw", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-09T20:12:37", "event": "run_start", "test": "test_measure_context_size_with_open_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T20:12:37", "event": "attempt_start", "test": "test_measure_context_size_with_open_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T20:12:51", "event": "api_done", "test": "test_measure_context_size_with_open_effort", "model": "deepseek/deepseek-chat", "elapsed": 13.85, "tokens": 17296}
+{"ts": "2026-02-09T20:12:52", "event": "test_fail", "test": "test_measure_context_size_with_open_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:12:52", "event": "attempt_start", "test": "test_measure_context_size_with_open_effort", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T20:15:13", "event": "api_done", "test": "test_measure_context_size_with_open_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 140.57, "tokens": 21448}
+{"ts": "2026-02-09T20:15:13", "event": "test_fail", "test": "test_measure_context_size_with_open_effort", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-09T20:15:13", "event": "attempt_start", "test": "test_measure_context_size_with_open_effort", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T20:17:34", "event": "api_done", "test": "test_measure_context_size_with_open_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 140.32, "tokens": 21760}
+{"ts": "2026-02-09T20:17:35", "event": "test_fail", "test": "test_measure_context_size_with_open_effort", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T20:17:35", "event": "give_up", "test": "test_measure_context_size_with_open_effort", "attempts": 3}
+{"ts": "2026-02-09T20:17:35", "event": "run_start", "test": "test_measure_context_size_after_concluding_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T20:17:35", "event": "attempt_start", "test": "test_measure_context_size_after_concluding_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T20:17:42", "event": "api_done", "test": "test_measure_context_size_after_concluding_effort", "model": "deepseek/deepseek-chat", "elapsed": 6.79, "tokens": 17023}
+{"ts": "2026-02-09T20:17:43", "event": "test_fail", "test": "test_measure_context_size_after_concluding_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:17:43", "event": "attempt_start", "test": "test_measure_context_size_after_concluding_effort", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T20:19:21", "event": "api_done", "test": "test_measure_context_size_after_concluding_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 98.33, "tokens": 19975}
+{"ts": "2026-02-09T20:19:22", "event": "test_fail", "test": "test_measure_context_size_after_concluding_effort", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-09T20:19:22", "event": "attempt_start", "test": "test_measure_context_size_after_concluding_effort", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-09T20:20:32", "event": "api_done", "test": "test_measure_context_size_after_concluding_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 69.63, "tokens": 19425}
+{"ts": "2026-02-09T20:20:32", "event": "test_fail", "test": "test_measure_context_size_after_concluding_effort", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-09T20:20:32", "event": "give_up", "test": "test_measure_context_size_after_concluding_effort", "attempts": 3}
+{"ts": "2026-02-09T20:20:33", "event": "run_start", "test": "test_token_savings_calculation_shows_80_percent_reduction", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T20:20:33", "event": "attempt_start", "test": "test_token_savings_calculation_shows_80_percent_reduction", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T20:20:48", "event": "api_done", "test": "test_token_savings_calculation_shows_80_percent_reduction", "model": "deepseek/deepseek-chat", "elapsed": 14.7, "tokens": 17029}
+{"ts": "2026-02-09T20:20:51", "event": "test_pass", "test": "test_token_savings_calculation_shows_80_percent_reduction", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:20:54", "event": "no_regression", "test": "test_token_savings_calculation_shows_80_percent_reduction", "passed": 1, "baseline": 0}
+{"ts": "2026-02-09T20:20:54", "event": "committed", "test": "test_token_savings_calculation_shows_80_percent_reduction", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:20:55", "event": "run_start", "test": "test_summary_substantially_smaller_than_raw_effort_log", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-09T20:20:55", "event": "attempt_start", "test": "test_summary_substantially_smaller_than_raw_effort_log", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-09T20:21:08", "event": "api_done", "test": "test_summary_substantially_smaller_than_raw_effort_log", "model": "deepseek/deepseek-chat", "elapsed": 13.41, "tokens": 17425}
+{"ts": "2026-02-09T20:21:09", "event": "test_pass", "test": "test_summary_substantially_smaller_than_raw_effort_log", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-09T20:21:15", "event": "no_regression", "test": "test_summary_substantially_smaller_than_raw_effort_log", "passed": 2, "baseline": 1}
+{"ts": "2026-02-09T20:21:15", "event": "committed", "test": "test_summary_substantially_smaller_than_raw_effort_log", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:04:00", "event": "run_start", "test": "test_story6_remove_concluded_effort_from_active_context", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:04:00", "event": "attempt_start", "test": "test_story6_remove_concluded_effort_from_active_context", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:04:38", "event": "api_done", "test": "test_story6_remove_concluded_effort_from_active_context", "model": "deepseek/deepseek-chat", "elapsed": 37.85, "tokens": 20616}
+{"ts": "2026-02-10T11:04:39", "event": "test_pass", "test": "test_story6_remove_concluded_effort_from_active_context", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:04:39", "event": "committed", "test": "test_story6_remove_concluded_effort_from_active_context", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:05:15", "event": "run_start", "test": "test_story5_explicitly_conclude_an_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:05:15", "event": "attempt_start", "test": "test_story5_explicitly_conclude_an_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:06:06", "event": "api_done", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-chat", "elapsed": 50.68, "tokens": 20547}
+{"ts": "2026-02-10T11:06:09", "event": "test_fail", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:06:09", "event": "attempt_start", "test": "test_story5_explicitly_conclude_an_effort", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:09:18", "event": "api_done", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 189.44, "tokens": 26378}
+{"ts": "2026-02-10T11:09:22", "event": "test_fail", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-10T11:09:22", "event": "attempt_start", "test": "test_story5_explicitly_conclude_an_effort", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:10:30", "event": "api_done", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 67.91, "tokens": 21781}
+{"ts": "2026-02-10T11:10:33", "event": "test_fail", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-10T11:10:33", "event": "give_up", "test": "test_story5_explicitly_conclude_an_effort", "attempts": 3}
+{"ts": "2026-02-10T11:11:02", "event": "run_start", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:11:02", "event": "attempt_start", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:11:20", "event": "api_done", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "model": "deepseek/deepseek-chat", "elapsed": 18.23, "tokens": 17889}
+{"ts": "2026-02-10T11:11:21", "event": "test_pass", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:11:30", "event": "no_regression", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "passed": 135, "baseline": 133}
+{"ts": "2026-02-10T11:11:30", "event": "committed", "test": "test_conclude_effort_changes_manifest_status_to_concluded", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:11:52", "event": "run_start", "test": "test_story8_start_a_new_effort_after_concluding_one", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:11:52", "event": "attempt_start", "test": "test_story8_start_a_new_effort_after_concluding_one", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:12:47", "event": "api_done", "test": "test_story8_start_a_new_effort_after_concluding_one", "model": "deepseek/deepseek-chat", "elapsed": 55.18, "tokens": 20780}
+{"ts": "2026-02-10T11:12:51", "event": "test_fail", "test": "test_story8_start_a_new_effort_after_concluding_one", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:12:51", "event": "attempt_start", "test": "test_story8_start_a_new_effort_after_concluding_one", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:14:51", "event": "api_done", "test": "test_story8_start_a_new_effort_after_concluding_one", "model": "deepseek/deepseek-reasoner", "elapsed": 120.58, "tokens": 23086}
+{"ts": "2026-02-10T11:14:55", "event": "test_fail", "test": "test_story8_start_a_new_effort_after_concluding_one", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-10T11:14:55", "event": "attempt_start", "test": "test_story8_start_a_new_effort_after_concluding_one", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:17:12", "event": "api_done", "test": "test_story8_start_a_new_effort_after_concluding_one", "model": "deepseek/deepseek-reasoner", "elapsed": 137.83, "tokens": 24220}
+{"ts": "2026-02-10T11:17:12", "event": "give_up", "test": "test_story8_start_a_new_effort_after_concluding_one", "attempts": 3}
+{"ts": "2026-02-10T11:17:33", "event": "run_start", "test": "test_new_effort_file_created_in_efforts_directory", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:17:33", "event": "attempt_start", "test": "test_new_effort_file_created_in_efforts_directory", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:17:51", "event": "api_done", "test": "test_new_effort_file_created_in_efforts_directory", "model": "deepseek/deepseek-chat", "elapsed": 18.09, "tokens": 17770}
+{"ts": "2026-02-10T11:17:54", "event": "test_fail", "test": "test_new_effort_file_created_in_efforts_directory", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:17:54", "event": "attempt_start", "test": "test_new_effort_file_created_in_efforts_directory", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:19:12", "event": "api_done", "test": "test_new_effort_file_created_in_efforts_directory", "model": "deepseek/deepseek-reasoner", "elapsed": 77.87, "tokens": 19883}
+{"ts": "2026-02-10T11:19:13", "event": "test_pass", "test": "test_new_effort_file_created_in_efforts_directory", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-10T11:19:20", "event": "no_regression", "test": "test_new_effort_file_created_in_efforts_directory", "passed": 136, "baseline": 135}
+{"ts": "2026-02-10T11:19:20", "event": "committed", "test": "test_new_effort_file_created_in_efforts_directory", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-10T11:19:27", "event": "run_start", "test": "test_manifest_updated_with_new_open_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:19:27", "event": "attempt_start", "test": "test_manifest_updated_with_new_open_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:19:52", "event": "api_done", "test": "test_manifest_updated_with_new_open_effort", "model": "deepseek/deepseek-chat", "elapsed": 24.71, "tokens": 18260}
+{"ts": "2026-02-10T11:19:52", "event": "test_pass", "test": "test_manifest_updated_with_new_open_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:20:00", "event": "no_regression", "test": "test_manifest_updated_with_new_open_effort", "passed": 137, "baseline": 136}
+{"ts": "2026-02-10T11:20:00", "event": "committed", "test": "test_manifest_updated_with_new_open_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:20:36", "event": "run_start", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:20:36", "event": "attempt_start", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:21:35", "event": "api_done", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "model": "deepseek/deepseek-chat", "elapsed": 59.04, "tokens": 19817}
+{"ts": "2026-02-10T11:21:36", "event": "test_fail", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:21:36", "event": "attempt_start", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:24:01", "event": "api_done", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "model": "deepseek/deepseek-reasoner", "elapsed": 145.1, "tokens": 22946}
+{"ts": "2026-02-10T11:24:02", "event": "test_pass", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-10T11:24:10", "event": "no_regression", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "passed": 138, "baseline": 137}
+{"ts": "2026-02-10T11:24:10", "event": "committed", "test": "test_user_let_work_on_starts_new_effort_with_open_status", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-10T11:32:52", "event": "run_start", "test": "test_story4_handle_interruptions_during_an_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:32:52", "event": "attempt_start", "test": "test_story4_handle_interruptions_during_an_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:33:52", "event": "api_done", "test": "test_story4_handle_interruptions_during_an_effort", "model": "deepseek/deepseek-chat", "elapsed": 60.17, "tokens": 20936}
+{"ts": "2026-02-10T11:33:53", "event": "test_fail", "test": "test_story4_handle_interruptions_during_an_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:33:53", "event": "attempt_start", "test": "test_story4_handle_interruptions_during_an_effort", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:38:08", "event": "api_done", "test": "test_story4_handle_interruptions_during_an_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 255.14, "tokens": 28606}
+{"ts": "2026-02-10T11:38:09", "event": "test_fail", "test": "test_story4_handle_interruptions_during_an_effort", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-10T11:38:09", "event": "attempt_start", "test": "test_story4_handle_interruptions_during_an_effort", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:40:41", "event": "api_done", "test": "test_story4_handle_interruptions_during_an_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 151.43, "tokens": 25219}
+{"ts": "2026-02-10T11:40:41", "event": "test_fail", "test": "test_story4_handle_interruptions_during_an_effort", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-10T11:40:41", "event": "give_up", "test": "test_story4_handle_interruptions_during_an_effort", "attempts": 3}
+{"ts": "2026-02-10T11:41:05", "event": "run_start", "test": "test_story5_explicitly_conclude_an_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:41:05", "event": "attempt_start", "test": "test_story5_explicitly_conclude_an_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:41:27", "event": "api_done", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-chat", "elapsed": 22.38, "tokens": 19770}
+{"ts": "2026-02-10T11:41:28", "event": "test_pass", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:41:28", "event": "committed", "test": "test_story5_explicitly_conclude_an_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:41:34", "event": "run_start", "test": "test_story9_verify_token_savings_from_effort_management", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T11:41:34", "event": "attempt_start", "test": "test_story9_verify_token_savings_from_effort_management", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T11:42:21", "event": "api_done", "test": "test_story9_verify_token_savings_from_effort_management", "model": "deepseek/deepseek-chat", "elapsed": 46.2, "tokens": 21286}
+{"ts": "2026-02-10T11:42:22", "event": "test_fail", "test": "test_story9_verify_token_savings_from_effort_management", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T11:42:22", "event": "attempt_start", "test": "test_story9_verify_token_savings_from_effort_management", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:44:18", "event": "api_done", "test": "test_story9_verify_token_savings_from_effort_management", "model": "deepseek/deepseek-reasoner", "elapsed": 116.09, "tokens": 24203}
+{"ts": "2026-02-10T11:44:21", "event": "test_fail", "test": "test_story9_verify_token_savings_from_effort_management", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-10T11:44:21", "event": "attempt_start", "test": "test_story9_verify_token_savings_from_effort_management", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T11:47:23", "event": "api_done", "test": "test_story9_verify_token_savings_from_effort_management", "model": "deepseek/deepseek-reasoner", "elapsed": 182.51, "tokens": 27377}
+{"ts": "2026-02-10T11:47:24", "event": "test_fail", "test": "test_story9_verify_token_savings_from_effort_management", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-10T11:47:24", "event": "give_up", "test": "test_story9_verify_token_savings_from_effort_management", "attempts": 3}
+{"ts": "2026-02-10T12:08:06", "event": "run_start", "test": "test_context_size_measured_for_open_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-10T12:08:06", "event": "attempt_start", "test": "test_context_size_measured_for_open_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-10T12:09:09", "event": "api_done", "test": "test_context_size_measured_for_open_effort", "model": "deepseek/deepseek-chat", "elapsed": 63.37, "tokens": 20173}
+{"ts": "2026-02-10T12:09:10", "event": "test_fail", "test": "test_context_size_measured_for_open_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-10T12:09:10", "event": "attempt_start", "test": "test_context_size_measured_for_open_effort", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-10T12:12:17", "event": "api_done", "test": "test_context_size_measured_for_open_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 186.74, "tokens": 24611}
+{"ts": "2026-02-10T12:12:17", "event": "attempt_start", "test": "test_context_size_measured_for_open_effort", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T12:42:28", "event": "run_start", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:42:28", "event": "attempt_start", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:43:01", "event": "api_done", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "model": "deepseek/deepseek-chat", "elapsed": 32.65, "tokens": 19295}
+{"ts": "2026-02-12T12:43:02", "event": "test_fail", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:43:27", "event": "run_start", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:43:27", "event": "attempt_start", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:44:00", "event": "api_done", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "model": "deepseek/deepseek-chat", "elapsed": 32.78, "tokens": 19337}
+{"ts": "2026-02-12T12:44:00", "event": "attempt_start", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T12:45:38", "event": "api_done", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "model": "deepseek/deepseek-reasoner", "elapsed": 98.02, "tokens": 22268}
+{"ts": "2026-02-12T12:45:41", "event": "test_pass", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T12:45:50", "event": "no_regression", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "passed": 137, "baseline": 135}
+{"ts": "2026-02-12T12:45:50", "event": "committed", "test": "test_ambient_turn_saves_to_raw_log_and_returns_response", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T12:46:06", "event": "run_start", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:46:06", "event": "attempt_start", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:46:19", "event": "api_done", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "model": "deepseek/deepseek-chat", "elapsed": 13.0, "tokens": 18705}
+{"ts": "2026-02-12T12:46:22", "event": "test_fail", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:46:22", "event": "attempt_start", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T12:48:06", "event": "api_done", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "model": "deepseek/deepseek-reasoner", "elapsed": 103.82, "tokens": 22851}
+{"ts": "2026-02-12T12:48:10", "event": "test_pass", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T12:48:19", "event": "no_regression", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "passed": 139, "baseline": 137}
+{"ts": "2026-02-12T12:48:19", "event": "committed", "test": "test_open_effort_creates_effort_file_and_updates_manifest", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T12:48:26", "event": "run_start", "test": "test_effort_message_saved_to_effort_log_not_raw", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:48:26", "event": "attempt_start", "test": "test_effort_message_saved_to_effort_log_not_raw", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:48:48", "event": "api_done", "test": "test_effort_message_saved_to_effort_log_not_raw", "model": "deepseek/deepseek-chat", "elapsed": 21.94, "tokens": 19167}
+{"ts": "2026-02-12T12:48:51", "event": "test_pass", "test": "test_effort_message_saved_to_effort_log_not_raw", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:49:00", "event": "no_regression", "test": "test_effort_message_saved_to_effort_log_not_raw", "passed": 139, "baseline": 139}
+{"ts": "2026-02-12T12:49:00", "event": "committed", "test": "test_effort_message_saved_to_effort_log_not_raw", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:49:07", "event": "run_start", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:49:07", "event": "attempt_start", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:49:31", "event": "api_done", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "model": "deepseek/deepseek-chat", "elapsed": 24.03, "tokens": 19451}
+{"ts": "2026-02-12T12:49:34", "event": "test_pass", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:49:43", "event": "no_regression", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "passed": 139, "baseline": 139}
+{"ts": "2026-02-12T12:49:43", "event": "committed", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:49:49", "event": "run_start", "test": "test_conclude_effort_updates_manifest_and_adds_summary", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:49:49", "event": "attempt_start", "test": "test_conclude_effort_updates_manifest_and_adds_summary", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:50:18", "event": "api_done", "test": "test_conclude_effort_updates_manifest_and_adds_summary", "model": "deepseek/deepseek-chat", "elapsed": 28.64, "tokens": 19837}
+{"ts": "2026-02-12T12:50:21", "event": "test_pass", "test": "test_conclude_effort_updates_manifest_and_adds_summary", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:50:30", "event": "no_regression", "test": "test_conclude_effort_updates_manifest_and_adds_summary", "passed": 140, "baseline": 139}
+{"ts": "2026-02-12T12:50:30", "event": "committed", "test": "test_conclude_effort_updates_manifest_and_adds_summary", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:50:37", "event": "run_start", "test": "test_open_new_effort_while_previous_is_concluded", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:50:37", "event": "attempt_start", "test": "test_open_new_effort_while_previous_is_concluded", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:51:10", "event": "api_done", "test": "test_open_new_effort_while_previous_is_concluded", "model": "deepseek/deepseek-chat", "elapsed": 33.47, "tokens": 20137}
+{"ts": "2026-02-12T12:51:14", "event": "test_pass", "test": "test_open_new_effort_while_previous_is_concluded", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:51:24", "event": "no_regression", "test": "test_open_new_effort_while_previous_is_concluded", "passed": 140, "baseline": 140}
+{"ts": "2026-02-12T12:51:24", "event": "committed", "test": "test_open_new_effort_while_previous_is_concluded", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:52:01", "event": "run_start", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:52:01", "event": "attempt_start", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:52:48", "event": "api_done", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "model": "deepseek/deepseek-chat", "elapsed": 46.33, "tokens": 20567}
+{"ts": "2026-02-12T12:52:51", "event": "test_fail", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:52:51", "event": "attempt_start", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T12:55:31", "event": "api_done", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "model": "deepseek/deepseek-reasoner", "elapsed": 160.28, "tokens": 24963}
+{"ts": "2026-02-12T12:55:35", "event": "test_pass", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T12:55:44", "event": "no_regression", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "passed": 140, "baseline": 140}
+{"ts": "2026-02-12T12:55:44", "event": "committed", "test": "test_ambient_during_effort_saves_to_raw_not_effort", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T12:56:10", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T12:56:10", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T12:56:56", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "elapsed": 46.68, "tokens": 24363}
+{"ts": "2026-02-12T12:57:00", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T12:57:00", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T13:01:21", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 261.34, "tokens": 32431}
+{"ts": "2026-02-12T13:01:25", "event": "test_pass", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T13:01:25", "event": "committed", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T20:24:07", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T20:24:07", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T20:25:17", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "elapsed": 69.45, "tokens": 25704}
+{"ts": "2026-02-12T20:25:20", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T20:25:20", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T20:30:44", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 323.93, "tokens": 34155}
+{"ts": "2026-02-12T20:30:47", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T20:30:47", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T20:32:14", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 87.5, "tokens": 27107}
+{"ts": "2026-02-12T20:32:18", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-12T20:32:18", "event": "give_up", "test": "test_acceptance_effort_lifecycle", "attempts": 3}
+{"ts": "2026-02-12T20:33:07", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-12T20:33:07", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T20:34:02", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "elapsed": 54.86, "tokens": 25453}
+{"ts": "2026-02-12T20:34:06", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T20:34:06", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T20:39:21", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 314.82, "tokens": 34022}
+{"ts": "2026-02-12T20:39:25", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T20:39:25", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T20:43:17", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 232.37, "tokens": 31902}
+{"ts": "2026-02-12T20:43:21", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-12T20:43:21", "event": "give_up", "test": "test_acceptance_effort_lifecycle", "attempts": 3}
+{"ts": "2026-02-12T20:44:45", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 6}
+{"ts": "2026-02-12T20:44:45", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T20:45:40", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "elapsed": 54.79, "tokens": 25453}
+{"ts": "2026-02-12T20:45:43", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T20:45:43", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T20:48:27", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 163.87, "tokens": 29032}
+{"ts": "2026-02-12T20:48:31", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T20:48:31", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T20:51:59", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 207.65, "tokens": 31070}
+{"ts": "2026-02-12T20:52:03", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-12T20:52:03", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 4, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T20:58:37", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 393.91, "tokens": 37085}
+{"ts": "2026-02-12T20:58:40", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 4}
+{"ts": "2026-02-12T21:15:53", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 5}
+{"ts": "2026-02-12T21:15:53", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T21:16:47", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "elapsed": 54.29, "tokens": 25381}
+{"ts": "2026-02-12T21:16:51", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T21:16:51", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T21:20:59", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 248.88, "tokens": 32801}
+{"ts": "2026-02-12T21:21:04", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-12T21:21:04", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T21:25:50", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 285.9, "tokens": 33533}
+{"ts": "2026-02-12T21:25:53", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-12T21:25:53", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 4, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T21:31:58", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 365.0, "tokens": 36928}
+{"ts": "2026-02-12T21:32:02", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 4}
+{"ts": "2026-02-12T21:33:01", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["deepseek/deepseek-chat", "deepseek/deepseek-reasoner"], "max_attempts": 5}
+{"ts": "2026-02-12T21:33:01", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "deepseek/deepseek-chat", "escalated": false}
+{"ts": "2026-02-12T21:34:28", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "elapsed": 87.12, "tokens": 26729}
+{"ts": "2026-02-12T21:34:31", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-chat", "attempt": 1}
+{"ts": "2026-02-12T21:34:31", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T21:38:39", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 247.36, "tokens": 32293}
+{"ts": "2026-02-12T21:38:39", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T21:45:09", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 390.06, "tokens": 37123}
+{"ts": "2026-02-12T21:45:28", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-12T21:45:28", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 4, "model": "deepseek/deepseek-reasoner", "escalated": true}
+{"ts": "2026-02-12T21:50:27", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 298.77, "tokens": 34426}
+{"ts": "2026-02-12T21:50:30", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 4}
+{"ts": "2026-02-12T21:54:23", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["glm/glm-5"], "max_attempts": 3}
+{"ts": "2026-02-12T21:54:23", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "glm/glm-5", "escalated": false}
+{"ts": "2026-02-12T21:56:34", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5", "elapsed": 130.82, "tokens": 27397}
+{"ts": "2026-02-12T21:56:38", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5", "attempt": 1}
+{"ts": "2026-02-12T21:56:38", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "glm/glm-5", "escalated": false}
+{"ts": "2026-02-12T21:57:36", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5", "elapsed": 57.4, "tokens": 25614}
+{"ts": "2026-02-12T21:57:36", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "glm/glm-5", "escalated": false}
+{"ts": "2026-02-12T21:58:38", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5", "elapsed": 62.87, "tokens": 25310}
+{"ts": "2026-02-12T21:58:42", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5", "attempt": 3}
+{"ts": "2026-02-12T21:58:42", "event": "give_up", "test": "test_acceptance_effort_lifecycle", "attempts": 3}
+{"ts": "2026-02-13T11:37:52", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["glm/glm-5-thinking"], "max_attempts": 3}
+{"ts": "2026-02-13T11:37:52", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T11:43:12", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "elapsed": 319.42, "tokens": 39534}
+{"ts": "2026-02-13T11:43:17", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "attempt": 1}
+{"ts": "2026-02-13T11:43:17", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T11:43:49", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "elapsed": 31.39, "tokens": 24778}
+{"ts": "2026-02-13T11:43:49", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T11:44:55", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "elapsed": 66.03, "tokens": 24961}
+{"ts": "2026-02-13T11:44:59", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "attempt": 3}
+{"ts": "2026-02-13T11:44:59", "event": "give_up", "test": "test_acceptance_effort_lifecycle", "attempts": 3}
+{"ts": "2026-02-13T12:37:54", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["glm/glm-5-thinking"], "max_attempts": 3}
+{"ts": "2026-02-13T12:37:54", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T12:39:57", "event": "api_error", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "error": "RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"}
+{"ts": "2026-02-13T12:39:57", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T12:39:59", "event": "api_error", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "error": "RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"}
+{"ts": "2026-02-13T12:39:59", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T12:40:02", "event": "api_error", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "error": "RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"}
+{"ts": "2026-02-13T12:40:02", "event": "give_up", "test": "test_acceptance_effort_lifecycle", "attempts": 3}
+{"ts": "2026-02-13T12:40:17", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["deepseek/deepseek-reasoner"], "max_attempts": 3}
+{"ts": "2026-02-13T12:40:17", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "deepseek/deepseek-reasoner", "escalated": false}
+{"ts": "2026-02-13T12:44:02", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 224.96, "tokens": 21364}
+{"ts": "2026-02-13T12:44:06", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 1}
+{"ts": "2026-02-13T12:44:06", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": false}
+{"ts": "2026-02-13T12:48:55", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 288.25, "tokens": 24565}
+{"ts": "2026-02-13T12:48:58", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 2}
+{"ts": "2026-02-13T12:48:58", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": false}
+{"ts": "2026-02-13T12:53:22", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 264.1, "tokens": 23931}
+{"ts": "2026-02-13T12:53:26", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 3}
+{"ts": "2026-02-13T12:53:26", "event": "give_up", "test": "test_acceptance_effort_lifecycle", "attempts": 3}
+{"ts": "2026-02-13T12:59:06", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["glm/glm-5-thinking"], "max_attempts": 5}
+{"ts": "2026-02-13T12:59:06", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T13:01:34", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "elapsed": 147.3, "tokens": 14828}
+{"ts": "2026-02-13T13:01:37", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "attempt": 1}
+{"ts": "2026-02-13T13:01:37", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T13:03:56", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "elapsed": 139.15, "tokens": 17843}
+{"ts": "2026-02-13T13:04:00", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "attempt": 2}
+{"ts": "2026-02-13T13:04:00", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T13:09:03", "event": "api_error", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "error": "RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"}
+{"ts": "2026-02-13T13:09:03", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 4, "model": "glm/glm-5-thinking", "escalated": false}
+{"ts": "2026-02-13T13:09:05", "event": "api_error", "test": "test_acceptance_effort_lifecycle", "model": "glm/glm-5-thinking", "error": "RateLimitError: Error code: 429 - {'error': {'code': '1302', 'message': 'Rate limit reached for requests'}}"}
+{"ts": "2026-02-13T13:25:57", "event": "run_start", "test": "test_acceptance_effort_lifecycle", "models": ["deepseek/deepseek-reasoner"], "max_attempts": 5}
+{"ts": "2026-02-13T13:25:57", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 1, "model": "deepseek/deepseek-reasoner", "escalated": false}
+{"ts": "2026-02-13T13:28:42", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 165.21, "tokens": 21652}
+{"ts": "2026-02-13T13:28:42", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 2, "model": "deepseek/deepseek-reasoner", "escalated": false}
+{"ts": "2026-02-13T13:30:50", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 127.55, "tokens": 21486}
+{"ts": "2026-02-13T13:30:53", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 2, "passed": 1, "total": 6}
+{"ts": "2026-02-13T13:30:53", "event": "partial_progress", "passed": 1, "total": 6, "previous_best": 0}
+{"ts": "2026-02-13T13:30:53", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 3, "model": "deepseek/deepseek-reasoner", "escalated": false}
+{"ts": "2026-02-13T13:34:30", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 217.04, "tokens": 24770}
+{"ts": "2026-02-13T13:34:34", "event": "test_fail", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 3, "passed": 5, "total": 6}
+{"ts": "2026-02-13T13:34:34", "event": "partial_progress", "passed": 5, "total": 6, "previous_best": 1}
+{"ts": "2026-02-13T13:34:34", "event": "attempt_start", "test": "test_acceptance_effort_lifecycle", "attempt": 4, "model": "deepseek/deepseek-reasoner", "escalated": false}
+{"ts": "2026-02-13T13:37:41", "event": "api_done", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "elapsed": 186.65, "tokens": 25564}
+{"ts": "2026-02-13T13:37:44", "event": "test_pass", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 4}
+{"ts": "2026-02-13T13:37:44", "event": "committed", "test": "test_acceptance_effort_lifecycle", "model": "deepseek/deepseek-reasoner", "attempt": 4}
