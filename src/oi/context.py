@@ -168,9 +168,24 @@ def build_turn_context(state, session_dir):
 
     # Section 2: Concluded Efforts from manifest (past work)
     concluded_from_manifest = [e for e in manifest_efforts if e.get("status") == "concluded"]
-    if concluded_from_manifest:
+    # Also include concluded efforts from state that might not be in manifest
+    concluded_from_state = []
+    for artifact in state.artifacts:
+        if artifact.artifact_type == "effort" and artifact.status == "resolved":
+            concluded_from_state.append({
+                "id": artifact.id,
+                "summary": artifact.summary
+            })
+    
+    # Combine manifest and state concluded efforts, avoiding duplicates
+    all_concluded = concluded_from_manifest.copy()
+    for state_effort in concluded_from_state:
+        if not any(e.get("id") == state_effort["id"] for e in concluded_from_manifest):
+            all_concluded.append(state_effort)
+    
+    if all_concluded:
         sections.append("# Resolved Efforts (Past Work)")
-        for effort in concluded_from_manifest:
+        for effort in all_concluded:
             sections.append(f"- {effort['id']}: {effort.get('summary', '')}")
         sections.append("")
 
