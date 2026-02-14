@@ -1,4 +1,4 @@
-stage: tests
+stage: dev
 artifacts:
   scenarios:
   - scenarios/scenarios.md
@@ -7,12 +7,38 @@ artifacts:
   tests:
   - tests\test_story7_assemble_context_from_multiple_sources.py
   tests_validation:
-    total: 7
-    passed: 2
-    failed: 5
+    total: 5
+    passed: 3
+    failed: 2
     errors: 0
     review:
-      test_build_turn_context_includes_ambient_raw_jsonl: A
-      test_build_turn_context_handles_missing_manifest_gracefully: B
-    valid_red_phase: false
-last_updated: '2026-02-13T22:03:40.010916'
+      test_build_turn_context_includes_ambient_raw_log: A
+      test_build_turn_context_includes_full_raw_logs_of_open_efforts: A
+      test_build_turn_context_handles_missing_files_gracefully: A
+    valid_red_phase: true
+    test_output: "============================= test session starts =============================\n\
+      platform win32 -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0 -- C:\\Users\\\
+      Lex\\AppData\\Local\\Programs\\Python\\Python312\\python.exe\ncachedir: .pytest_cache\n\
+      rootdir: D:\\Dev\\knowledge-network\nconfigfile: pyproject.toml\nplugins: anyio-4.11.0,\
+      \ hydra-core-1.3.2, typeguard-4.4.4\ncollecting ... collected 5 items\n\n..\\\
+      ..\\tests\\test_story7_assemble_context_from_multiple_sources.py::TestStory7AssembleContext::test_build_turn_context_includes_ambient_raw_log\
+      \ PASSED [ 20%]\n..\\..\\tests\\test_story7_assemble_context_from_multiple_sources.py::TestStory7AssembleContext::test_build_turn_context_includes_effort_summaries_from_manifest\
+      \ FAILED [ 40%]\n..\\..\\tests\\test_story7_assemble_context_from_multiple_sources.py::TestStory7AssembleContext::test_build_turn_context_includes_full_raw_logs_of_open_efforts\
+      \ PASSED [ 60%]\n..\\..\\tests\\test_story7_assemble_context_from_multiple_sources.py::TestStory7AssembleContext::test_build_turn_context_combines_all_sources\
+      \ FAILED [ 80%]\n..\\..\\tests\\test_story7_assemble_context_from_multiple_sources.py::TestStory7AssembleContext::test_build_turn_context_handles_missing_files_gracefully\
+      \ PASSED [100%]\n\n================================== FAILURES ===================================\n\
+      _ TestStory7AssembleContext.test_build_turn_context_includes_effort_summaries_from_manifest\
+      \ _\n..\\..\\tests\\test_story7_assemble_context_from_multiple_sources.py:40:\
+      \ in test_build_turn_context_includes_effort_summaries_from_manifest\n    assert\
+      \ \"Debugged 401 errors after 1 hour.\" in context\nE   AssertionError: assert\
+      \ 'Debugged 401 errors after 1 hour.' in ''\n___ TestStory7AssembleContext.test_build_turn_context_combines_all_sources\
+      \ ____\n..\\..\\tests\\test_story7_assemble_context_from_multiple_sources.py:90:\
+      \ in test_build_turn_context_combines_all_sources\n    assert \"Summary of concluded\
+      \ effort.\" in context\nE   AssertionError: assert 'Summary of concluded effort.'\
+      \ in '# Open Efforts (Current Work)\\n- Open effort\\n  Recent messages in this\
+      \ effort:\\n    User: Open effort message.\\n\\n\\n# Recent Conversation\\nUser:\
+      \ Ambient message.\\n'\n=========================== short test summary info\
+      \ ===========================\nFAILED ..\\..\\tests\\test_story7_assemble_context_from_multiple_sources.py::TestStory7AssembleContext::test_build_turn_context_includes_effort_summaries_from_manifest\n\
+      FAILED ..\\..\\tests\\test_story7_assemble_context_from_multiple_sources.py::TestStory7AssembleContext::test_build_turn_context_combines_all_sources\n\
+      ========================= 2 failed, 3 passed in 0.21s =========================\n"
+last_updated: '2026-02-14T13:16:05.339018'

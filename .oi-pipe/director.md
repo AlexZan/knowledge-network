@@ -70,6 +70,18 @@ brainstorm → scenarios → stories → tests → dev → qa
 | Tests conflict across stories | Add hacks to make both pass | Check if stories overlap in scope (stories stage) |
 | Story produces untestable ACs | Rewrite the story | Check if the scenario was too vague (scenarios stage) |
 
+**Stop-First Rule — HIGHEST PRIORITY:**
+
+At the **first** sign of a problem with the TDD workflow, **STOP ALL pipeline runs immediately** and report to the user. Do not retry, do not switch models, do not continue with other stories. Problems compound — every retry on a flawed artifact wastes tokens.
+
+1. After the first failure, **read the generated code** and understand WHY it failed
+2. If the code is logically correct but tests fail → the tests are broken (upstream issue)
+3. If the code is wrong → check if the test is giving the model enough signal to succeed
+4. Report findings to the user: "Stage X failed. Here's what happened and why. Here's my diagnosis."
+5. Work with the user on a plan before spending any more tokens
+
+**Exception:** If you genuinely need more sample data to diagnose the problem (e.g., "is this a flaky model or a systematic issue?"), run ONE more attempt and explain why. Never more than that without user approval.
+
 **Error Inspection Protocol** (configured in `.oi-pipe/config.yaml` → `error_policy.max_failures_before_inspect`):
 1. When a stage fails, check the config threshold. If failures >= threshold → **STOP. Do not retry.**
 2. Read the failing output AND the input artifact (output of the previous stage).
