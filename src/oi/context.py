@@ -119,15 +119,38 @@ def build_turn_context(state, session_dir):
     """
     sections = []
 
+    # Read manifest for effort summaries
+    manifest_path = session_dir / "manifest.yaml"
+    manifest_efforts = []
+    if manifest_path.exists():
+        import yaml
+        manifest = yaml.safe_load(manifest_path.read_text())
+        manifest_efforts = manifest.get("efforts", [])
+
     # Section 1: Open Efforts (current work) - highest priority
-    open_efforts = state.get_open_efforts()
-    if open_efforts:
+    # Get open efforts from manifest and state
+    open_in_manifest = {e["id"]: e for e in manifest_efforts if e.get("status") == "open"}
+    open_in_state = {effort.id: effort for effort in state.get_open_efforts()}
+    
+    # Combine: all effort ids that are open in either manifest or state
+    all_open_ids = set(open_in_manifest.keys()) | set(open_in_state.keys())
+    
+    if all_open_ids:
         sections.append("# Open Efforts (Current Work)")
-        for effort in open_efforts:
-            sections.append(f"- {effort.summary}")
+        for effort_id in all_open_ids:
+            # Prefer summary from manifest, then state
+            summary = ""
+            if effort_id in open_in_manifest:
+                summary = open_in_manifest[effort_id].get("summary", "")
+            elif effort_id in open_in_state:
+                summary = open_in_state[effort_id].summary
+            else:
+                continue
             
-            # Include the effort's raw log content
-            effort_log_path = session_dir / "efforts" / f"{effort.id}.jsonl"
+            sections.append(f"- {summary}")
+            
+            # Include the effort's raw log content if the file exists
+            effort_log_path = session_dir / "efforts" / f"{effort_id}.jsonl"
             if effort_log_path.exists():
                 sections.append("  Recent messages in this effort:")
                 try:
@@ -143,33 +166,15 @@ def build_turn_context(state, session_dir):
             sections.append("")
         sections.append("")
 
-    # Section 2: Resolved Artifacts (past work with conclusions)
-    resolved_efforts = state.get_resolved_efforts()
-    if resolved_efforts:
+    # Section 2: Concluded Efforts from manifest (past work)
+    concluded_from_manifest = [e for e in manifest_efforts if e.get("status") == "concluded"]
+    if concluded_from_manifest:
         sections.append("# Resolved Efforts (Past Work)")
-        for effort in resolved_efforts:
-            # Get summary from manifest if available
-            effort_summary = effort.summary
-            manifest_path = session_dir / "manifest.yaml"
-            if manifest_path.exists():
-                import yaml
-                manifest = yaml.safe_load(manifest_path.read_text())
-                for manifest_effort in manifest.get("efforts", []):
-                    if manifest_effort.get("id") == effort.id and manifest_effort.get("status") == "concluded":
-                        effort_summary = manifest_effort.get("summary", effort.summary)
-                        break
-            sections.append(f"- {effort.id}: {effort_summary}")
+        for effort in concluded_from_manifest:
+            sections.append(f"- {effort['id']}: {effort.get('summary', '')}")
         sections.append("")
 
-    # Section 3: Archived Efforts
-    archived_efforts = state.get_archived_efforts()
-    if archived_efforts:
-        sections.append("# Archived Efforts (Inactive)")
-        for effort in archived_efforts:
-            sections.append(f"- {effort.summary}")
-        sections.append("")
-
-    # Section 4: Recent Conversation (ambient messages from raw.jsonl)
+    # Section 3: Recent Conversation (ambient messages from raw.jsonl)
     raw_log = session_dir / "raw.jsonl"
     if raw_log.exists():
         sections.append("# Recent Conversation")
