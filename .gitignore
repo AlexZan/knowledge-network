@@ -24,8 +24,13 @@ build/
 
 # Logs
 *.log
+logs/dev-agent/
 .venv/
 __pycache__/
 *.pyc
 .pytest_cache/
 .env
+
+# Test sessions / experiments
+.test-session-*/
+tests/experiments/
