@@ -13,45 +13,47 @@ PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 
 def load_prompt(name: str) -> str:
-    """Load a prompt from the prompts directory.
-
-    Args:
-        name: Prompt filename (without .md extension)
-
-    Returns:
-        The prompt text
-    """
+    """Load a prompt from the prompts directory."""
     prompt_path = PROMPTS_DIR / f"{name}.md"
     return prompt_path.read_text(encoding="utf-8").strip()
 
 
 def chat(messages: list[dict], model: str = DEFAULT_MODEL) -> str:
-    """Send messages to LLM and get response.
-
-    Args:
-        messages: List of message dicts with 'role' and 'content'
-        model: Model identifier (litellm format)
-
-    Returns:
-        The assistant's response text
-    """
+    """Send messages to LLM and get response text."""
     response = completion(model=model, messages=messages)
     return response.choices[0].message.content
+
+
+def chat_with_tools(messages: list[dict], tools: list[dict], model: str = DEFAULT_MODEL):
+    """Send messages to LLM with tool definitions.
+
+    Returns the full response message object (may contain tool_calls).
+    """
+    response = completion(model=model, messages=messages, tools=tools)
+    return response.choices[0].message
+
+
+def summarize_effort(effort_content: str, model: str = DEFAULT_MODEL) -> str:
+    """Summarize an effort's raw log into a concise paragraph."""
+    messages = [
+        {"role": "system", "content": "You summarize conversations concisely."},
+        {"role": "user", "content": (
+            "Summarize this conversation into a concise paragraph.\n"
+            "Capture: what was worked on, key findings, resolution.\n"
+            "Keep it under 100 tokens.\n\n"
+            f"{effort_content}"
+        )}
+    ]
+    return chat(messages, model)
 
 
 def extract_conclusion(thread_messages: list[dict], model: str = DEFAULT_MODEL) -> str:
     """Ask LLM to extract a conclusion from a resolved thread.
 
-    Args:
-        thread_messages: The messages from the concluded thread
-        model: Model identifier
-
-    Returns:
-        A concise knowledge statement extracted from the conversation
+    Legacy function kept for backwards compatibility.
     """
     extraction_prompt = load_prompt("conclusion_extraction")
 
-    # Format the thread for the prompt
     thread_text = "\n".join([
         f"{msg['role'].upper()}: {msg['content']}"
         for msg in thread_messages
@@ -64,22 +66,3 @@ def extract_conclusion(thread_messages: list[dict], model: str = DEFAULT_MODEL) 
     ]
 
     return chat(messages, model)
-
-
-# --- TDD Stubs (auto-generated, implement these) ---
-
-def create_effort_summary(effort_content, arg1):
-    raise NotImplementedError('create_effort_summary')
-
-
-def summarize_effort(effort_content):
-    """Summarize the content of an effort.
-    
-    Args:
-        effort_content: The raw content of the effort log as a string.
-        
-    Returns:
-        A string summary of the effort.
-    """
-    # For now, just return a placeholder.
-    return "Summary of effort"
