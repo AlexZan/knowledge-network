@@ -87,6 +87,23 @@ def _build_messages(session_dir: Path) -> list[dict]:
     return messages
 
 
+def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
+    """Build programmatic notification banners for tool actions."""
+    parts = []
+    for tool_name, tool_args, tool_result in tools_fired:
+        result = json.loads(tool_result)
+        if "error" in result:
+            continue  # Don't banner failed tool calls
+
+        if tool_name == "open_effort":
+            parts.append(f"--- Started effort: {result['effort_id']} ---")
+        elif tool_name == "close_effort":
+            summary = result.get("summary", "")
+            parts.append(f"--- Concluded effort: {result['effort_id']} ---\nSummary: {summary}")
+
+    return "\n".join(parts)
+
+
 def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODEL) -> str:
     """Process a single conversation turn.
 
@@ -103,6 +120,7 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
 
     # 4. Tool-calling loop
     assistant_content = ""
+    tools_fired = []  # Track (tool_name, tool_args, tool_result) for banners
     for _ in range(MAX_TOOL_ROUNDS):
         response_msg = chat_with_tools(messages, TOOL_DEFINITIONS, model)
 
@@ -118,6 +136,7 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
             tool_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
 
             tool_result = execute_tool(session_dir, tool_name, tool_args, model)
+            tools_fired.append((tool_name, tool_args, tool_result))
 
             messages.append({
                 "role": "tool",
@@ -128,20 +147,28 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
         # Max rounds exhausted — use whatever content we have
         assistant_content = response_msg.content or ""
 
-    # 5. Log messages to appropriate file
+    # 5. Build programmatic banners for tool actions
+    banners = _build_tool_banners(tools_fired)
+
+    # 6. Compose final response: banners + LLM response
+    if banners and assistant_content:
+        final_response = banners + "\n\n" + assistant_content
+    elif banners:
+        final_response = banners
+    else:
+        final_response = assistant_content
+
+    # 7. Log messages to appropriate file
     open_after = get_open_effort(session_dir)
 
     if open_before:
-        # Effort was already open — both messages go to effort log
         _log_message(session_dir, open_before["id"], "user", user_message)
-        _log_message(session_dir, open_before["id"], "assistant", assistant_content)
+        _log_message(session_dir, open_before["id"], "assistant", final_response)
     elif open_after and not open_before:
-        # Effort was just opened this turn — both messages go to new effort
         _log_message(session_dir, open_after["id"], "user", user_message)
-        _log_message(session_dir, open_after["id"], "assistant", assistant_content)
+        _log_message(session_dir, open_after["id"], "assistant", final_response)
     else:
-        # No effort involved — ambient
         _log_message(session_dir, None, "user", user_message)
-        _log_message(session_dir, None, "assistant", assistant_content)
+        _log_message(session_dir, None, "assistant", final_response)
 
-    return assistant_content
+    return final_response

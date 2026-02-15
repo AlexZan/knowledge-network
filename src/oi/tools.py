@@ -39,9 +39,10 @@ TOOL_DEFINITIONS = [
         "function": {
             "name": "close_effort",
             "description": (
-                "Conclude the current open effort. Summarizes the effort's conversation "
-                "via LLM, saves the summary to the manifest, and removes the raw log "
-                "from working context. Fails if no effort is open."
+                "Permanently conclude the current open effort. This is irreversible. "
+                "Only call when the user explicitly says the work is DONE or COMPLETE. "
+                "Never call for 'pause', 'hold', or 'switch' — those mean keep it open. "
+                "Summarizes the conversation and removes raw log from working context."
             ),
             "parameters": {
                 "type": "object",
@@ -130,8 +131,12 @@ def close_effort(session_dir: Path, model: str = None) -> str:
     if effort_file.exists():
         effort_content = effort_file.read_text(encoding="utf-8")
 
-    # Summarize via LLM
-    summary = llm_summarize(effort_content, model or DEFAULT_MODEL)
+    # Summarize via LLM — but only if there's enough content
+    # With very little content, the summarizer tends to hallucinate
+    if len(effort_content.strip()) < 50:
+        summary = f"Brief effort: {effort_id} (too short to summarize)"
+    else:
+        summary = llm_summarize(effort_content, model or DEFAULT_MODEL)
 
     # Update manifest
     manifest = _load_manifest(session_dir)
