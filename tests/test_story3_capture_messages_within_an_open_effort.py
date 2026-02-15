@@ -183,7 +183,7 @@ class TestStory3CaptureMessagesWithinOpenEffort:
         ])
         
         # Act: Route a message while an effort is open
-        result = route_message(state, "What about the refresh token?")
+        result = route_message(state, "What about the auth bug status?")
         
         # Assert: Should route to the open effort
         assert result == effort_id
