@@ -77,5 +77,5 @@ The raw log stays the same. Each artifact type has its own extractor. Context as
 ## Related Documents
 
 - [refined-chat-model.md](refined-chat-model.md) — Full chat model with artifact architecture
-- [01-two-log-proof.md](../slices/01-two-log-proof.md) — Updated Slice 1 spec
+- [01-core-compaction-proof.md](../slices/01-core-compaction-proof.md) — Slice 1 spec
 - [scenarios.md](../../efforts/chat-cli/scenarios/scenarios.md) — Updated scenario

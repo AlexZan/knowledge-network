@@ -59,5 +59,5 @@
 
 - [whitepaper.md](whitepaper.md) — CCM whitepaper draft
 - [thesis.md](thesis.md) — KN vision and 5 theses
-- [slices/01-two-log-proof.md](slices/01-two-log-proof.md) — CCM Slice 1 spec (needs update)
+- [slices/01-core-compaction-proof.md](slices/01-core-compaction-proof.md) — CCM Slice 1 spec
 - [brainstorm/slice1-redesign-notes.md](brainstorm/slice1-redesign-notes.md) — Redesign context
