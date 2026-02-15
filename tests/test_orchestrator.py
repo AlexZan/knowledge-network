@@ -1,12 +1,13 @@
 """Unit tests for orchestrator (LLM mocked)."""
 
 import json
+import yaml
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from oi.orchestrator import _build_messages, _log_message, process_turn
-from oi.tools import open_effort
+from oi.tools import open_effort, expand_effort, get_active_effort
 
 
 @pytest.fixture
@@ -45,7 +46,6 @@ class TestBuildMessages:
         assert any(m["content"] == "work msg" for m in messages)
 
     def test_concluded_effort_in_system_prompt(self, session_dir):
-        import yaml
         session_dir.mkdir(parents=True)
         manifest = {
             "efforts": [{
@@ -60,7 +60,6 @@ class TestBuildMessages:
         assert "Fixed the auth bug" in messages[0]["content"]
 
     def test_concluded_effort_raw_log_not_in_messages(self, session_dir):
-        import yaml
         session_dir.mkdir(parents=True)
         manifest = {
             "efforts": [{
@@ -79,6 +78,78 @@ class TestBuildMessages:
         messages = _build_messages(session_dir)
         all_content = " ".join(m["content"] for m in messages)
         assert "SECRET_RAW_CONTENT" not in all_content
+
+    def test_expanded_effort_raw_in_messages(self, session_dir):
+        """Expanded effort's raw log appears in context."""
+        session_dir.mkdir(parents=True)
+        manifest = {
+            "efforts": [{
+                "id": "old-effort",
+                "status": "concluded",
+                "summary": "Fixed the auth bug"
+            }]
+        }
+        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        efforts_dir = session_dir / "efforts"
+        efforts_dir.mkdir()
+        (efforts_dir / "old-effort.jsonl").write_text(
+            json.dumps({"role": "user", "content": "EXPANDED_RAW_CONTENT", "ts": "t1"}) + "\n"
+        )
+
+        # Expand the effort
+        expand_effort(session_dir, "old-effort")
+
+        messages = _build_messages(session_dir)
+        all_content = " ".join(m["content"] for m in messages)
+        assert "EXPANDED_RAW_CONTENT" in all_content
+
+    def test_expanded_effort_summary_not_duplicated(self, session_dir):
+        """When expanded, summary is excluded (raw replaces it)."""
+        session_dir.mkdir(parents=True)
+        manifest = {
+            "efforts": [{
+                "id": "old-effort",
+                "status": "concluded",
+                "summary": "UNIQUE_SUMMARY_TEXT"
+            }]
+        }
+        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        efforts_dir = session_dir / "efforts"
+        efforts_dir.mkdir()
+        (efforts_dir / "old-effort.jsonl").write_text(
+            json.dumps({"role": "user", "content": "raw data", "ts": "t1"}) + "\n"
+        )
+
+        # Expand it
+        expand_effort(session_dir, "old-effort")
+
+        messages = _build_messages(session_dir)
+        system_content = messages[0]["content"]
+        # Summary should NOT be in system prompt when expanded
+        assert "UNIQUE_SUMMARY_TEXT" not in system_content
+
+    def test_multiple_open_efforts_in_messages(self, session_dir):
+        """Both open effort logs appear in context."""
+        open_effort(session_dir, "effort-a")
+        open_effort(session_dir, "effort-b")  # effort-b is active
+
+        efforts_dir = session_dir / "efforts"
+        efforts_dir.mkdir(parents=True, exist_ok=True)
+        (efforts_dir / "effort-a.jsonl").write_text(
+            json.dumps({"role": "user", "content": "MSG_FROM_A", "ts": "t1"}) + "\n"
+        )
+        (efforts_dir / "effort-b.jsonl").write_text(
+            json.dumps({"role": "user", "content": "MSG_FROM_B", "ts": "t1"}) + "\n"
+        )
+
+        messages = _build_messages(session_dir)
+        all_content = " ".join(m["content"] for m in messages)
+        assert "MSG_FROM_A" in all_content
+        assert "MSG_FROM_B" in all_content
+
+        # Active effort (B) should be last in messages
+        content_messages = [m for m in messages if m["role"] != "system"]
+        assert content_messages[-1]["content"] == "MSG_FROM_B"
 
 
 class TestLogMessage:
@@ -147,3 +218,26 @@ class TestProcessTurn:
         # Ambient should be empty
         raw = session_dir / "raw.jsonl"
         assert not raw.exists()
+
+    @patch("oi.orchestrator.chat_with_tools")
+    def test_messages_route_to_active_effort(self, mock_chat, session_dir):
+        """Messages go to the active effort, not other open efforts."""
+        # Open two efforts — second becomes active
+        open_effort(session_dir, "effort-a")
+        open_effort(session_dir, "effort-b")
+
+        mock_chat.return_value = self._mock_response("Working on B.")
+        process_turn(session_dir, "Do something for B")
+
+        # Message should be in effort-b log
+        b_file = session_dir / "efforts" / "effort-b.jsonl"
+        assert b_file.exists()
+        lines = b_file.read_text().strip().split("\n")
+        user_msgs = [json.loads(l) for l in lines if json.loads(l)["role"] == "user"]
+        assert any("Do something for B" in m["content"] for m in user_msgs)
+
+        # effort-a should NOT have this message
+        a_file = session_dir / "efforts" / "effort-a.jsonl"
+        if a_file.exists():
+            a_content = a_file.read_text()
+            assert "Do something for B" not in a_content

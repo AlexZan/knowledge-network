@@ -1,11 +1,11 @@
 """Orchestrator: handles each conversation turn with tool-calling flow.
 
 Flow per turn:
-1. Build working context (system prompt + ambient + manifest summaries + open effort raw)
+1. Build working context (system prompt + ambient + manifest summaries + expanded raw + open effort raw)
 2. Add user message
 3. Send to LLM with tool definitions
 4. If tool call: execute tool, send result back, get next response (loop)
-5. Log messages to appropriate log (effort or ambient)
+5. Log messages to appropriate log (active effort or ambient)
 6. Return assistant response
 """
 
@@ -15,7 +15,10 @@ from pathlib import Path
 from datetime import datetime
 
 from .llm import load_prompt, chat_with_tools, DEFAULT_MODEL
-from .tools import TOOL_DEFINITIONS, execute_tool, get_open_effort
+from .tools import (
+    TOOL_DEFINITIONS, execute_tool,
+    get_active_effort, get_all_open_efforts, _load_expanded,
+)
 
 
 MAX_TOOL_ROUNDS = 3
@@ -36,10 +39,24 @@ def _log_message(session_dir: Path, effort_id: str | None, role: str, content: s
         f.write(json.dumps(entry) + "\n")
 
 
+def _read_jsonl_messages(filepath: Path) -> list[dict]:
+    """Read a JSONL file and return list of {role, content} message dicts."""
+    messages = []
+    if filepath.exists():
+        text = filepath.read_text(encoding="utf-8").strip()
+        if text:
+            for line in text.split("\n"):
+                if line.strip():
+                    entry = json.loads(line)
+                    messages.append({"role": entry["role"], "content": entry["content"]})
+    return messages
+
+
 def _build_messages(session_dir: Path) -> list[dict]:
     """Build the LLM message list from working context.
 
-    Working Context = system_prompt + ambient + manifest_summaries + open_effort_raw
+    Working Context = system_prompt + ambient + manifest_summaries (non-expanded)
+                    + expanded_effort_raw + all_open_effort_raw (active last)
     """
     # System prompt
     system_prompt = load_prompt("system")
@@ -47,12 +64,16 @@ def _build_messages(session_dir: Path) -> list[dict]:
     # Read manifest for concluded effort summaries
     manifest_section = ""
     manifest_path = session_dir / "manifest.yaml"
+    expanded = _load_expanded(session_dir)
+
     if manifest_path.exists():
         manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
         concluded = [e for e in manifest.get("efforts", []) if e.get("status") == "concluded"]
-        if concluded:
+        # Only show summaries for non-expanded concluded efforts
+        summary_efforts = [e for e in concluded if e["id"] not in expanded]
+        if summary_efforts:
             parts = ["\nConcluded efforts (summaries only):"]
-            for e in concluded:
+            for e in summary_efforts:
                 parts.append(f"- {e['id']}: {e.get('summary', '(no summary)')}")
             manifest_section = "\n".join(parts)
 
@@ -63,26 +84,28 @@ def _build_messages(session_dir: Path) -> list[dict]:
     messages = [{"role": "system", "content": full_system}]
 
     # Ambient messages from raw.jsonl
-    raw_path = session_dir / "raw.jsonl"
-    if raw_path.exists():
-        raw_text = raw_path.read_text(encoding="utf-8").strip()
-        if raw_text:
-            for line in raw_text.split("\n"):
-                if line.strip():
-                    entry = json.loads(line)
-                    messages.append({"role": entry["role"], "content": entry["content"]})
+    messages.extend(_read_jsonl_messages(session_dir / "raw.jsonl"))
 
-    # Open effort raw log
-    open_effort = get_open_effort(session_dir)
-    if open_effort:
-        effort_file = session_dir / "efforts" / f"{open_effort['id']}.jsonl"
-        if effort_file.exists():
-            effort_text = effort_file.read_text(encoding="utf-8").strip()
-            if effort_text:
-                for line in effort_text.split("\n"):
-                    if line.strip():
-                        entry = json.loads(line)
-                        messages.append({"role": entry["role"], "content": entry["content"]})
+    # Expanded effort raw logs (concluded but temporarily loaded)
+    for effort_id in sorted(expanded):
+        effort_file = session_dir / "efforts" / f"{effort_id}.jsonl"
+        messages.extend(_read_jsonl_messages(effort_file))
+
+    # All open effort raw logs, with active effort last
+    open_efforts = get_all_open_efforts(session_dir)
+    active = get_active_effort(session_dir)
+    active_id = active["id"] if active else None
+
+    # Non-active open efforts first
+    for effort in open_efforts:
+        if effort["id"] != active_id:
+            effort_file = session_dir / "efforts" / f"{effort['id']}.jsonl"
+            messages.extend(_read_jsonl_messages(effort_file))
+
+    # Active effort last
+    if active_id:
+        effort_file = session_dir / "efforts" / f"{active_id}.jsonl"
+        messages.extend(_read_jsonl_messages(effort_file))
 
     return messages
 
@@ -100,6 +123,13 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
         elif tool_name == "close_effort":
             summary = result.get("summary", "")
             parts.append(f"--- Concluded effort: {result['effort_id']} ---\nSummary: {summary}")
+        elif tool_name == "expand_effort":
+            tokens = result.get("tokens_loaded", 0)
+            parts.append(f"--- Expanded effort: {result['effort_id']} ({tokens} tokens loaded) ---")
+        elif tool_name == "collapse_effort":
+            parts.append(f"--- Collapsed effort: {result['effort_id']} (back to summary) ---")
+        elif tool_name == "switch_effort":
+            parts.append(f"--- Switched to effort: {result['effort_id']} ---")
 
     return "\n".join(parts)
 
@@ -113,7 +143,7 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
     messages = _build_messages(session_dir)
 
     # 2. Snapshot effort state before the turn
-    open_before = get_open_effort(session_dir)
+    active_before = get_active_effort(session_dir)
 
     # 3. Add user message
     messages.append({"role": "user", "content": user_message})
@@ -158,16 +188,19 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
     else:
         final_response = assistant_content
 
-    # 7. Log messages to appropriate file
-    open_after = get_open_effort(session_dir)
+    # 7. Log messages to appropriate file (active effort or ambient)
+    active_after = get_active_effort(session_dir)
 
-    if open_before:
-        _log_message(session_dir, open_before["id"], "user", user_message)
-        _log_message(session_dir, open_before["id"], "assistant", final_response)
-    elif open_after and not open_before:
-        _log_message(session_dir, open_after["id"], "user", user_message)
-        _log_message(session_dir, open_after["id"], "assistant", final_response)
+    if active_before:
+        # Was in an effort before — log to that effort
+        _log_message(session_dir, active_before["id"], "user", user_message)
+        _log_message(session_dir, active_before["id"], "assistant", final_response)
+    elif active_after and not active_before:
+        # Effort was opened this turn — log to the new effort
+        _log_message(session_dir, active_after["id"], "user", user_message)
+        _log_message(session_dir, active_after["id"], "assistant", final_response)
     else:
+        # No effort — log to ambient
         _log_message(session_dir, None, "user", user_message)
         _log_message(session_dir, None, "assistant", final_response)
 
