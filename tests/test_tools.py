@@ -8,7 +8,8 @@ from oi.tools import (
     open_effort, close_effort, effort_status,
     get_open_effort, get_active_effort, get_all_open_efforts,
     expand_effort, collapse_effort, switch_effort,
-    _load_expanded, _save_expanded,
+    _load_expanded, _save_expanded, _load_expanded_state,
+    _load_session_state, _save_session_state, increment_turn,
 )
 
 
@@ -260,3 +261,62 @@ class TestSwitchEffort:
         (session_dir / "manifest.yaml").write_text("efforts: []\n")
         result = json.loads(switch_effort(session_dir, "nope"))
         assert "error" in result
+
+
+# === Slice 3: Session state tests ===
+
+class TestSessionState:
+    def test_increment_turn(self, session_dir):
+        """Turn counter increments correctly and persists."""
+        assert increment_turn(session_dir) == 1
+        assert increment_turn(session_dir) == 2
+        assert increment_turn(session_dir) == 3
+
+        state = _load_session_state(session_dir)
+        assert state["turn_count"] == 3
+
+    def test_session_state_default(self, session_dir):
+        """Fresh session returns turn_count 0."""
+        state = _load_session_state(session_dir)
+        assert state["turn_count"] == 0
+
+    def test_session_state_round_trip(self, session_dir):
+        """Save and load preserves data."""
+        _save_session_state(session_dir, {"turn_count": 42})
+        state = _load_session_state(session_dir)
+        assert state["turn_count"] == 42
+        assert "updated" in state
+
+
+class TestExpandedFormat:
+    def test_expanded_json_has_last_referenced_turn(self, session_dir):
+        """New expanded.json format includes last_referenced_turn."""
+        import yaml
+        session_dir.mkdir(parents=True, exist_ok=True)
+        (session_dir / "efforts").mkdir(exist_ok=True)
+        (session_dir / "efforts" / "old.jsonl").write_text(
+            '{"role":"user","content":"x","ts":"t"}\n'
+        )
+        manifest = {"efforts": [{"id": "old", "status": "concluded", "summary": "Done."}]}
+        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+
+        # Set turn count before expanding
+        _save_session_state(session_dir, {"turn_count": 5})
+        expand_effort(session_dir, "old")
+
+        state = _load_expanded_state(session_dir)
+        assert "last_referenced_turn" in state
+        assert state["last_referenced_turn"]["old"] == 5
+
+    def test_save_expanded_preserves_timestamps(self, session_dir):
+        """Saving expanded set preserves existing expanded_at timestamps."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_expanded(session_dir, {"a"}, last_referenced_turn={"a": 1})
+        state1 = _load_expanded_state(session_dir)
+        ts_a = state1["expanded_at"]["a"]
+
+        # Save again with a added — timestamp should be preserved
+        _save_expanded(session_dir, {"a", "b"}, last_referenced_turn={"a": 1, "b": 2})
+        state2 = _load_expanded_state(session_dir)
+        assert state2["expanded_at"]["a"] == ts_a  # preserved
+        assert "b" in state2["expanded_at"]  # new one added

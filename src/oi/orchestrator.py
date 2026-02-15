@@ -18,7 +18,9 @@ from .llm import load_prompt, chat_with_tools, DEFAULT_MODEL
 from .tools import (
     TOOL_DEFINITIONS, execute_tool,
     get_active_effort, get_all_open_efforts, _load_expanded,
+    increment_turn,
 )
+from .decay import check_decay, DECAY_THRESHOLD
 
 
 MAX_TOOL_ROUNDS = 3
@@ -139,16 +141,19 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
 
     Returns the assistant's final response text.
     """
-    # 1. Build working context
+    # 1. Increment turn counter
+    current_turn = increment_turn(session_dir)
+
+    # 2. Build working context
     messages = _build_messages(session_dir)
 
-    # 2. Snapshot effort state before the turn
+    # 3. Snapshot effort state before the turn
     active_before = get_active_effort(session_dir)
 
-    # 3. Add user message
+    # 4. Add user message
     messages.append({"role": "user", "content": user_message})
 
-    # 4. Tool-calling loop
+    # 5. Tool-calling loop
     assistant_content = ""
     tools_fired = []  # Track (tool_name, tool_args, tool_result) for banners
     for _ in range(MAX_TOOL_ROUNDS):
@@ -177,10 +182,10 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
         # Max rounds exhausted — use whatever content we have
         assistant_content = response_msg.content or ""
 
-    # 5. Build programmatic banners for tool actions
+    # 6. Build programmatic banners for tool actions
     banners = _build_tool_banners(tools_fired)
 
-    # 6. Compose final response: banners + LLM response
+    # 7. Compose final response: banners + LLM response
     if banners and assistant_content:
         final_response = banners + "\n\n" + assistant_content
     elif banners:
@@ -188,20 +193,28 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
     else:
         final_response = assistant_content
 
-    # 7. Log messages to appropriate file (active effort or ambient)
+    # 8. Log messages to appropriate file (active effort or ambient)
     active_after = get_active_effort(session_dir)
 
     if active_before:
-        # Was in an effort before — log to that effort
         _log_message(session_dir, active_before["id"], "user", user_message)
         _log_message(session_dir, active_before["id"], "assistant", final_response)
     elif active_after and not active_before:
-        # Effort was opened this turn — log to the new effort
         _log_message(session_dir, active_after["id"], "user", user_message)
         _log_message(session_dir, active_after["id"], "assistant", final_response)
     else:
-        # No effort — log to ambient
         _log_message(session_dir, None, "user", user_message)
         _log_message(session_dir, None, "assistant", final_response)
+
+    # 9. Check decay for all expanded efforts
+    decayed_ids = check_decay(session_dir, current_turn, user_message, final_response)
+
+    # 10. Append decay banners to response if any
+    if decayed_ids:
+        decay_banners = "\n".join(
+            f"--- Auto-collapsed effort: {eid} (inactive for {DECAY_THRESHOLD} turns) ---"
+            for eid in decayed_ids
+        )
+        final_response = final_response + "\n\n" + decay_banners
 
     return final_response

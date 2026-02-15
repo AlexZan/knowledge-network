@@ -47,22 +47,3 @@ def summarize_effort(effort_content: str, model: str = DEFAULT_MODEL) -> str:
     return chat(messages, model)
 
 
-def extract_conclusion(thread_messages: list[dict], model: str = DEFAULT_MODEL) -> str:
-    """Ask LLM to extract a conclusion from a resolved thread.
-
-    Legacy function kept for backwards compatibility.
-    """
-    extraction_prompt = load_prompt("conclusion_extraction")
-
-    thread_text = "\n".join([
-        f"{msg['role'].upper()}: {msg['content']}"
-        for msg in thread_messages
-        if msg['role'] != 'system'
-    ])
-
-    messages = [
-        {"role": "system", "content": "You extract knowledge from conversations."},
-        {"role": "user", "content": f"{extraction_prompt}\n\nConversation:\n{thread_text}"}
-    ]
-
-    return chat(messages, model)

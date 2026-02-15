@@ -13,8 +13,12 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from oi.orchestrator import process_turn, _build_messages
-from oi.tools import get_open_effort, get_active_effort, expand_effort, collapse_effort, _load_expanded
+from oi.tools import (
+    get_open_effort, get_active_effort, expand_effort, collapse_effort,
+    _load_expanded, _load_expanded_state, _save_session_state,
+)
 from oi.tokens import count_tokens
+from oi.decay import DECAY_THRESHOLD
 
 
 @pytest.fixture
@@ -370,3 +374,140 @@ class TestExpansionCycle:
         # Check that auth-bug raw IS in messages
         all_content = " ".join(m["content"] for m in messages)
         assert "refresh tokens" in all_content.lower() or "401" in all_content
+
+
+class TestDecayCycle:
+    """Slice 3 proof: expand → reference → stop referencing → auto-collapse → re-expand."""
+
+    def _setup_concluded_efforts(self, session_dir):
+        """Create 2 concluded efforts + ambient messages."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        efforts_dir = session_dir / "efforts"
+        efforts_dir.mkdir(exist_ok=True)
+
+        # Auth-bug raw log
+        auth_raw = ""
+        auth_raw += json.dumps({"role": "user", "content": "Let's debug the auth bug - users get 401s after 1 hour", "ts": "t1"}) + "\n"
+        auth_raw += json.dumps({"role": "assistant", "content": "That timing suggests token expiration. What's your access token TTL?", "ts": "t2"}) + "\n"
+        auth_raw += json.dumps({"role": "user", "content": "Access token TTL is 1 hour. We have refresh tokens with 30-day TTL.", "ts": "t3"}) + "\n"
+        auth_raw += json.dumps({"role": "assistant", "content": "Root cause: refresh tokens never auto-called. Fix: add axios response interceptor.", "ts": "t4"}) + "\n"
+        (efforts_dir / "auth-bug.jsonl").write_text(auth_raw)
+
+        # Perf-fix raw log
+        perf_raw = ""
+        perf_raw += json.dumps({"role": "user", "content": "The dashboard is slow - 5 seconds to load.", "ts": "t1"}) + "\n"
+        perf_raw += json.dumps({"role": "assistant", "content": "Classic N+1. Batch the queries with a single JOIN.", "ts": "t2"}) + "\n"
+        (efforts_dir / "perf-fix.jsonl").write_text(perf_raw)
+
+        manifest = {
+            "efforts": [
+                {
+                    "id": "auth-bug",
+                    "status": "concluded",
+                    "summary": "Fixed 401 errors: refresh tokens never auto-called. Added axios interceptor."
+                },
+                {
+                    "id": "perf-fix",
+                    "status": "concluded",
+                    "summary": "Fixed N+1 query in dashboard. Batched with JOIN, 5s to 200ms."
+                }
+            ]
+        }
+        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+
+        ambient = ""
+        ambient += json.dumps({"role": "user", "content": "Hey, how's it going?", "ts": "t0"}) + "\n"
+        ambient += json.dumps({"role": "assistant", "content": "Good! Ready to help.", "ts": "t0"}) + "\n"
+        (session_dir / "raw.jsonl").write_text(ambient)
+
+    @patch("oi.orchestrator.chat_with_tools")
+    def test_decay_cycle(self, mock_chat, session_dir):
+        """Full decay cycle: expand → reference → stop → auto-collapse → re-expand."""
+        self._setup_concluded_efforts(session_dir)
+        token_log = []
+
+        # Baseline (summaries only)
+        baseline_tokens = _context_tokens(session_dir)
+        token_log.append(("Baseline (summaries only)", baseline_tokens))
+
+        # Turn 1: Expand auth-bug via tool call
+        mock_chat.side_effect = [
+            _mock_response(None, tool_calls=[
+                _mock_tool_call("expand_effort", {"id": "auth-bug"}, "call_expand")
+            ]),
+            _mock_response("Here are the full details of the auth bug investigation.")
+        ]
+        response = process_turn(session_dir, "Show me the details of auth-bug")
+
+        expanded_tokens = _context_tokens(session_dir)
+        token_log.append(("After expanding auth-bug (turn 1)", expanded_tokens))
+        assert expanded_tokens > baseline_tokens
+        assert "auth-bug" in _load_expanded(session_dir)
+
+        # Turn 2: Reference auth-bug (keywords match: refresh, tokens)
+        mock_chat.side_effect = [
+            _mock_response("Yes, the refresh tokens issue was caused by missing auto-refresh logic.")
+        ]
+        response = process_turn(session_dir, "So the refresh tokens were the root cause?")
+
+        # Should still be expanded (referenced)
+        assert "auth-bug" in _load_expanded(session_dir)
+        assert "Auto-collapsed" not in response
+        token_log.append(("After referencing auth-bug (turn 2)", _context_tokens(session_dir)))
+
+        # Turns 3, 4, 5: Unrelated topics (no reference)
+        for i, (user_msg, asst_msg) in enumerate([
+            ("How's the weather today?", "I don't have weather data, but I can help with code!"),
+            ("What's a good pizza recipe?", "I'd recommend starting with a simple margherita."),
+            ("Tell me about quantum computing", "Quantum computing uses qubits instead of classical bits."),
+        ], start=3):
+            mock_chat.side_effect = [_mock_response(asst_msg)]
+            response = process_turn(session_dir, user_msg)
+            token_log.append((f"After unrelated turn {i}", _context_tokens(session_dir)))
+
+        # After turn 5: auth-bug should have been auto-collapsed
+        # (last referenced at turn 2, now turn 5 = 3 turns without reference)
+        assert "auth-bug" not in _load_expanded(session_dir)
+        assert "Auto-collapsed" in response
+        assert "auth-bug" in response
+
+        post_decay_tokens = _context_tokens(session_dir)
+        token_log.append(("After auto-collapse (post turn 5)", post_decay_tokens))
+
+        # The expanded raw content should no longer be in messages
+        messages = _build_messages(session_dir)
+        all_content = " ".join(m["content"] for m in messages)
+        # auth-bug raw contained "refresh tokens" in its messages - check it's gone
+        assert "auth-bug" not in _load_expanded(session_dir)
+        # Summary should be back in system prompt
+        assert "auth-bug" in messages[0]["content"]
+
+        # Measure the tokens freed by decay
+        auth_raw = (session_dir / "efforts" / "auth-bug.jsonl").read_text()
+        auth_raw_tokens = count_tokens(auth_raw)
+        token_log.append(("Auth-bug raw tokens (freed by decay)", auth_raw_tokens))
+        assert auth_raw_tokens > 0
+
+        # Turn 6: Re-expand auth-bug
+        mock_chat.side_effect = [
+            _mock_response(None, tool_calls=[
+                _mock_tool_call("expand_effort", {"id": "auth-bug"}, "call_reexpand")
+            ]),
+            _mock_response("Re-loaded the auth-bug details.")
+        ]
+        response = process_turn(session_dir, "Actually, show me auth-bug again")
+        assert "auth-bug" in _load_expanded(session_dir)
+        reexpanded_tokens = _context_tokens(session_dir)
+        token_log.append(("After re-expanding auth-bug (turn 6)", reexpanded_tokens))
+        assert reexpanded_tokens > baseline_tokens
+
+        # Print the measurement table
+        print("\n" + "=" * 60)
+        print("SLICE 3 PROOF: Salience Decay Cycle")
+        print("=" * 60)
+        for label, value in token_log:
+            print(f"  {label}: {value}")
+        print(f"  Decay threshold: {DECAY_THRESHOLD} turns")
+        auth_raw = (session_dir / "efforts" / "auth-bug.jsonl").read_text()
+        print(f"  Effort raw tokens freed by decay: {count_tokens(auth_raw)}")
+        print("=" * 60)

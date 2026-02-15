@@ -153,23 +153,72 @@ def _save_manifest(session_dir: Path, manifest: dict):
 
 def _load_expanded(session_dir: Path) -> set:
     """Load the set of currently expanded effort IDs from expanded.json."""
+    state = _load_expanded_state(session_dir)
+    return set(state.get("expanded", []))
+
+
+def _load_expanded_state(session_dir: Path) -> dict:
+    """Load the full expanded state dict from expanded.json."""
     expanded_path = session_dir / "expanded.json"
     if expanded_path.exists():
-        data = json.loads(expanded_path.read_text(encoding="utf-8"))
-        return set(data.get("expanded", []))
-    return set()
+        return json.loads(expanded_path.read_text(encoding="utf-8"))
+    return {"expanded": [], "expanded_at": {}, "last_referenced_turn": {}}
 
 
-def _save_expanded(session_dir: Path, expanded_set: set):
-    """Save the set of expanded effort IDs to expanded.json."""
+def _save_expanded(session_dir: Path, expanded_set: set, last_referenced_turn: dict | None = None):
+    """Save the set of expanded effort IDs to expanded.json.
+
+    Preserves existing expanded_at timestamps for efforts that were already expanded.
+    Updates last_referenced_turn if provided.
+    """
     expanded_path = session_dir / "expanded.json"
     expanded_path.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now().isoformat()
+
+    # Load existing state to preserve timestamps
+    existing = _load_expanded_state(session_dir)
+    existing_at = existing.get("expanded_at", {})
+    existing_lrt = existing.get("last_referenced_turn", {})
+
+    # Build expanded_at: keep existing timestamps, add new ones
+    expanded_at = {}
+    for eid in expanded_set:
+        expanded_at[eid] = existing_at.get(eid, now)
+
+    # Build last_referenced_turn: merge provided over existing, prune removed
+    lrt = last_referenced_turn if last_referenced_turn is not None else existing_lrt
+    lrt = {eid: lrt[eid] for eid in expanded_set if eid in lrt}
+
     data = {
         "expanded": list(expanded_set),
-        "expanded_at": {eid: now for eid in expanded_set}
+        "expanded_at": expanded_at,
+        "last_referenced_turn": lrt,
     }
     expanded_path.write_text(json.dumps(data), encoding="utf-8")
+
+
+def _load_session_state(session_dir: Path) -> dict:
+    """Load session_state.json, returning default if missing."""
+    state_path = session_dir / "session_state.json"
+    if state_path.exists():
+        return json.loads(state_path.read_text(encoding="utf-8"))
+    return {"turn_count": 0}
+
+
+def _save_session_state(session_dir: Path, state: dict):
+    """Write session_state.json."""
+    state_path = session_dir / "session_state.json"
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state["updated"] = datetime.now().isoformat()
+    state_path.write_text(json.dumps(state), encoding="utf-8")
+
+
+def increment_turn(session_dir: Path) -> int:
+    """Increment the session turn counter. Returns the new turn count."""
+    state = _load_session_state(session_dir)
+    state["turn_count"] = state.get("turn_count", 0) + 1
+    _save_session_state(session_dir, state)
+    return state["turn_count"]
 
 
 def get_open_effort(session_dir: Path) -> dict | None:
@@ -307,7 +356,8 @@ def expand_effort(session_dir: Path, effort_id: str) -> str:
     if target["status"] != "concluded":
         return json.dumps({"error": f"Cannot expand '{effort_id}': status is '{target['status']}', must be 'concluded'."})
 
-    expanded = _load_expanded(session_dir)
+    expanded_state = _load_expanded_state(session_dir)
+    expanded = set(expanded_state.get("expanded", []))
     if effort_id in expanded:
         return json.dumps({"error": f"Effort '{effort_id}' is already expanded."})
 
@@ -317,8 +367,12 @@ def expand_effort(session_dir: Path, effort_id: str) -> str:
     if effort_file.exists():
         tokens_loaded = count_tokens(effort_file.read_text(encoding="utf-8"))
 
+    # Record expansion with current turn count
     expanded.add(effort_id)
-    _save_expanded(session_dir, expanded)
+    current_turn = _load_session_state(session_dir).get("turn_count", 0)
+    lrt = expanded_state.get("last_referenced_turn", {})
+    lrt[effort_id] = current_turn
+    _save_expanded(session_dir, expanded, last_referenced_turn=lrt)
 
     return json.dumps({
         "status": "expanded",
