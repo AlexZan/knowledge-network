@@ -5,10 +5,8 @@ Keeps orchestrator clean by isolating decay logic here.
 
 from pathlib import Path
 
-from .tools import (
-    _load_expanded_state, _load_manifest, _save_expanded,
-    _load_session_state, collapse_effort,
-)
+from .state import _load_expanded_state, _load_manifest, _save_expanded
+from .tools import collapse_effort
 
 DECAY_THRESHOLD = 3
 MIN_KEYWORD_OVERLAP = 2

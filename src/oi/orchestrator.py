@@ -15,10 +15,10 @@ from pathlib import Path
 from datetime import datetime
 
 from .llm import load_prompt, chat_with_tools, DEFAULT_MODEL
+from .state import _load_expanded, increment_turn
 from .tools import (
     TOOL_DEFINITIONS, execute_tool,
-    get_active_effort, get_all_open_efforts, _load_expanded,
-    increment_turn,
+    get_active_effort, get_all_open_efforts,
 )
 from .decay import check_decay, DECAY_THRESHOLD
 

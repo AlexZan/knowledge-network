@@ -6,10 +6,11 @@ import pytest
 from pathlib import Path
 
 from oi.decay import extract_keywords, is_referenced, check_decay, DECAY_THRESHOLD
-from oi.tools import (
+from oi.state import (
     _load_expanded, _load_expanded_state, _save_expanded,
-    _load_session_state, _save_session_state, expand_effort,
+    _load_session_state, _save_session_state,
 )
+from oi.tools import expand_effort
 
 
 @pytest.fixture

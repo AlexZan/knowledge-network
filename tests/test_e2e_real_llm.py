@@ -16,7 +16,8 @@ import pytest
 from pathlib import Path
 
 from oi.orchestrator import process_turn, _build_messages
-from oi.tools import get_open_effort, _load_expanded, _load_expanded_state, _load_session_state
+from oi.tools import get_open_effort
+from oi.state import _load_expanded, _load_expanded_state, _load_session_state
 from oi.tokens import count_tokens
 from oi.decay import DECAY_THRESHOLD
 

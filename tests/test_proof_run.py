@@ -15,8 +15,8 @@ from unittest.mock import patch, MagicMock
 from oi.orchestrator import process_turn, _build_messages
 from oi.tools import (
     get_open_effort, get_active_effort, expand_effort, collapse_effort,
-    _load_expanded, _load_expanded_state, _save_session_state,
 )
+from oi.state import _load_expanded, _load_expanded_state, _save_session_state
 from oi.tokens import count_tokens
 from oi.decay import DECAY_THRESHOLD
 
