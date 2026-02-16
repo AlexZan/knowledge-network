@@ -14,7 +14,8 @@ import yaml
 from pathlib import Path
 from datetime import datetime
 
-from .llm import load_prompt, chat_with_tools, DEFAULT_MODEL
+from .llm import chat_with_tools, DEFAULT_MODEL
+from .prompts import load_prompt
 from .state import _load_expanded, increment_turn
 from .tools import (
     TOOL_DEFINITIONS, execute_tool,

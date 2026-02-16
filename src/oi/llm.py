@@ -1,21 +1,11 @@
 """LLM interaction layer using litellm."""
 
 import os
-from pathlib import Path
 from litellm import completion
 
 
 # Default to DeepSeek for free testing
 DEFAULT_MODEL = os.environ.get("OI_MODEL", "deepseek/deepseek-chat")
-
-# Prompts directory
-PROMPTS_DIR = Path(__file__).parent / "prompts"
-
-
-def load_prompt(name: str) -> str:
-    """Load a prompt from the prompts directory."""
-    prompt_path = PROMPTS_DIR / f"{name}.md"
-    return prompt_path.read_text(encoding="utf-8").strip()
 
 
 def chat(messages: list[dict], model: str = DEFAULT_MODEL) -> str:
