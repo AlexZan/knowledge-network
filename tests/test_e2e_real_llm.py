@@ -9,11 +9,9 @@ Run with: pytest tests/test_e2e_real_llm.py -v -s
 Requires: DEEPSEEK_API_KEY environment variable
 """
 
-import json
 import os
 import yaml
 import pytest
-from pathlib import Path
 
 from oi.orchestrator import process_turn, _build_messages
 from oi.tools import get_open_effort
@@ -180,24 +178,7 @@ class TestRealLLMToolCalling:
             print(f"  Savings: {savings:.0f}%")
 
 
-def _setup_concluded_effort(session_dir, effort_id, summary, raw_lines):
-    """Helper: create a concluded effort with raw log for e2e decay tests."""
-    session_dir.mkdir(parents=True, exist_ok=True)
-    efforts_dir = session_dir / "efforts"
-    efforts_dir.mkdir(exist_ok=True)
-
-    raw_content = ""
-    for role, content in raw_lines:
-        raw_content += json.dumps({"role": role, "content": content, "ts": "t"}) + "\n"
-    (efforts_dir / f"{effort_id}.jsonl").write_text(raw_content)
-
-    manifest_path = session_dir / "manifest.yaml"
-    if manifest_path.exists():
-        manifest = yaml.safe_load(manifest_path.read_text()) or {"efforts": []}
-    else:
-        manifest = {"efforts": []}
-    manifest["efforts"].append({"id": effort_id, "status": "concluded", "summary": summary})
-    manifest_path.write_text(yaml.dump(manifest))
+from helpers import setup_concluded_effort
 
 
 @requires_llm
@@ -207,9 +188,9 @@ class TestDecayE2E:
     def test_llm_expands_concluded_effort(self, tmp_path):
         """User asks about a concluded effort → LLM calls expand_effort."""
         session_dir = tmp_path / "session"
-        _setup_concluded_effort(session_dir, "auth-bug",
+        setup_concluded_effort(session_dir, "auth-bug",
             "Fixed 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor.",
-            [
+            raw_lines=[
                 ("user", "Let's debug the auth bug - users get 401s after 1 hour"),
                 ("assistant", "That timing suggests token expiration. What's your access token TTL?"),
                 ("user", "Access token TTL is 1 hour. We have refresh tokens with 30-day TTL."),
@@ -236,9 +217,9 @@ class TestDecayE2E:
         short factual questions and allow up to 8 turns for decay to fire.
         """
         session_dir = tmp_path / "session"
-        _setup_concluded_effort(session_dir, "cache-bug",
+        setup_concluded_effort(session_dir, "cache-bug",
             "Fixed Redis cache invalidation race condition. Added distributed lock with 5s TTL.",
-            [
+            raw_lines=[
                 ("user", "The cache is returning stale data intermittently"),
                 ("assistant", "This sounds like a cache invalidation race condition. Are you using Redis?"),
                 ("user", "Yes, Redis with a 60s TTL on cache entries"),
@@ -299,9 +280,9 @@ class TestDecayE2E:
         is thoroughly proven by unit tests in test_decay.py.
         """
         session_dir = tmp_path / "session"
-        _setup_concluded_effort(session_dir, "redis-cluster",
+        setup_concluded_effort(session_dir, "redis-cluster",
             "Migrated Redis from standalone to cluster mode with 6 shards. Fixed hash slot rebalancing during failover.",
-            [
+            raw_lines=[
                 ("user", "Our Redis instance is hitting memory limits, we need to shard it"),
                 ("assistant", "I recommend Redis Cluster with 6 shards. You'll need to handle hash slot distribution."),
                 ("user", "During failover testing, some hash slots became unassigned"),

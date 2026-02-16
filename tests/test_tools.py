@@ -2,8 +2,8 @@
 
 import json
 import pytest
-from pathlib import Path
 
+from helpers import setup_concluded_effort
 from oi.tools import (
     open_effort, close_effort, effort_status,
     get_open_effort, get_active_effort, get_all_open_efforts,
@@ -139,15 +139,7 @@ class TestEffortStatus:
 
     def test_effort_status_shows_expanded(self, session_dir):
         """Expanded efforts are marked in status."""
-        open_effort(session_dir, "old")
-        # Manually conclude it
-        import yaml
-        session_dir.mkdir(parents=True, exist_ok=True)
-        manifest = {"efforts": [{"id": "old", "status": "concluded", "summary": "Done."}]}
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
-        (session_dir / "efforts").mkdir(exist_ok=True)
-        (session_dir / "efforts" / "old.jsonl").write_text('{"role":"user","content":"test","ts":"t"}\n')
-
+        setup_concluded_effort(session_dir, "old", "Done.")
         expand_effort(session_dir, "old")
         result = json.loads(effort_status(session_dir))
         old_entry = [e for e in result["efforts"] if e["id"] == "old"][0]
@@ -157,29 +149,8 @@ class TestEffortStatus:
 # === Slice 2: Expansion tests ===
 
 class TestExpandEffort:
-    def _setup_concluded_effort(self, session_dir, effort_id="auth-bug", content=None):
-        """Helper to create a concluded effort with a raw log."""
-        import yaml
-        session_dir.mkdir(parents=True, exist_ok=True)
-        efforts_dir = session_dir / "efforts"
-        efforts_dir.mkdir(exist_ok=True)
-
-        if content is None:
-            content = (
-                '{"role":"user","content":"What about the auth bug?","ts":"t1"}\n'
-                '{"role":"assistant","content":"The token expires after 1 hour.","ts":"t2"}\n'
-            )
-        (efforts_dir / f"{effort_id}.jsonl").write_text(content)
-
-        manifest = {"efforts": [{
-            "id": effort_id,
-            "status": "concluded",
-            "summary": f"Fixed {effort_id}."
-        }]}
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
-
     def test_expand_concluded_effort(self, session_dir):
-        self._setup_concluded_effort(session_dir)
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed auth-bug.")
         result = json.loads(expand_effort(session_dir, "auth-bug"))
         assert result["status"] == "expanded"
         assert result["effort_id"] == "auth-bug"
@@ -196,7 +167,7 @@ class TestExpandEffort:
         assert "open" in result["error"]
 
     def test_expand_already_expanded_fails(self, session_dir):
-        self._setup_concluded_effort(session_dir)
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed auth-bug.")
         expand_effort(session_dir, "auth-bug")
         result = json.loads(expand_effort(session_dir, "auth-bug"))
         assert "error" in result
@@ -212,13 +183,7 @@ class TestExpandEffort:
 class TestCollapseEffort:
     def test_collapse_expanded_effort(self, session_dir):
         """Collapse succeeds and removes from expanded.json."""
-        import yaml
-        session_dir.mkdir(parents=True, exist_ok=True)
-        (session_dir / "efforts").mkdir(exist_ok=True)
-        (session_dir / "efforts" / "old.jsonl").write_text('{"role":"user","content":"x","ts":"t"}\n')
-        manifest = {"efforts": [{"id": "old", "status": "concluded", "summary": "Done."}]}
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
-
+        setup_concluded_effort(session_dir, "old", "Done.")
         expand_effort(session_dir, "old")
         assert "old" in _load_expanded(session_dir)
 
@@ -249,11 +214,7 @@ class TestSwitchEffort:
         assert active["id"] == "first"
 
     def test_switch_to_concluded_fails(self, session_dir):
-        import yaml
-        session_dir.mkdir(parents=True, exist_ok=True)
-        manifest = {"efforts": [{"id": "old", "status": "concluded", "summary": "Done."}]}
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
-
+        setup_concluded_effort(session_dir, "old", "Done.")
         result = json.loads(switch_effort(session_dir, "old"))
         assert "error" in result
         assert "concluded" in result["error"]
@@ -293,14 +254,7 @@ class TestSessionState:
 class TestExpandedFormat:
     def test_expanded_json_has_last_referenced_turn(self, session_dir):
         """New expanded.json format includes last_referenced_turn."""
-        import yaml
-        session_dir.mkdir(parents=True, exist_ok=True)
-        (session_dir / "efforts").mkdir(exist_ok=True)
-        (session_dir / "efforts" / "old.jsonl").write_text(
-            '{"role":"user","content":"x","ts":"t"}\n'
-        )
-        manifest = {"efforts": [{"id": "old", "status": "concluded", "summary": "Done."}]}
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        setup_concluded_effort(session_dir, "old", "Done.")
 
         # Set turn count before expanding
         _save_session_state(session_dir, {"turn_count": 5})

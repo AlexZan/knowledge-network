@@ -1,10 +1,8 @@
 """Unit tests for salience decay logic."""
 
-import json
-import yaml
 import pytest
-from pathlib import Path
 
+from helpers import setup_concluded_effort
 from oi.decay import extract_keywords, is_referenced, check_decay, DECAY_THRESHOLD
 from oi.state import (
     _load_expanded, _load_expanded_state, _save_expanded,
@@ -16,34 +14,6 @@ from oi.tools import expand_effort
 @pytest.fixture
 def session_dir(tmp_path):
     return tmp_path / "session"
-
-
-def _setup_concluded_effort(session_dir, effort_id, summary, raw_content=None):
-    """Helper to create a concluded effort with manifest entry and raw log."""
-    session_dir.mkdir(parents=True, exist_ok=True)
-    efforts_dir = session_dir / "efforts"
-    efforts_dir.mkdir(exist_ok=True)
-
-    if raw_content is None:
-        raw_content = (
-            json.dumps({"role": "user", "content": f"Working on {effort_id}", "ts": "t1"}) + "\n"
-            + json.dumps({"role": "assistant", "content": f"Details about {effort_id}", "ts": "t2"}) + "\n"
-        )
-    (efforts_dir / f"{effort_id}.jsonl").write_text(raw_content)
-
-    # Load or create manifest
-    manifest_path = session_dir / "manifest.yaml"
-    if manifest_path.exists():
-        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {"efforts": []}
-    else:
-        manifest = {"efforts": []}
-
-    manifest["efforts"].append({
-        "id": effort_id,
-        "status": "concluded",
-        "summary": summary,
-    })
-    manifest_path.write_text(yaml.dump(manifest))
 
 
 # === Keyword extraction ===
@@ -111,7 +81,7 @@ class TestIsReferenced:
 class TestCheckDecay:
     def test_collapses_after_threshold(self, session_dir):
         """Effort auto-collapses after DECAY_THRESHOLD turns without reference."""
-        _setup_concluded_effort(
+        setup_concluded_effort(
             session_dir, "auth-bug",
             "Fixed 401 errors: refresh tokens never auto-called."
         )
@@ -135,7 +105,7 @@ class TestCheckDecay:
 
     def test_reference_resets_counter(self, session_dir):
         """Referencing an effort resets the decay counter."""
-        _setup_concluded_effort(
+        setup_concluded_effort(
             session_dir, "auth-bug",
             "Fixed 401 errors: refresh tokens never auto-called."
         )
@@ -163,11 +133,11 @@ class TestCheckDecay:
 
     def test_multiple_efforts_independent(self, session_dir):
         """Each expanded effort decays independently."""
-        _setup_concluded_effort(
+        setup_concluded_effort(
             session_dir, "auth-bug",
             "Fixed 401 errors: refresh tokens never auto-called."
         )
-        _setup_concluded_effort(
+        setup_concluded_effort(
             session_dir, "perf-fix",
             "Fixed N+1 query in dashboard. Batched with JOIN."
         )
@@ -197,7 +167,7 @@ class TestCheckDecay:
     def test_does_not_affect_open_efforts(self, session_dir):
         """Only expanded (concluded) efforts can decay. Open efforts are unaffected."""
         from oi.tools import open_effort as tool_open_effort
-        _setup_concluded_effort(
+        setup_concluded_effort(
             session_dir, "auth-bug",
             "Fixed 401 errors: refresh tokens never auto-called."
         )
@@ -229,7 +199,7 @@ class TestCheckDecay:
 
     def test_assistant_response_counts_as_reference(self, session_dir):
         """Reference in assistant response (not just user message) prevents decay."""
-        _setup_concluded_effort(
+        setup_concluded_effort(
             session_dir, "auth-bug",
             "Fixed 401 errors: refresh tokens never auto-called."
         )

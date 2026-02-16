@@ -43,15 +43,21 @@ def _log_message(session_dir: Path, effort_id: str | None, role: str, content: s
 
 
 def _read_jsonl_messages(filepath: Path) -> list[dict]:
-    """Read a JSONL file and return list of {role, content} message dicts."""
+    """Read a JSONL file and return list of {role, content} message dicts.
+
+    Skips malformed lines rather than crashing the whole session.
+    """
     messages = []
     if filepath.exists():
         text = filepath.read_text(encoding="utf-8").strip()
         if text:
             for line in text.split("\n"):
                 if line.strip():
-                    entry = json.loads(line)
-                    messages.append({"role": entry["role"], "content": entry["content"]})
+                    try:
+                        entry = json.loads(line)
+                        messages.append({"role": entry["role"], "content": entry["content"]})
+                    except (json.JSONDecodeError, KeyError):
+                        continue
     return messages
 
 
