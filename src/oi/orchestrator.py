@@ -21,7 +21,7 @@ from .tools import (
     TOOL_DEFINITIONS, execute_tool,
     get_active_effort, get_all_open_efforts,
 )
-from .decay import check_decay, DECAY_THRESHOLD
+from .decay import check_decay, DECAY_THRESHOLD, update_summary_references, get_evicted_summary_ids, AMBIENT_WINDOW
 
 
 MAX_TOOL_ROUNDS = 3
@@ -42,10 +42,11 @@ def _log_message(session_dir: Path, effort_id: str | None, role: str, content: s
         f.write(json.dumps(entry) + "\n")
 
 
-def _read_jsonl_messages(filepath: Path) -> list[dict]:
+def _read_jsonl_messages(filepath: Path, max_messages: int | None = None) -> list[dict]:
     """Read a JSONL file and return list of {role, content} message dicts.
 
     Skips malformed lines rather than crashing the whole session.
+    If max_messages is set, returns only the last N messages.
     """
     messages = []
     if filepath.exists():
@@ -58,42 +59,61 @@ def _read_jsonl_messages(filepath: Path) -> list[dict]:
                         messages.append({"role": entry["role"], "content": entry["content"]})
                     except (json.JSONDecodeError, KeyError):
                         continue
+    if max_messages and len(messages) > max_messages:
+        messages = messages[-max_messages:]
     return messages
 
 
-def _build_messages(session_dir: Path) -> list[dict]:
+def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[dict]:
     """Build the LLM message list from working context.
 
-    Working Context = system_prompt + ambient + manifest_summaries (non-expanded)
+    Working Context = system_prompt + ambient (windowed) + manifest_summaries (non-expanded, non-evicted)
                     + expanded_effort_raw + all_open_effort_raw (active last)
+
+    If current_turn is provided, summary eviction is applied.
     """
     # System prompt
     system_prompt = load_prompt("system")
 
     # Read manifest for concluded effort summaries
     manifest_section = ""
+    memory_section = ""
     manifest_path = session_dir / "manifest.yaml"
     expanded = _load_expanded(session_dir)
 
     if manifest_path.exists():
         manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
         concluded = [e for e in manifest.get("efforts", []) if e.get("status") == "concluded"]
-        # Only show summaries for non-expanded concluded efforts
-        summary_efforts = [e for e in concluded if e["id"] not in expanded]
+
+        # Filter out expanded and evicted summaries
+        evicted = get_evicted_summary_ids(session_dir, current_turn) if current_turn is not None else set()
+        summary_efforts = [e for e in concluded if e["id"] not in expanded and e["id"] not in evicted]
+
         if summary_efforts:
             parts = ["\nConcluded efforts (summaries only):"]
             for e in summary_efforts:
                 parts.append(f"- {e['id']}: {e.get('summary', '(no summary)')}")
             manifest_section = "\n".join(parts)
 
+        # Add memory section if there are any concluded efforts (evicted or not)
+        if concluded:
+            memory_section = (
+                "\n\n## Memory\n"
+                "Concluded effort summaries shown above are only the recently-referenced ones.\n"
+                "Older summaries are still stored — use search_efforts(query) to find past efforts\n"
+                "not shown in working memory. You can then expand_effort(id) for full details."
+            )
+
     full_system = system_prompt
     if manifest_section:
         full_system += "\n" + manifest_section
+    if memory_section:
+        full_system += memory_section
 
     messages = [{"role": "system", "content": full_system}]
 
-    # Ambient messages from raw.jsonl
-    messages.extend(_read_jsonl_messages(session_dir / "raw.jsonl"))
+    # Ambient messages from raw.jsonl (windowed to last AMBIENT_WINDOW exchanges)
+    messages.extend(_read_jsonl_messages(session_dir / "raw.jsonl", max_messages=AMBIENT_WINDOW * 2))
 
     # Expanded effort raw logs (concluded but temporarily loaded)
     for effort_id in sorted(expanded):
@@ -152,7 +172,7 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
     current_turn = increment_turn(session_dir)
 
     # 2. Build working context
-    messages = _build_messages(session_dir)
+    messages = _build_messages(session_dir, current_turn=current_turn)
 
     # 3. Snapshot effort state before the turn
     active_before = get_active_effort(session_dir)
@@ -216,7 +236,10 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
     # 9. Check decay for all expanded efforts
     decayed_ids = check_decay(session_dir, current_turn, user_message, final_response)
 
-    # 10. Append decay banners to response if any
+    # 10. Update summary reference tracking for eviction
+    update_summary_references(session_dir, current_turn, user_message, final_response)
+
+    # 11. Append decay banners to response if any
     if decayed_ids:
         decay_banners = "\n".join(
             f"--- Auto-collapsed effort: {eid} (inactive for {DECAY_THRESHOLD} turns) ---"

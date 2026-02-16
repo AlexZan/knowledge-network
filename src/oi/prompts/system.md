@@ -47,6 +47,11 @@ Also call proactively if the user moves on to a different topic.
 Call when the user wants to work on a different open effort.
 - "Let's go back to X", "Switch to X", "Work on X now"
 
+### search_efforts
+Call when the user asks about a past topic that isn't shown in the concluded efforts list above.
+Returns matching effort summaries from the full manifest (including evicted ones).
+You can then use expand_effort(id) if the user needs full details.
+
 ## Conversation Behavior
 
 When an effort is active:

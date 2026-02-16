@@ -15,9 +15,12 @@ import pytest
 
 from oi.orchestrator import process_turn, _build_messages
 from oi.tools import get_open_effort
-from oi.state import _load_expanded, _load_expanded_state, _load_session_state
+from oi.state import (
+    _load_expanded, _load_expanded_state, _load_session_state,
+    _save_summary_references,
+)
 from oi.tokens import count_tokens
-from oi.decay import DECAY_THRESHOLD
+from oi.decay import DECAY_THRESHOLD, SUMMARY_EVICTION_THRESHOLD
 
 
 requires_llm = pytest.mark.skipif(
@@ -347,3 +350,232 @@ class TestDecayE2E:
         assert _load_session_state(session_dir)["turn_count"] == 3
 
         print(f"\nTurn counter after 3 turns: {_load_session_state(session_dir)['turn_count']}")
+
+
+@requires_llm
+class TestBoundedContextE2E:
+    """Slice 4: Verify bounded working context works end-to-end with real LLM."""
+
+    def test_llm_calls_search_for_evicted_effort(self, tmp_path):
+        """When a summary is evicted from WM, asking about it triggers search_efforts.
+
+        Setup: concluded effort with artificially old reference → evicted from WM.
+        Then ask the LLM about that topic. It should call search_efforts and answer.
+        """
+        session_dir = tmp_path / "session"
+        setup_concluded_effort(session_dir, "auth-bug",
+            "Fixed 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor.",
+            raw_lines=[
+                ("user", "Let's debug the auth bug - users get 401s after 1 hour"),
+                ("assistant", "Root cause: refreshAccessToken exists but nothing calls it. Fix: axios interceptor."),
+            ]
+        )
+
+        # Artificially set reference to old turn so it's evicted
+        _save_summary_references(session_dir, {"auth-bug": 1})
+
+        # Verify it's evicted at turn 25
+        messages = _build_messages(session_dir, current_turn=25)
+        system_content = messages[0]["content"]
+        assert "auth-bug" not in system_content, "auth-bug should be evicted from WM"
+        assert "search_efforts" in system_content, "Memory section should mention search_efforts"
+        print(f"\nVerified: auth-bug evicted from WM at turn 25")
+
+        # Now ask the LLM about it — LLM should use search_efforts
+        # Set session turn count high enough so _build_messages evicts during process_turn
+        from oi.state import _save_session_state
+        _save_session_state(session_dir, {"turn_count": 24})  # next turn will be 25
+
+        response = process_turn(
+            session_dir,
+            "What was the fix for the auth bug we worked on? I can't remember the details.",
+            model=MODEL
+        )
+
+        # The LLM should have found and mentioned the auth-bug fix
+        response_lower = response.lower()
+        found_auth_info = (
+            "refresh" in response_lower
+            or "interceptor" in response_lower
+            or "401" in response_lower
+            or "auth" in response_lower
+        )
+        assert found_auth_info, (
+            f"LLM should have found auth-bug info via search. Response: {response[:400]}"
+        )
+        print(f"Response mentions auth fix: {response[:300]}")
+
+    def test_search_then_expand_path(self, tmp_path):
+        """After search finds an evicted effort, user asks for full details → LLM expands.
+
+        This tests the full recall path: eviction → search → expand.
+        """
+        session_dir = tmp_path / "session"
+        setup_concluded_effort(session_dir, "perf-fix",
+            "Fixed N+1 query in dashboard. Batched with JOIN, 5s to 200ms.",
+            raw_lines=[
+                ("user", "The dashboard is loading slowly, about 5 seconds"),
+                ("assistant", "Classic N+1 query problem. Each widget makes a separate DB query."),
+                ("user", "There are about 50 widgets"),
+                ("assistant", "Batch the queries with a single JOIN. Should drop to under 200ms."),
+            ]
+        )
+
+        # Evict it
+        _save_summary_references(session_dir, {"perf-fix": 1})
+        from oi.state import _save_session_state
+        _save_session_state(session_dir, {"turn_count": 24})
+
+        # Turn 1: Ask about it (LLM should search and find it)
+        response = process_turn(
+            session_dir,
+            "I think we fixed a dashboard performance issue before. Can you find it?",
+            model=MODEL
+        )
+        print(f"\nSearch response: {response[:300]}")
+
+        # Turn 2: Ask for full details (LLM should expand)
+        response = process_turn(
+            session_dir,
+            "Can you show me the full conversation from that perf-fix effort? "
+            "Please use expand_effort to load the raw discussion.",
+            model=MODEL
+        )
+
+        expanded = _load_expanded(session_dir)
+        if "perf-fix" not in expanded:
+            # Retry with more explicit instruction
+            response = process_turn(
+                session_dir,
+                "Please call expand_effort with id perf-fix to load the full details.",
+                model=MODEL
+            )
+            expanded = _load_expanded(session_dir)
+
+        assert "perf-fix" in expanded, (
+            f"LLM did not expand perf-fix after search. Response: {response[:300]}"
+        )
+        print(f"Expanded after search: {expanded}")
+
+    def test_ambient_windowing_with_real_llm(self, tmp_path):
+        """Long ambient conversation stays bounded — LLM still functions correctly.
+
+        Send many ambient messages, verify the system works and context doesn't
+        include all old messages.
+        """
+        session_dir = tmp_path / "session"
+
+        # Send 15 ambient turns (beyond AMBIENT_WINDOW of 10)
+        topics = [
+            "What is the capital of Japan?",
+            "What's the largest planet?",
+            "Who invented the telephone?",
+            "What year was the internet invented?",
+            "What is photosynthesis?",
+            "Who wrote Romeo and Juliet?",
+            "What is the speed of sound?",
+            "How many bones in the human body?",
+            "What is the deepest ocean trench?",
+            "What causes earthquakes?",
+            "What is the Pythagorean theorem?",
+            "Who discovered penicillin?",
+            "What is the largest desert?",
+            "How does a combustion engine work?",
+            "What is the boiling point of water in Celsius?",
+        ]
+        for msg in topics:
+            process_turn(session_dir, msg, model=MODEL)
+
+        # Verify context is bounded: only last AMBIENT_WINDOW exchanges in messages
+        state = _load_session_state(session_dir)
+        messages = _build_messages(session_dir, current_turn=state["turn_count"])
+        non_system = [m for m in messages if m["role"] != "system"]
+
+        from oi.decay import AMBIENT_WINDOW
+        max_ambient_messages = AMBIENT_WINDOW * 2
+        assert len(non_system) <= max_ambient_messages, (
+            f"Expected at most {max_ambient_messages} ambient messages, got {len(non_system)}"
+        )
+        print(f"\nAfter 15 turns: {len(non_system)} messages in context "
+              f"(max {max_ambient_messages})")
+
+        # Verify raw.jsonl has ALL messages (nothing lost)
+        raw_lines = (session_dir / "raw.jsonl").read_text().strip().split("\n")
+        assert len(raw_lines) == 30, f"Expected 30 raw lines (15 turns × 2), got {len(raw_lines)}"
+        print(f"raw.jsonl has {len(raw_lines)} lines (all preserved)")
+
+        # Verify LLM still responds correctly with windowed context
+        response = process_turn(
+            session_dir,
+            "What's 7 times 8?",
+            model=MODEL
+        )
+        assert "56" in response, f"LLM should still answer correctly. Response: {response[:200]}"
+        print(f"LLM still functional: {response[:100]}")
+
+    def test_reference_resets_eviction_counter(self, tmp_path):
+        """A summary about to expire gets its counter reset when referenced.
+
+        Setup: concluded effort with last reference at turn 5.
+        At turn 24 (delta=19, one short of threshold=20), mention the topic.
+        Verify it stays in WM at turn 44 would-have-been-eviction point,
+        because the reference at turn 24 reset the counter.
+        """
+        session_dir = tmp_path / "session"
+        setup_concluded_effort(session_dir, "fishing-trip",
+            "Planned coastal fishing trip. Route: Bay area charter, targeting halibut and rockfish.",
+            raw_lines=[
+                ("user", "I want to plan a fishing trip near the Bay area"),
+                ("assistant", "Great choice! Charter boats from Half Moon Bay target halibut and rockfish."),
+            ]
+        )
+
+        # Last referenced at turn 5
+        _save_summary_references(session_dir, {"fishing-trip": 5})
+        from oi.state import _save_session_state
+        _save_session_state(session_dir, {"turn_count": 23})  # next turn = 24
+
+        # Verify it's still in WM at turn 24 (delta=19, not yet evicted)
+        messages = _build_messages(session_dir, current_turn=24)
+        assert "fishing-trip" in messages[0]["content"], "Should still be in WM at delta=19"
+
+        # Turn 24: mention the fishing trip — LLM responds, update_summary_references fires
+        response = process_turn(
+            session_dir,
+            "By the way, remember that fishing trip we planned? I'm thinking of going next month.",
+            model=MODEL
+        )
+        print(f"\nTurn 24 response: {response[:200]}")
+
+        # Check that the reference was reset
+        from oi.state import _load_summary_references
+        refs = _load_summary_references(session_dir)
+        assert refs["fishing-trip"] == 24, (
+            f"Expected fishing-trip last_ref reset to 24, got {refs.get('fishing-trip')}"
+        )
+        print(f"Reference reset to turn {refs['fishing-trip']}")
+
+        # LLM may have expanded the effort — collapse so we test summary visibility
+        from oi.tools import collapse_effort
+        if "fishing-trip" in _load_expanded(session_dir):
+            collapse_effort(session_dir, "fishing-trip")
+            print("Collapsed fishing-trip (LLM had expanded it)")
+
+        # Now at turn 25 (old threshold if it hadn't been reset), it should still be in WM
+        messages = _build_messages(session_dir, current_turn=25)
+        assert "fishing-trip" in messages[0]["content"], (
+            "fishing-trip should still be in WM at turn 25 (reset at 24, delta=1)"
+        )
+
+        # And even at turn 43 (delta=19 from reset), still in WM
+        messages = _build_messages(session_dir, current_turn=43)
+        assert "fishing-trip" in messages[0]["content"], (
+            "fishing-trip should still be in WM at turn 43 (reset at 24, delta=19)"
+        )
+
+        # But at turn 44 (delta=20 from reset), it would evict
+        messages = _build_messages(session_dir, current_turn=44)
+        assert "fishing-trip" not in messages[0]["content"], (
+            "fishing-trip should be evicted at turn 44 (reset at 24, delta=20)"
+        )
+        print("Verified: reference at turn 24 reset the counter, eviction deferred to turn 44")

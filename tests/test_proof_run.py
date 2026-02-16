@@ -12,13 +12,21 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+from helpers import setup_concluded_effort
 from oi.orchestrator import process_turn, _build_messages
 from oi.tools import (
     get_open_effort, get_active_effort, expand_effort, collapse_effort,
+    search_efforts,
 )
-from oi.state import _load_expanded, _load_expanded_state, _save_session_state
+from oi.state import (
+    _load_expanded, _load_expanded_state, _save_session_state,
+    _save_summary_references,
+)
 from oi.tokens import count_tokens
-from oi.decay import DECAY_THRESHOLD
+from oi.decay import (
+    DECAY_THRESHOLD, SUMMARY_EVICTION_THRESHOLD, AMBIENT_WINDOW,
+    update_summary_references,
+)
 
 
 @pytest.fixture
@@ -196,8 +204,8 @@ class TestProofRun:
             print(f"  {label}: {value}")
         print("=" * 60)
 
-        # Assert significant reduction (system prompt is larger with 6 tools, so base overhead is higher)
-        assert savings_pct > 40, f"Expected >40% savings, got {savings_pct:.0f}%"
+        # Assert significant reduction (system prompt is larger with 7 tools + memory section, so base overhead is higher)
+        assert savings_pct > 30, f"Expected >30% savings, got {savings_pct:.0f}%"
 
         # === Turn 13-14: Open new effort ===
         mock_chat.side_effect = [
@@ -510,4 +518,106 @@ class TestDecayCycle:
         print(f"  Decay threshold: {DECAY_THRESHOLD} turns")
         auth_raw = (session_dir / "efforts" / "auth-bug.jsonl").read_text()
         print(f"  Effort raw tokens freed by decay: {count_tokens(auth_raw)}")
+        print("=" * 60)
+
+
+class TestBoundedContext:
+    """Slice 4 proof: working memory stays bounded as efforts and ambient grow."""
+
+    def test_bounded_growth_proof_run(self, session_dir):
+        """Prove: only recent summaries in WM, only last N ambient exchanges,
+        search finds evicted efforts, token count stays bounded."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        efforts_dir = session_dir / "efforts"
+        efforts_dir.mkdir(exist_ok=True)
+        token_log = []
+
+        # === Setup: 5 concluded efforts ===
+        summaries = {
+            "auth-bug": "Fixed 401 errors: refresh tokens never auto-called. Added axios interceptor.",
+            "perf-fix": "Fixed N+1 query in dashboard. Batched with JOIN, 5s to 200ms.",
+            "sailing-trip": "Planned coastal sailing trip. Route: Bay area to Monterey, 3-day itinerary.",
+            "db-migration": "Migrated PostgreSQL to version 16. Zero-downtime blue-green deployment.",
+            "css-refactor": "Refactored CSS from BEM to Tailwind. Removed 2000 lines of custom styles.",
+        }
+        for eid, summary in summaries.items():
+            setup_concluded_effort(session_dir, eid, summary)
+
+        # === Setup: 30 ambient exchanges (60 messages) ===
+        ambient_lines = ""
+        for i in range(30):
+            ambient_lines += json.dumps({"role": "user", "content": f"Ambient message {i}: general chat", "ts": f"t{i*2}"}) + "\n"
+            ambient_lines += json.dumps({"role": "assistant", "content": f"Ambient reply {i}: general response", "ts": f"t{i*2+1}"}) + "\n"
+        (session_dir / "raw.jsonl").write_text(ambient_lines)
+
+        # === Simulate reference tracking ===
+        # auth-bug and perf-fix referenced at turn 1, others at turn 1 too (initial)
+        for eid in summaries:
+            update_summary_references(session_dir, 1, f"Working on {eid}", "Great.")
+
+        # Re-reference auth-bug and perf-fix at turn 15
+        update_summary_references(session_dir, 15, "auth-bug and perf-fix are important", "Yes they are.")
+
+        # === Measure at turn 21: efforts 3,4,5 should be evicted (last ref turn 1, delta=20) ===
+        messages = _build_messages(session_dir, current_turn=21)
+        system_content = messages[0]["content"]
+        token_log.append(("System prompt tokens at turn 21", count_tokens(system_content)))
+
+        # auth-bug and perf-fix should still be in WM (last ref turn 15, delta=6)
+        assert "auth-bug" in system_content
+        assert "perf-fix" in system_content
+
+        # sailing-trip, db-migration, css-refactor should be evicted (last ref turn 1, delta=20)
+        assert "sailing-trip" not in system_content
+        assert "db-migration" not in system_content
+        assert "css-refactor" not in system_content
+
+        # Ambient: only last 10 exchanges (messages 20-29)
+        non_system = [m for m in messages if m["role"] != "system"]
+        assert len(non_system) == AMBIENT_WINDOW * 2  # 20 messages
+        assert non_system[0]["content"] == "Ambient message 20: general chat"
+        assert non_system[-1]["content"] == "Ambient reply 29: general response"
+
+        total_tokens_turn21 = sum(count_tokens(m["content"]) for m in messages)
+        token_log.append(("Total WM tokens at turn 21 (2 summaries, 10 ambient)", total_tokens_turn21))
+
+        # === Search finds evicted efforts ===
+        search_result = json.loads(search_efforts(session_dir, "sailing coastal trip"))
+        search_ids = {r["id"] for r in search_result["results"]}
+        assert "sailing-trip" in search_ids
+        token_log.append(("search_efforts('sailing coastal trip')", f"found: {search_ids}"))
+
+        search_result = json.loads(search_efforts(session_dir, "db-migration"))
+        search_ids = {r["id"] for r in search_result["results"]}
+        assert "db-migration" in search_ids
+        token_log.append(("search_efforts('db-migration')", f"found: {search_ids}"))
+
+        # === Compare: what if ALL 5 summaries were in WM? ===
+        # Build messages without eviction (current_turn=None)
+        messages_unbound = _build_messages(session_dir)
+        total_tokens_unbound = sum(count_tokens(m["content"]) for m in messages_unbound)
+        token_log.append(("Total WM tokens unbounded (5 summaries, ALL ambient)", total_tokens_unbound))
+
+        # Bounded should be less than unbounded
+        assert total_tokens_turn21 < total_tokens_unbound
+
+        # === Verify manifest is untouched ===
+        manifest = yaml.safe_load((session_dir / "manifest.yaml").read_text())
+        manifest_ids = {e["id"] for e in manifest["efforts"]}
+        assert manifest_ids == set(summaries.keys())
+
+        # === Verify raw.jsonl is untouched ===
+        raw_lines = (session_dir / "raw.jsonl").read_text().strip().split("\n")
+        assert len(raw_lines) == 60  # All 30 exchanges still on disk
+
+        # Print measurement table
+        print("\n" + "=" * 60)
+        print("SLICE 4 PROOF: Bounded Working Context")
+        print("=" * 60)
+        for label, value in token_log:
+            print(f"  {label}: {value}")
+        print(f"  Summary eviction threshold: {SUMMARY_EVICTION_THRESHOLD} turns")
+        print(f"  Ambient window: {AMBIENT_WINDOW} exchanges")
+        print(f"  Token savings: {total_tokens_unbound} -> {total_tokens_turn21} "
+              f"= {(1 - total_tokens_turn21/total_tokens_unbound)*100:.0f}%")
         print("=" * 60)

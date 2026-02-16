@@ -6,8 +6,11 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
+from helpers import setup_concluded_effort
 from oi.orchestrator import _build_messages, _log_message, process_turn
 from oi.tools import open_effort, expand_effort, get_active_effort
+from oi.decay import AMBIENT_WINDOW, SUMMARY_EVICTION_THRESHOLD, update_summary_references
+from oi.state import _save_summary_references
 
 
 @pytest.fixture
@@ -150,6 +153,73 @@ class TestBuildMessages:
         # Active effort (B) should be last in messages
         content_messages = [m for m in messages if m["role"] != "system"]
         assert content_messages[-1]["content"] == "MSG_FROM_B"
+
+    # === Slice 4: Bounded context tests ===
+
+    def test_ambient_windowed_to_last_n_exchanges(self, session_dir):
+        """Only last AMBIENT_WINDOW exchanges appear in context."""
+        session_dir.mkdir(parents=True)
+        raw = session_dir / "raw.jsonl"
+        lines = ""
+        for i in range(30):  # 30 exchanges = 60 messages
+            lines += json.dumps({"role": "user", "content": f"msg-{i}", "ts": f"t{i*2}"}) + "\n"
+            lines += json.dumps({"role": "assistant", "content": f"reply-{i}", "ts": f"t{i*2+1}"}) + "\n"
+        raw.write_text(lines)
+
+        messages = _build_messages(session_dir)
+        non_system = [m for m in messages if m["role"] != "system"]
+        # Should only have last AMBIENT_WINDOW exchanges (AMBIENT_WINDOW * 2 messages)
+        assert len(non_system) == AMBIENT_WINDOW * 2
+        # First message should be from exchange 20 (30-10=20)
+        assert non_system[0]["content"] == "msg-20"
+        assert non_system[-1]["content"] == "reply-29"
+
+    def test_ambient_window_with_fewer_messages_than_limit(self, session_dir):
+        """If fewer messages than limit, all are included."""
+        session_dir.mkdir(parents=True)
+        raw = session_dir / "raw.jsonl"
+        lines = ""
+        for i in range(3):
+            lines += json.dumps({"role": "user", "content": f"msg-{i}", "ts": f"t{i}"}) + "\n"
+            lines += json.dumps({"role": "assistant", "content": f"reply-{i}", "ts": f"t{i}"}) + "\n"
+        raw.write_text(lines)
+
+        messages = _build_messages(session_dir)
+        non_system = [m for m in messages if m["role"] != "system"]
+        assert len(non_system) == 6  # All 3 exchanges
+
+    def test_evicted_summary_excluded_from_system_prompt(self, session_dir):
+        """Evicted effort summaries don't appear in system prompt."""
+        setup_concluded_effort(session_dir, "old-effort", "Fixed the old bug")
+        # Track reference at turn 1
+        _save_summary_references(session_dir, {"old-effort": 1})
+
+        # At turn 1 + SUMMARY_EVICTION_THRESHOLD, it should be evicted
+        messages = _build_messages(session_dir, current_turn=1 + SUMMARY_EVICTION_THRESHOLD)
+        system_content = messages[0]["content"]
+        assert "old-effort" not in system_content
+        assert "Fixed the old bug" not in system_content
+
+    def test_evicted_summary_still_in_manifest_on_disk(self, session_dir):
+        """Eviction is filtering only — manifest is untouched."""
+        setup_concluded_effort(session_dir, "old-effort", "Fixed the old bug")
+        _save_summary_references(session_dir, {"old-effort": 1})
+
+        # Build messages with eviction
+        _build_messages(session_dir, current_turn=1 + SUMMARY_EVICTION_THRESHOLD)
+
+        # Manifest should still have the effort
+        manifest = yaml.safe_load((session_dir / "manifest.yaml").read_text())
+        effort_ids = [e["id"] for e in manifest["efforts"]]
+        assert "old-effort" in effort_ids
+
+    def test_memory_section_in_system_prompt(self, session_dir):
+        """System prompt includes memory section when concluded efforts exist."""
+        setup_concluded_effort(session_dir, "some-effort", "Did some work")
+        messages = _build_messages(session_dir)
+        system_content = messages[0]["content"]
+        assert "## Memory" in system_content
+        assert "search_efforts" in system_content
 
 
 class TestLogMessage:

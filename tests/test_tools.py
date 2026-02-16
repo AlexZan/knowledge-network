@@ -7,7 +7,7 @@ from helpers import setup_concluded_effort
 from oi.tools import (
     open_effort, close_effort, effort_status,
     get_open_effort, get_active_effort, get_all_open_efforts,
-    expand_effort, collapse_effort, switch_effort,
+    expand_effort, collapse_effort, switch_effort, search_efforts,
 )
 from oi.state import (
     _load_expanded, _save_expanded, _load_expanded_state,
@@ -276,3 +276,55 @@ class TestExpandedFormat:
         state2 = _load_expanded_state(session_dir)
         assert state2["expanded_at"]["a"] == ts_a  # preserved
         assert "b" in state2["expanded_at"]  # new one added
+
+
+# === Slice 4: search_efforts tests ===
+
+class TestSearchEfforts:
+    def test_search_finds_matching_effort(self, session_dir):
+        """Search by keywords finds matching concluded effort."""
+        setup_concluded_effort(
+            session_dir, "auth-bug",
+            "Fixed 401 errors: refresh tokens never auto-called."
+        )
+        result = json.loads(search_efforts(session_dir, "refresh tokens 401"))
+        assert len(result["results"]) == 1
+        assert result["results"][0]["id"] == "auth-bug"
+
+    def test_search_by_effort_id(self, session_dir):
+        """Search by effort ID finds the effort."""
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed something.")
+        result = json.loads(search_efforts(session_dir, "auth-bug"))
+        assert len(result["results"]) == 1
+        assert result["results"][0]["id"] == "auth-bug"
+
+    def test_search_no_match_returns_empty(self, session_dir):
+        """Search with no matching terms returns empty results."""
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed 401 errors.")
+        result = json.loads(search_efforts(session_dir, "pizza recipe cooking"))
+        assert len(result["results"]) == 0
+
+    def test_search_multiple_matches(self, session_dir):
+        """Search returns multiple matching efforts."""
+        setup_concluded_effort(
+            session_dir, "auth-bug",
+            "Fixed 401 errors: refresh tokens expired."
+        )
+        setup_concluded_effort(
+            session_dir, "token-rotation",
+            "Implemented automatic refresh tokens rotation."
+        )
+        result = json.loads(search_efforts(session_dir, "refresh tokens"))
+        assert len(result["results"]) == 2
+        ids = {r["id"] for r in result["results"]}
+        assert "auth-bug" in ids
+        assert "token-rotation" in ids
+
+    def test_search_ignores_open_efforts(self, session_dir):
+        """Search only returns concluded efforts, not open ones."""
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed authentication errors.")
+        open_effort(session_dir, "auth-new")
+        result = json.loads(search_efforts(session_dir, "auth-bug"))
+        ids = {r["id"] for r in result["results"]}
+        assert "auth-bug" in ids
+        assert "auth-new" not in ids

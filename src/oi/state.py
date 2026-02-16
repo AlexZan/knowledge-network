@@ -68,10 +68,14 @@ def _save_expanded(session_dir: Path, expanded_set: set, last_referenced_turn: d
     lrt = last_referenced_turn if last_referenced_turn is not None else existing_lrt
     lrt = {eid: lrt[eid] for eid in expanded_set if eid in lrt}
 
+    # Preserve summary_last_referenced_turn across saves
+    existing_slrt = existing.get("summary_last_referenced_turn", {})
+
     data = {
         "expanded": list(expanded_set),
         "expanded_at": expanded_at,
         "last_referenced_turn": lrt,
+        "summary_last_referenced_turn": existing_slrt,
     }
     expanded_path.write_text(json.dumps(data), encoding="utf-8")
 
@@ -100,3 +104,21 @@ def increment_turn(session_dir: Path) -> int:
     state["turn_count"] = state.get("turn_count", 0) + 1
     _save_session_state(session_dir, state)
     return state["turn_count"]
+
+
+# === Summary reference tracking (for summary eviction) ===
+
+def _load_summary_references(session_dir: Path) -> dict[str, int]:
+    """Load summary_last_referenced_turn from expanded.json."""
+    state = _load_expanded_state(session_dir)
+    return state.get("summary_last_referenced_turn", {})
+
+
+def _save_summary_references(session_dir: Path, refs: dict[str, int]):
+    """Update summary_last_referenced_turn in expanded.json (merge, don't overwrite)."""
+    expanded_path = session_dir / "expanded.json"
+    expanded_path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing = _load_expanded_state(session_dir)
+    existing["summary_last_referenced_turn"] = refs
+    expanded_path.write_text(json.dumps(existing), encoding="utf-8")

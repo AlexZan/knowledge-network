@@ -137,6 +137,27 @@ TOOL_DEFINITIONS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_efforts",
+            "description": (
+                "Search past efforts by topic. Use when the user asks about something "
+                "not shown in the concluded efforts list. Returns matching effort summaries "
+                "from the full manifest."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "What to search for (topic, keywords, effort name)"
+                    }
+                },
+                "required": ["query"]
+            }
+        }
+    },
 ]
 
 
@@ -382,6 +403,25 @@ def effort_status(session_dir: Path) -> str:
     return json.dumps({"efforts": result})
 
 
+def search_efforts(session_dir: Path, query: str) -> str:
+    """Search all concluded efforts by keyword. Returns JSON with matches."""
+    from .decay import extract_keywords, is_referenced
+
+    manifest = _load_manifest(session_dir)
+    concluded = [e for e in manifest.get("efforts", []) if e.get("status") == "concluded"]
+
+    results = []
+    for effort in concluded:
+        eid = effort["id"]
+        summary = effort.get("summary", "") or ""
+        keywords = extract_keywords(summary)
+
+        if is_referenced(query, eid, keywords):
+            results.append({"id": eid, "summary": summary, "status": "concluded"})
+
+    return json.dumps({"results": results, "query": query})
+
+
 def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str = None) -> str:
     """Execute a tool by name. Returns the tool result as a JSON string."""
     if tool_name == "open_effort":
@@ -396,5 +436,7 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
         return collapse_effort(session_dir, tool_args["id"])
     elif tool_name == "switch_effort":
         return switch_effort(session_dir, tool_args["id"])
+    elif tool_name == "search_efforts":
+        return search_efforts(session_dir, tool_args["query"])
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
