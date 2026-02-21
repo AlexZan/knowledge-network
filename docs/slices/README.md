@@ -1,96 +1,100 @@
-# Implementation Slices: CCM Proof Roadmap
+# Implementation Roadmap
 
-Progressive implementation proving Cognitive Context Management (CCM) for whitepaper publication.
+Building a general-purpose AI system with persistent memory, tool use, and knowledge accumulation.
 
-See [publication-strategy.md](../publication-strategy.md) for why these slices exist.
-
----
-
-## Philosophy
-
-**The whitepapers are the product. The software is the proof.**
-
-Each slice adds a proof point to the CCM whitepaper. Implementation is the minimum needed to generate publishable data.
+CCM whitepaper published (Slices 1-4). Now focused on product development.
 
 ---
 
-## CCM Slices (Active Roadmap)
+## Completed (CCM Foundation)
 
-| Slice | Name | Proves | Spec |
-|-------|------|--------|------|
-| 1 | Core Compaction | Token savings from effort-based compaction (~80% reduction) | [01-core-compaction-proof.md](01-core-compaction-proof.md) |
-| 2 | Expansion & Multi-Effort | Quality preservation — concluded effort info is recallable on demand | — |
-| 3 | Salience Decay | Self-managing context — expanded info fades when no longer relevant | — |
-| 4 | Bounded Working Context | Scales to many efforts without unbounded context growth | — |
+| Slice | Name | What it does | Spec |
+|-------|------|-------------|------|
+| 1 | Core Compaction | Open efforts = raw context, concluded = summary. ~97% token savings. | [01-core-compaction-proof.md](01-core-compaction-proof.md) |
+| 2 | Expansion & Multi-Effort | Concluded efforts recallable on demand. Multiple simultaneous efforts. | [02-expansion-multi-effort.md](02-expansion-multi-effort.md) |
+| 3 | Salience Decay | Expanded efforts auto-collapse when no longer referenced. | [03-salience-decay.md](03-salience-decay.md) |
+| 4 | Bounded Working Context | Summary eviction, ambient windowing, `search_efforts`. O(1) working memory. | [04-bounded-working-context.md](04-bounded-working-context.md) |
 
-### Slice 1: Core Compaction Proof
+---
 
-**Proves**: Open efforts = full raw context. Concluded efforts = summary only. ~80% token savings.
+## Next: Slice 5 — Effort Reopening
 
-Tool-based effort management (LLM calls tools via natural language). One effort at a time. Two-log model. Token measurement. Quality comparison test.
+Completes the effort lifecycle. Concluded efforts can be reopened and extended, not just viewed.
 
-**Spec**: [01-core-compaction-proof.md](01-core-compaction-proof.md)
+- `reopen_effort` tool: flip concluded → open, preserve raw log, append new messages
+- Ambiguous match detection: search concluded efforts when user starts a related topic
+- LLM asks user: reopen or start new? (only when ambiguous)
+- Re-conclusion updates summary to cover full extended conversation
 
-### Slice 2: Expansion & Multi-Effort
+**Spec**: [05-effort-reopening.md](05-effort-reopening.md)
 
-**Proves**: Nothing is truly lost. Concluded effort details are recallable on demand. Multiple efforts can coexist.
+---
 
-- Expansion on demand: temporarily load concluded effort's raw log into working context
-- Multiple simultaneous open efforts with switching
-- Recall tracking: record when user references concluded efforts
-- Interruption detection: ambient messages during open effort
-- `/effort` commands as manual override for power users
+## Future Slices
 
-### Slice 3: Salience Decay
+### Slice 6: Cross-Session Persistence
 
-**Proves**: Context is self-managing. Expanded information naturally fades when no longer referenced.
+Efforts and summaries survive between sessions. The bridge from single-session CCM to persistent knowledge.
 
-- Turn-based decay: expanded content removed after N turns without reference
-- Working context cache file (avoid re-assembly every turn)
-- Decay metrics: how often expansions are needed, how long they persist
+- Manifest and raw logs persist across CLI launches
+- Session linking: resume efforts from previous sessions
+- Manifest merging when sessions overlap
 
-### Slice 4: Bounded Working Context
+### Slice 7: Tool Use
 
-**Proves**: System scales. Many efforts don't mean unbounded context.
+The system becomes an agent — can act on the world, not just talk. Likely multiple sub-slices.
 
-- Working context limit (~4 active items)
-- Cross-session persistence
-- Token budget management
-- Oldest/least-relevant items compacted under pressure
+- Bash execution, file system access
+- RAG / document ingestion
+- Search (web, codebase, knowledge base)
+- Error recovery, permissions, output capture
+
+**Phase boundary**: Slices 1-6 are a memory system. Slice 7 makes it an agent. Different architectural concerns.
+
+### Slice 8: Knowledge Graph
+
+Cross-session knowledge accumulation. The core of the Knowledge Network vision. Future KN whitepaper.
+
+- Conclusion nodes with typed connections (support, contradiction, generalization)
+- Cross-session link detection
+- Confidence from network topology
+- Abstraction hierarchy and privacy gradient
+
+See [thesis.md](../thesis.md) for the full KN vision (Theses 2-5).
+
+### Slice 9: Workflow Integration
+
+Workflows (like TDD pipeline) become tools the system can invoke. Future workflow whitepaper.
+
+- oi-pipe as a subsystem, not a separate project
+- Workflow orchestration through tool calls
+- Reassess priority after Slice 7 (tool use)
 
 ---
 
 ## Dependencies
 
 ```
-Slice 1: Core Compaction (foundation)
+Slices 1-4: CCM Foundation (done)
     ↓
-Slice 2: Expansion & Multi-Effort (recall, multiple efforts)
+Slice 5: Effort Reopening (completes lifecycle)
     ↓
-Slice 3: Salience Decay (self-managing context)
+Slice 6: Cross-Session Persistence (memory survives)
     ↓
-Slice 4: Bounded Working Context (scaling)
+Slice 7: Tool Use (system becomes agent)
+    ↓
+  ┌─────┴─────┐
+  ↓           ↓
+Slice 8     Slice 9
+Knowledge   Workflow
+Graph       Integration
+(KN paper)  (WF paper)
 ```
-
----
-
-## Future Slices (from original roadmap, unrevised)
-
-These were planned during the dev-first pivot. They'll be revised when CCM slices 1-4 are complete.
-
-| Slice | Name | Summary |
-|-------|------|---------|
-| 5 | Dev Artifacts | Story, spec, test contract artifact types for dev workflow |
-| 6 | Progress Visibility | Past/present/future session state, token stats |
-| 7 | Effort Weight | Cost/quality tradeoff dial, compaction thresholds |
-| 8 | RAG Retrieval | Cross-artifact context building, vector search |
-| 9 | Knowledge Graph | Cross-session connections, topology (KN whitepaper territory) |
-| 10 | Abstraction & Confidence | Privacy gradient, emergent confidence scoring |
 
 ---
 
 ## Related Documents
 
-- [Publication strategy](../publication-strategy.md) — Three whitepapers, what each proves
-- [Whitepaper](../whitepaper.md) — CCM whitepaper draft
-- [Thesis](../thesis.md) — Knowledge Network vision, 5 theses
+- [CCM Whitepaper](../ccm-whitepaper.md) — Published
+- [Thesis](../thesis.md) — Knowledge Network vision (Theses 2-5)
+- [Technical Reference](../PROJECT.md) — Architecture (needs update)

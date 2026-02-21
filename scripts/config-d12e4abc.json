@@ -1,0 +1,23 @@
+{
+  "conversation_file": "C:/Users/Lex/.claude/projects/D--Dev-knowledge-network/d12e4abc-6525-4843-a821-c6d85200e44f.jsonl",
+  "label": "Deep single-topic (TDD pipeline)",
+  "effort_phases": [
+    {"id": "context-building-analysis", "start": 1, "end": 13, "topic": "Analyzing code-aware context building for test generation"},
+    {"id": "pre-implemented-test-detection", "start": 14, "end": 24, "topic": "Red-phase reviewer LLM agent design"},
+    {"id": "test-architect-consistency", "start": 25, "end": 37, "topic": "Test architect non-determinism"},
+    {"id": "story-by-story-test-generation", "start": 38, "end": 63, "topic": "Story-by-story test generation with code context"},
+    {"id": "stub-generation-and-model-comparison", "start": 64, "end": 84, "topic": "TDD stubs and model comparison"},
+    {"id": "litellm-fixes-and-test-regen", "start": 85, "end": 102, "topic": "Litellm/openrouter fixes, bulk regeneration"},
+    {"id": "kimi-benchmark-and-model-tuning", "start": 103, "end": 124, "topic": "Model benchmarking for test-architect"},
+    {"id": "dev-agent-design-and-edit-format", "start": 125, "end": 150, "topic": "Dev-agent FIND/REPLACE edit format design"},
+    {"id": "dev-agent-first-runs-and-model-limits", "start": 151, "end": 168, "topic": "First dev-agent runs and model limitations"},
+    {"id": "unit-test-pivot-and-context-building", "start": 169, "end": 199, "topic": "Major pivot from integration to unit tests"},
+    {"id": "improved-test-architect-with-context", "start": 200, "end": 236, "topic": "Improved test-architect with code context"},
+    {"id": "dev-agent-execution-and-benchmarking", "start": 237, "end": 300, "topic": "Dev-agent model escalation/fallback chain"},
+    {"id": "director-role-enforcement", "start": 301, "end": 335, "topic": "Director role crisis and workflow enforcement"},
+    {"id": "story4-dev-runs-and-story-boundary-issues", "start": 336, "end": 370, "topic": "Story boundary overlap discovery"},
+    {"id": "upstream-fix-story-boundaries", "start": 371, "end": 401, "topic": "Upstream story boundary fixes"},
+    {"id": "acceptance-test-architecture", "start": 402, "end": 417, "topic": "Acceptance test layer design"},
+    {"id": "dev-agent-context-flooding", "start": 418, "end": 429, "topic": "Context flooding diagnosis"}
+  ]
+}

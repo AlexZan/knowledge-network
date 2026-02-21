@@ -159,6 +159,8 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
             parts.append(f"--- Collapsed effort: {result['effort_id']} (back to summary) ---")
         elif tool_name == "switch_effort":
             parts.append(f"--- Switched to effort: {result['effort_id']} ---")
+        elif tool_name == "reopen_effort":
+            parts.append(f"--- Reopened effort: {result['effort_id']} ---")
 
     return "\n".join(parts)
 

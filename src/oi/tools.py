@@ -1,12 +1,14 @@
 """Tool definitions and handlers for effort management.
 
-Six LLM-callable tools:
+Eight LLM-callable tools:
 - open_effort(name): Start tracking focused work (multiple can be open)
 - close_effort(id?): Conclude an effort with summary
 - effort_status(): Get status of all efforts
 - expand_effort(id): Temporarily load concluded effort's raw log into context
 - collapse_effort(id): Remove expanded effort from context
 - switch_effort(id): Change which open effort is active
+- reopen_effort(id): Reopen a concluded effort to continue working on it
+- search_efforts(query): Search past efforts by keyword
 """
 
 import json
@@ -47,10 +49,10 @@ TOOL_DEFINITIONS = [
         "function": {
             "name": "close_effort",
             "description": (
-                "Permanently conclude an effort. This is irreversible. "
+                "Conclude an effort. Summarizes the conversation and removes raw log from working context. "
+                "Concluded efforts can be reopened later with reopen_effort if the user returns to the topic. "
                 "Only call when the user explicitly says the work is DONE or COMPLETE. "
                 "Never call for 'pause', 'hold', or 'switch' — those mean keep it open. "
-                "Summarizes the conversation and removes raw log from working context. "
                 "If id is omitted, closes the active effort."
             ),
             "parameters": {
@@ -131,6 +133,28 @@ TOOL_DEFINITIONS = [
                     "id": {
                         "type": "string",
                         "description": "The open effort ID to switch to."
+                    }
+                },
+                "required": ["id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "reopen_effort",
+            "description": (
+                "Reopen a concluded effort to continue working on it. "
+                "The original conversation history is preserved — new messages append to the existing log. "
+                "Use when the user wants to return to a past topic. If the user names a specific effort, "
+                "call directly. If ambiguous, use search_efforts first and ask the user."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "The concluded effort ID to reopen."
                     }
                 },
                 "required": ["id"]
@@ -403,6 +427,61 @@ def effort_status(session_dir: Path) -> str:
     return json.dumps({"efforts": result})
 
 
+def reopen_effort(session_dir: Path, effort_id: str) -> str:
+    """Reopen a concluded effort to continue working on it.
+
+    Flips status back to open, sets as active, deactivates other open efforts,
+    removes from expanded set if present, and appends a separator to the raw log.
+    """
+    manifest = _load_manifest(session_dir)
+    target = None
+    for e in manifest.get("efforts", []):
+        if e["id"] == effort_id:
+            target = e
+            break
+
+    if not target:
+        return json.dumps({"error": f"No effort with id '{effort_id}'."})
+
+    if target["status"] != "concluded":
+        return json.dumps({"error": f"Cannot reopen '{effort_id}': status is '{target['status']}', must be 'concluded'."})
+
+    prior_summary = target.get("summary", "")
+
+    # Deactivate all currently open efforts
+    for e in manifest["efforts"]:
+        if e.get("status") == "open":
+            e["active"] = False
+
+    # Flip to open and active
+    now = datetime.now().isoformat()
+    target["status"] = "open"
+    target["active"] = True
+    target["updated"] = now
+    # Keep summary around for reference but it's no longer the "current" representation
+
+    _save_manifest(session_dir, manifest)
+
+    # Remove from expanded set if it was expanded
+    expanded = _load_expanded(session_dir)
+    if effort_id in expanded:
+        expanded.discard(effort_id)
+        _save_expanded(session_dir, expanded)
+
+    # Append separator line to raw log
+    effort_file = session_dir / "efforts" / f"{effort_id}.jsonl"
+    effort_file.parent.mkdir(parents=True, exist_ok=True)
+    separator = {"role": "system", "content": "--- Effort reopened ---", "ts": now}
+    with open(effort_file, "a", encoding="utf-8") as f:
+        f.write(json.dumps(separator) + "\n")
+
+    return json.dumps({
+        "status": "reopened",
+        "effort_id": effort_id,
+        "prior_summary": prior_summary
+    })
+
+
 def search_efforts(session_dir: Path, query: str) -> str:
     """Search all concluded efforts by keyword. Returns JSON with matches."""
     from .decay import extract_keywords, is_referenced
@@ -436,6 +515,8 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
         return collapse_effort(session_dir, tool_args["id"])
     elif tool_name == "switch_effort":
         return switch_effort(session_dir, tool_args["id"])
+    elif tool_name == "reopen_effort":
+        return reopen_effort(session_dir, tool_args["id"])
     elif tool_name == "search_efforts":
         return search_efforts(session_dir, tool_args["query"])
     else:

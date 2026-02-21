@@ -8,6 +8,7 @@ from oi.tools import (
     open_effort, close_effort, effort_status,
     get_open_effort, get_active_effort, get_all_open_efforts,
     expand_effort, collapse_effort, switch_effort, search_efforts,
+    reopen_effort,
 )
 from oi.state import (
     _load_expanded, _save_expanded, _load_expanded_state,
@@ -328,3 +329,94 @@ class TestSearchEfforts:
         ids = {r["id"] for r in result["results"]}
         assert "auth-bug" in ids
         assert "auth-new" not in ids
+
+
+# === Slice 5: Reopen effort tests ===
+
+class TestReopenEffort:
+    def test_reopen_concluded_effort(self, session_dir):
+        """Reopen flips a concluded effort back to open and active."""
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed 401 errors.")
+        result = json.loads(reopen_effort(session_dir, "auth-bug"))
+        assert result["status"] == "reopened"
+        assert result["effort_id"] == "auth-bug"
+        assert result["prior_summary"] == "Fixed 401 errors."
+
+        active = get_active_effort(session_dir)
+        assert active["id"] == "auth-bug"
+        assert active["status"] == "open"
+
+    def test_reopen_deactivates_other_open_efforts(self, session_dir):
+        """Reopening sets the reopened effort as active, deactivates others."""
+        open_effort(session_dir, "current-work")
+        setup_concluded_effort(session_dir, "old-bug", "Fixed old bug.")
+
+        reopen_effort(session_dir, "old-bug")
+        active = get_active_effort(session_dir)
+        assert active["id"] == "old-bug"
+
+        # current-work is still open but not active
+        all_open = get_all_open_efforts(session_dir)
+        current = [e for e in all_open if e["id"] == "current-work"][0]
+        assert current.get("active") is False
+
+    def test_reopen_preserves_raw_log(self, session_dir):
+        """Reopening preserves the existing raw log content."""
+        raw = (
+            json.dumps({"role": "user", "content": "Original message", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "Original reply", "ts": "t2"}) + "\n"
+        )
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed it.", raw_content=raw)
+        reopen_effort(session_dir, "auth-bug")
+
+        log_file = session_dir / "efforts" / "auth-bug.jsonl"
+        lines = log_file.read_text(encoding="utf-8").strip().split("\n")
+        # Original 2 lines + 1 separator line
+        assert len(lines) == 3
+        assert "Original message" in lines[0]
+        assert "Original reply" in lines[1]
+
+    def test_reopen_appends_separator(self, session_dir):
+        """Reopening appends a separator line to the raw log."""
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed it.")
+        reopen_effort(session_dir, "auth-bug")
+
+        log_file = session_dir / "efforts" / "auth-bug.jsonl"
+        lines = log_file.read_text(encoding="utf-8").strip().split("\n")
+        separator = json.loads(lines[-1])
+        assert separator["role"] == "system"
+        assert "reopened" in separator["content"].lower()
+
+    def test_reopen_non_concluded_fails(self, session_dir):
+        """Can't reopen an effort that's still open."""
+        open_effort(session_dir, "active-work")
+        result = json.loads(reopen_effort(session_dir, "active-work"))
+        assert "error" in result
+
+    def test_reopen_nonexistent_fails(self, session_dir):
+        """Can't reopen an effort that doesn't exist."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        (session_dir / "manifest.yaml").write_text("efforts: []\n")
+        result = json.loads(reopen_effort(session_dir, "nope"))
+        assert "error" in result
+
+    def test_reopen_removes_from_expanded(self, session_dir):
+        """If effort was expanded (read-only view), reopening removes it from expanded set."""
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed it.")
+        expand_effort(session_dir, "auth-bug")
+        assert "auth-bug" in _load_expanded(session_dir)
+
+        reopen_effort(session_dir, "auth-bug")
+        assert "auth-bug" not in _load_expanded(session_dir)
+
+    def test_reconclusion_updates_summary(self, session_dir):
+        """Re-concluding a reopened effort produces an updated summary."""
+        setup_concluded_effort(session_dir, "auth-bug", "Fixed 401 errors.")
+        reopen_effort(session_dir, "auth-bug")
+
+        from unittest.mock import patch
+        with patch("oi.llm.summarize_effort", return_value="Fixed 401 errors and added retry logic."):
+            result = json.loads(close_effort(session_dir, effort_id="auth-bug"))
+
+        assert result["status"] == "concluded"
+        assert "retry logic" in result["summary"]

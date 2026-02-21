@@ -30,6 +30,17 @@ These mean the user wants to KEEP the effort open, not conclude it.
 There is no pause tool — an effort stays open until explicitly concluded.
 
 Pass an `id` to close a specific effort. If omitted, closes the active effort.
+Concluded efforts can be reopened later with reopen_effort.
+
+### reopen_effort
+Call when the user wants to continue working on a concluded effort.
+- If the user names a specific concluded effort: call reopen_effort directly
+- If the user starts a topic similar to a concluded effort but doesn't name it:
+  use search_efforts to find the match, then ASK the user if they want to
+  reopen it or start a new effort. Only ask when ambiguous.
+
+When reopening, the original conversation history is preserved. New messages
+append to the existing log. When re-concluded, the summary covers everything.
 
 ### effort_status
 Call when the user asks about current efforts or wants to see what's open.

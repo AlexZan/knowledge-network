@@ -1,0 +1,21 @@
+{
+  "conversation_file": "C:/Users/Lex/.claude/projects/d--Dev-Open-Intelligence/8a6ba32f-c4ff-43ac-995c-e2e53eabcea5.jsonl",
+  "label": "Brainstorm/architecture (KN design)",
+  "effort_phases": [
+    {"id": "thesis-brainstorm", "start": 1, "end": 9, "topic": "KN thesis brainstorm"},
+    {"id": "slice1-mvp-planning", "start": 10, "end": 23, "topic": "Slice 1 MVP scoping"},
+    {"id": "tech-stack-decision", "start": 24, "end": 29, "topic": "Python + free models selection"},
+    {"id": "story-agent-pipeline", "start": 30, "end": 56, "topic": "Story agent pipeline and TDD"},
+    {"id": "first-integration-test", "start": 57, "end": 65, "topic": "First DeepSeek API test"},
+    {"id": "context-continuation", "start": 66, "end": 73, "topic": "Context overflow and thread isolation"},
+    {"id": "storage-scale-sqlite", "start": 74, "end": 99, "topic": "Files vs SQLite debate"},
+    {"id": "context-building-design", "start": 100, "end": 115, "topic": "AI context loading design"},
+    {"id": "scenario-expansion", "start": 116, "end": 122, "topic": "Effort/artifact model pivot"},
+    {"id": "sqlite-revert-jsonl", "start": 123, "end": 131, "topic": "SQLite revert to JSONL"},
+    {"id": "artifact-model-refinement", "start": 132, "end": 150, "topic": "Artifact model refinement"},
+    {"id": "dynamic-context-assembly", "start": 151, "end": 160, "topic": "Dynamic context assembly breakthrough"},
+    {"id": "hierarchical-efforts", "start": 161, "end": 174, "topic": "Hierarchical effort model"},
+    {"id": "session-bootstrap", "start": 175, "end": 180, "topic": "Session bootstrap design"},
+    {"id": "session-wrap-archive", "start": 181, "end": 190, "topic": "Session wrap-up and archival"}
+  ]
+}

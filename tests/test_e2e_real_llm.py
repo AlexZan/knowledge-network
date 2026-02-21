@@ -14,7 +14,7 @@ import yaml
 import pytest
 
 from oi.orchestrator import process_turn, _build_messages
-from oi.tools import get_open_effort
+from oi.tools import get_open_effort, get_active_effort, get_all_open_efforts
 from oi.state import (
     _load_expanded, _load_expanded_state, _load_session_state,
     _save_summary_references,
@@ -579,3 +579,245 @@ class TestBoundedContextE2E:
             "fishing-trip should be evicted at turn 44 (reset at 24, delta=20)"
         )
         print("Verified: reference at turn 24 reset the counter, eviction deferred to turn 44")
+
+
+@requires_llm
+class TestReopenE2E:
+    """Slice 5: Verify effort reopening works end-to-end with real LLM."""
+
+    def test_llm_reopens_explicit_request(self, tmp_path):
+        """User explicitly asks to reopen a concluded effort → LLM calls reopen_effort."""
+        session_dir = tmp_path / "session"
+        setup_concluded_effort(session_dir, "auth-bug",
+            "Fixed 401 errors after 1 hour. Root cause: refresh tokens never auto-called. Fix: axios interceptor.",
+            raw_lines=[
+                ("user", "Let's debug the auth bug - users get 401s after 1 hour"),
+                ("assistant", "Root cause: refreshAccessToken exists but nothing calls it. Fix: axios interceptor."),
+            ]
+        )
+
+        response = process_turn(
+            session_dir,
+            "Let's reopen the auth-bug effort, I found another edge case with the token refresh.",
+            model=MODEL
+        )
+
+        active = get_active_effort(session_dir)
+        if active is None or active["id"] != "auth-bug":
+            # Retry with more explicit instruction
+            response = process_turn(
+                session_dir,
+                "Please call reopen_effort with id auth-bug. I need to continue working on it.",
+                model=MODEL
+            )
+            active = get_active_effort(session_dir)
+
+        assert active is not None and active["id"] == "auth-bug", (
+            f"LLM did not reopen auth-bug. Active: {active}. Response: {response[:300]}"
+        )
+        assert active["status"] == "open"
+        assert "Reopened" in response, f"Expected reopen banner. Response: {response[:300]}"
+        print(f"\nReopened auth-bug. Response: {response[:200]}")
+
+    def test_reopen_then_work_then_reconlude(self, tmp_path):
+        """Full cycle: concluded → reopen → work → re-conclude. Summary should update."""
+        session_dir = tmp_path / "session"
+        setup_concluded_effort(session_dir, "db-pool",
+            "Increased connection pool from 5 to 25. Fixed exhaustion errors.",
+            raw_lines=[
+                ("user", "Database connections keep running out"),
+                ("assistant", "Pool size is only 5. Increase to 25 for your load."),
+            ]
+        )
+
+        # Reopen
+        response = process_turn(
+            session_dir,
+            "Reopen the db-pool effort please. The connection issue is back.",
+            model=MODEL
+        )
+        active = get_active_effort(session_dir)
+        if active is None or active["id"] != "db-pool":
+            process_turn(
+                session_dir,
+                "Please call reopen_effort with id db-pool.",
+                model=MODEL
+            )
+            active = get_active_effort(session_dir)
+        assert active is not None and active["id"] == "db-pool"
+        print(f"\nReopened db-pool")
+
+        # Work on it
+        process_turn(
+            session_dir,
+            "The pool of 25 wasn't enough. Under peak load we need 50 connections. "
+            "I've also added connection timeout of 30 seconds.",
+            model=MODEL
+        )
+
+        # Re-conclude
+        response = process_turn(
+            session_dir,
+            "Okay the pool is now set to 50 with 30s timeout and everything is stable. "
+            "This effort is done, please close it.",
+            model=MODEL
+        )
+        if get_open_effort(session_dir) is not None:
+            response = process_turn(
+                session_dir,
+                "Please call close_effort to conclude the db-pool effort. We are done.",
+                model=MODEL
+            )
+
+        effort = get_open_effort(session_dir)
+        assert effort is None, f"Effort should be concluded. Response: {response[:300]}"
+
+        # Verify summary was updated (should mention new info)
+        manifest = yaml.safe_load((session_dir / "manifest.yaml").read_text())
+        concluded = [e for e in manifest["efforts"] if e["id"] == "db-pool"]
+        assert len(concluded) == 1
+        summary = concluded[0]["summary"]
+        print(f"\nUpdated summary: {summary}")
+        # Summary should reference the new work (50 connections or timeout)
+        summary_lower = summary.lower()
+        has_new_info = "50" in summary_lower or "timeout" in summary_lower or "peak" in summary_lower
+        assert has_new_info, f"Summary should cover new work. Got: {summary}"
+
+    def test_reopen_preserves_conversation_history(self, tmp_path):
+        """After reopen, the original raw log is still in context for the LLM."""
+        session_dir = tmp_path / "session"
+        setup_concluded_effort(session_dir, "secret-code",
+            "Discussed the secret code PINEAPPLE-42.",
+            raw_lines=[
+                ("user", "The secret code for this project is PINEAPPLE-42, remember it."),
+                ("assistant", "Got it — the secret code is PINEAPPLE-42. I'll remember that."),
+            ]
+        )
+
+        # Reopen
+        process_turn(
+            session_dir,
+            "Reopen the secret-code effort please.",
+            model=MODEL
+        )
+        active = get_active_effort(session_dir)
+        if active is None or active["id"] != "secret-code":
+            process_turn(
+                session_dir,
+                "Please call reopen_effort with id secret-code.",
+                model=MODEL
+            )
+
+        # Ask about the content from the original log
+        response = process_turn(
+            session_dir,
+            "What was the secret code we discussed in this effort?",
+            model=MODEL
+        )
+
+        assert "PINEAPPLE-42" in response or "PINEAPPLE" in response, (
+            f"LLM should recall content from original raw log. Response: {response[:300]}"
+        )
+        print(f"\nLLM recalled secret code from original log: {response[:200]}")
+
+    def test_reopen_while_another_effort_open(self, tmp_path):
+        """Reopening a concluded effort while another effort is active deactivates the current one."""
+        session_dir = tmp_path / "session"
+
+        # Start a current effort
+        process_turn(
+            session_dir,
+            "Let's work on the new payment integration feature.",
+            model=MODEL
+        )
+        active = get_active_effort(session_dir)
+        assert active is not None
+        current_id = active["id"]
+        print(f"\nActive effort: {current_id}")
+
+        # Set up a concluded effort
+        setup_concluded_effort(session_dir, "old-bug",
+            "Fixed null pointer exception in user service. Added null check before accessing profile.",
+            raw_lines=[
+                ("user", "Users are crashing when they open their profile"),
+                ("assistant", "Null pointer — profile object isn't loaded. Added null check."),
+            ]
+        )
+
+        # Reopen the old effort
+        response = process_turn(
+            session_dir,
+            "Actually, I need to reopen old-bug — the null pointer is happening again in a different path.",
+            model=MODEL
+        )
+        active = get_active_effort(session_dir)
+        if active is None or active["id"] != "old-bug":
+            process_turn(
+                session_dir,
+                "Please call reopen_effort with id old-bug.",
+                model=MODEL
+            )
+            active = get_active_effort(session_dir)
+
+        assert active is not None and active["id"] == "old-bug", (
+            f"old-bug should be active. Got: {active}"
+        )
+
+        # The payment effort should still be open but not active
+        all_open = get_all_open_efforts(session_dir)
+        payment = [e for e in all_open if e["id"] == current_id]
+        assert len(payment) == 1, f"Payment effort should still be open. All open: {[e['id'] for e in all_open]}"
+        assert payment[0].get("active") is False
+        print(f"old-bug is active, {current_id} is backgrounded")
+
+    def test_reopen_expanded_effort_transitions_correctly(self, tmp_path):
+        """If user is viewing an expanded (read-only) effort and asks to reopen it,
+        the effort transitions from expanded to open (not both)."""
+        session_dir = tmp_path / "session"
+        setup_concluded_effort(session_dir, "api-design",
+            "Designed REST API with versioned endpoints. Using /api/v1/ prefix.",
+            raw_lines=[
+                ("user", "Let's design the API structure"),
+                ("assistant", "I recommend REST with versioned endpoints: /api/v1/users, /api/v1/orders"),
+            ]
+        )
+
+        # First expand it (read-only view)
+        process_turn(
+            session_dir,
+            "Show me the full details of api-design please.",
+            model=MODEL
+        )
+        expanded = _load_expanded(session_dir)
+        if "api-design" not in expanded:
+            process_turn(
+                session_dir,
+                "Please call expand_effort with id api-design.",
+                model=MODEL
+            )
+            expanded = _load_expanded(session_dir)
+        assert "api-design" in expanded
+        print(f"\nExpanded api-design (read-only view)")
+
+        # Now reopen it
+        response = process_turn(
+            session_dir,
+            "Actually, let's reopen api-design. I want to add more endpoints to the design.",
+            model=MODEL
+        )
+        if get_active_effort(session_dir) is None or get_active_effort(session_dir)["id"] != "api-design":
+            process_turn(
+                session_dir,
+                "Please call reopen_effort with id api-design.",
+                model=MODEL
+            )
+
+        # Should be open, NOT expanded
+        active = get_active_effort(session_dir)
+        assert active is not None and active["id"] == "api-design"
+        assert active["status"] == "open"
+        expanded = _load_expanded(session_dir)
+        assert "api-design" not in expanded, (
+            f"api-design should not be in expanded set after reopen. Expanded: {expanded}"
+        )
+        print(f"Transitioned from expanded (read-only) to open (active). Expanded set: {expanded}")
