@@ -83,6 +83,15 @@ def main(session_dir: str | None, project: str | None) -> None:
 
     click.echo("Type 'exit' to quit.\n")
 
+    def _confirm_command(command: str) -> bool:
+        """Prompt user to confirm a shell command before execution."""
+        click.echo(f"\n[Run: {command}] Allow? (y/n) ", nl=False)
+        try:
+            answer = input().strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            return False
+        return answer in ("y", "yes")
+
     while True:
         try:
             user_input = input("> ").strip()
@@ -97,7 +106,7 @@ def main(session_dir: str | None, project: str | None) -> None:
             break
 
         try:
-            response = process_turn(session_path, user_input)
+            response = process_turn(session_path, user_input, confirmation_callback=_confirm_command)
             click.echo()
             click.echo(response)
             click.echo()

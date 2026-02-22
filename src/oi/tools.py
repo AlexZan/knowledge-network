@@ -1,6 +1,6 @@
-"""Tool definitions and handlers for effort management.
+"""Tool definitions and handlers for effort management and environment interaction.
 
-Eight LLM-callable tools:
+Ten LLM-callable tools:
 - open_effort(name): Start tracking focused work (multiple can be open)
 - close_effort(id?): Conclude an effort with summary
 - effort_status(): Get status of all efforts
@@ -9,11 +9,15 @@ Eight LLM-callable tools:
 - switch_effort(id): Change which open effort is active
 - reopen_effort(id): Reopen a concluded effort to continue working on it
 - search_efforts(query): Search past efforts by keyword
+- read_file(path): Read a file's contents from the local filesystem
+- run_command(command): Execute a shell command (requires user confirmation)
 """
 
 import json
+import subprocess
 from pathlib import Path
 from datetime import datetime
+from typing import Callable
 
 from .state import (
     _load_manifest, _save_manifest,
@@ -182,7 +186,59 @@ TOOL_DEFINITIONS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": (
+                "Read a file's contents from the local filesystem. "
+                "Use when the user asks about a file or you need to examine code/documents."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to read (absolute or relative to CWD)"
+                    }
+                },
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_command",
+            "description": (
+                "Execute a shell command. Use when the user asks you to run something, "
+                "check status, or perform system operations. The user will be asked to "
+                "confirm before execution."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "The shell command to execute"
+                    }
+                },
+                "required": ["command"]
+            }
+        }
+    },
 ]
+
+
+# Tool registry: metadata not sent to LLM (e.g. confirmation requirements)
+TOOL_REGISTRY = {
+    "read_file": {"requires_confirmation": False},
+    "run_command": {"requires_confirmation": True},
+}
+
+READ_FILE_MAX_CHARS = 10_000
+RUN_COMMAND_TIMEOUT = 30
+RUN_COMMAND_MAX_CHARS = 10_000
 
 
 def get_open_effort(session_dir: Path) -> dict | None:
@@ -501,7 +557,85 @@ def search_efforts(session_dir: Path, query: str) -> str:
     return json.dumps({"results": results, "query": query})
 
 
-def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str = None) -> str:
+def read_file(path: str) -> str:
+    """Read a file's contents. Returns JSON with content, path, and size."""
+    try:
+        filepath = Path(path).resolve()
+        if not filepath.is_file():
+            return json.dumps({"error": f"File not found: {path}"})
+
+        content = filepath.read_text(encoding="utf-8")
+        size = len(content)
+        truncated = False
+
+        if size > READ_FILE_MAX_CHARS:
+            content = content[:READ_FILE_MAX_CHARS]
+            truncated = True
+
+        result = {"content": content, "path": str(filepath), "size": size}
+        if truncated:
+            result["truncated"] = True
+        return json.dumps(result)
+    except PermissionError:
+        return json.dumps({"error": f"Permission denied: {path}"})
+    except UnicodeDecodeError:
+        return json.dumps({"error": f"Cannot read binary file: {path}"})
+    except Exception as e:
+        return json.dumps({"error": f"Error reading file: {e}"})
+
+
+def run_command(
+    command: str,
+    confirmation_callback: Callable[[str], bool] | None = None,
+    timeout: int = RUN_COMMAND_TIMEOUT,
+) -> str:
+    """Execute a shell command. Requires user confirmation via callback.
+
+    Returns JSON with stdout, stderr, and exit_code.
+    """
+    # Check confirmation
+    if confirmation_callback is not None:
+        if not confirmation_callback(command):
+            return json.dumps({"error": "Command execution denied by user."})
+
+    try:
+        result = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+
+        stdout = result.stdout
+        stderr = result.stderr
+        stdout_truncated = False
+        stderr_truncated = False
+
+        if len(stdout) > RUN_COMMAND_MAX_CHARS:
+            stdout = stdout[:RUN_COMMAND_MAX_CHARS]
+            stdout_truncated = True
+        if len(stderr) > RUN_COMMAND_MAX_CHARS:
+            stderr = stderr[:RUN_COMMAND_MAX_CHARS]
+            stderr_truncated = True
+
+        response = {
+            "stdout": stdout,
+            "stderr": stderr,
+            "exit_code": result.returncode,
+        }
+        if stdout_truncated:
+            response["stdout_truncated"] = True
+        if stderr_truncated:
+            response["stderr_truncated"] = True
+        return json.dumps(response)
+    except subprocess.TimeoutExpired:
+        return json.dumps({"error": f"Command timed out after {timeout} seconds."})
+    except Exception as e:
+        return json.dumps({"error": f"Error executing command: {e}"})
+
+
+def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str = None, confirmation_callback: Callable[[str], bool] | None = None) -> str:
     """Execute a tool by name. Returns the tool result as a JSON string."""
     if tool_name == "open_effort":
         return open_effort(session_dir, tool_args["name"])
@@ -519,5 +653,13 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
         return reopen_effort(session_dir, tool_args["id"])
     elif tool_name == "search_efforts":
         return search_efforts(session_dir, tool_args["query"])
+    elif tool_name == "read_file":
+        return read_file(tool_args["path"])
+    elif tool_name == "run_command":
+        return run_command(
+            tool_args["command"],
+            confirmation_callback=confirmation_callback,
+            timeout=tool_args.get("timeout", RUN_COMMAND_TIMEOUT),
+        )
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})

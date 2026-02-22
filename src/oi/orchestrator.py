@@ -13,6 +13,7 @@ import json
 import yaml
 from pathlib import Path
 from datetime import datetime
+from typing import Callable
 
 from .llm import chat_with_tools, DEFAULT_MODEL
 from .prompts import load_prompt
@@ -161,11 +162,19 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
             parts.append(f"--- Switched to effort: {result['effort_id']} ---")
         elif tool_name == "reopen_effort":
             parts.append(f"--- Reopened effort: {result['effort_id']} ---")
+        elif tool_name == "read_file":
+            path = result.get("path", "")
+            size = result.get("size", 0)
+            truncated = " (truncated)" if result.get("truncated") else ""
+            parts.append(f"--- Read file: {path} ({size} chars{truncated}) ---")
+        elif tool_name == "run_command":
+            exit_code = result.get("exit_code", "?")
+            parts.append(f"--- Command exited: {exit_code} ---")
 
     return "\n".join(parts)
 
 
-def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODEL) -> str:
+def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODEL, confirmation_callback: Callable[[str], bool] | None = None) -> str:
     """Process a single conversation turn.
 
     Returns the assistant's final response text.
@@ -199,7 +208,7 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
             tool_name = tool_call.function.name
             tool_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
 
-            tool_result = execute_tool(session_dir, tool_name, tool_args, model)
+            tool_result = execute_tool(session_dir, tool_name, tool_args, model, confirmation_callback=confirmation_callback)
             tools_fired.append((tool_name, tool_args, tool_result))
 
             messages.append({

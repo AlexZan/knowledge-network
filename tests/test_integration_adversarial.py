@@ -7,6 +7,7 @@ Run: python -m pytest tests/test_integration_adversarial.py -v -s
 import json
 import pytest
 from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 from oi.orchestrator import process_turn
 from oi.tools import get_active_effort, get_all_open_efforts
@@ -115,18 +116,50 @@ class TestSubTopicEdgeCases:
         # Active should still be the original
         assert get_active_effort(session_dir)["id"] == effort_id
 
-    def test_new_unrelated_effort_request_during_effort(self, session_dir):
-        """'Actually let's work on something else' — should open a new effort."""
+    @patch("oi.orchestrator.chat_with_tools")
+    def test_new_unrelated_effort_request_during_effort(self, mock_chat, session_dir):
+        """'Actually let's work on something else' — should open a new effort, not close the first.
+
+        Converted to mock: the invariant is that open_effort keeps existing efforts open
+        (backgrounded). This is orchestrator logic, not LLM judgment.
+        """
+        def _msg(content, tool_calls=None):
+            m = MagicMock()
+            m.content = content
+            m.tool_calls = tool_calls
+            return m
+
+        def _tc(name, args, call_id="call_1"):
+            tc = MagicMock()
+            tc.function.name = name
+            tc.function.arguments = json.dumps(args)
+            tc.id = call_id
+            return tc
+
+        # Turn 1: LLM opens vacation effort
+        mock_chat.side_effect = [
+            _msg(None, tool_calls=[_tc("open_effort", {"name": "vacation-japan"}, "c1")]),
+            _msg("Great! Let's plan your trip to Japan."),
+        ]
         process_turn(session_dir, "Help me plan my vacation to Japan")
         first_id = get_active_effort(session_dir)["id"]
+        assert first_id == "vacation-japan"
 
+        # Turn 2: LLM opens resume effort (should NOT close vacation first)
+        mock_chat.side_effect = [
+            _msg(None, tool_calls=[_tc("open_effort", {"name": "resume-prep"}, "c2")]),
+            _msg("Sure, let's work on your resume for the interview."),
+        ]
         process_turn(session_dir, "Actually, let's work on my resume instead — I have a job interview next week")
+
         active = get_active_effort(session_dir)
         assert active is not None
-        # Should be a DIFFERENT effort
-        assert active["id"] != first_id, (
-            f"Unrelated 'let's work on' should open new effort. Still on: {active['id']}"
+        assert active["id"] == "resume-prep", (
+            f"Resume effort should be active. Got: {active['id']}"
         )
         # Original should still be open (backgrounded)
         all_open = get_all_open_efforts(session_dir)
         assert len(all_open) == 2, f"Both efforts should be open. Got: {[e['id'] for e in all_open]}"
+        ids = {e["id"] for e in all_open}
+        assert "vacation-japan" in ids, "Vacation effort should still be open (backgrounded)"
+        assert "resume-prep" in ids

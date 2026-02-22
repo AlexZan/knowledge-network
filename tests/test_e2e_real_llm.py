@@ -899,3 +899,46 @@ class TestCrossSessionE2E:
             "Session marker should appear in ambient window"
         )
         print(f"\nSession marker visible in context")
+
+
+@requires_llm
+class TestToolUseE2E:
+    """Slice 7a: Verify read_file and run_command work end-to-end with real LLM."""
+
+    def test_llm_reads_file(self, tmp_path):
+        """User asks to read a file → LLM calls read_file → discusses content."""
+        session_dir = tmp_path / "session"
+
+        # Create a file for the LLM to read
+        target = tmp_path / "sample.txt"
+        target.write_text("This file contains the secret word BANANA-99.", encoding="utf-8")
+
+        response = process_turn(
+            session_dir,
+            f"Please read the file at {target} and tell me what the secret word is.",
+            model=MODEL,
+        )
+
+        assert "BANANA" in response or "banana" in response.lower(), (
+            f"LLM should have read the file and found the secret word. Response: {response[:300]}"
+        )
+        print(f"\nLLM read file response: {response[:200]}")
+
+    def test_llm_runs_command(self, tmp_path):
+        """User asks to run a command → LLM calls run_command → discusses output."""
+        session_dir = tmp_path / "session"
+
+        # Auto-approve all commands for E2E test
+        approve_all = lambda cmd: True
+
+        response = process_turn(
+            session_dir,
+            "Run the command: echo E2E_TEST_MARKER",
+            model=MODEL,
+            confirmation_callback=approve_all,
+        )
+
+        assert "E2E_TEST_MARKER" in response, (
+            f"LLM should have run the command and shown the output. Response: {response[:300]}"
+        )
+        print(f"\nLLM run_command response: {response[:200]}")

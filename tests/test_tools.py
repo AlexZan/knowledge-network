@@ -8,7 +8,8 @@ from oi.tools import (
     open_effort, close_effort, effort_status,
     get_open_effort, get_active_effort, get_all_open_efforts,
     expand_effort, collapse_effort, switch_effort, search_efforts,
-    reopen_effort,
+    reopen_effort, read_file, run_command, execute_tool,
+    READ_FILE_MAX_CHARS, RUN_COMMAND_MAX_CHARS,
 )
 from oi.state import (
     _load_expanded, _save_expanded, _load_expanded_state,
@@ -549,3 +550,112 @@ class TestStartupDisplay:
         assert "Session #1" in output
         assert "open effort" not in output
         assert "concluded" not in output
+
+
+# === Slice 7a: read_file tests ===
+
+class TestReadFile:
+    def test_read_existing_file(self, tmp_path):
+        """read_file returns content, path, and size for an existing file."""
+        f = tmp_path / "hello.txt"
+        f.write_text("Hello, world!", encoding="utf-8")
+
+        result = json.loads(read_file(str(f)))
+        assert result["content"] == "Hello, world!"
+        assert result["size"] == 13
+        assert "error" not in result
+        assert "truncated" not in result
+
+    def test_read_nonexistent_file(self, tmp_path):
+        """read_file returns error for a nonexistent file."""
+        result = json.loads(read_file(str(tmp_path / "nope.txt")))
+        assert "error" in result
+        assert "not found" in result["error"].lower()
+
+    def test_read_large_file_truncated(self, tmp_path):
+        """read_file truncates content beyond READ_FILE_MAX_CHARS."""
+        f = tmp_path / "big.txt"
+        content = "x" * (READ_FILE_MAX_CHARS + 500)
+        f.write_text(content, encoding="utf-8")
+
+        result = json.loads(read_file(str(f)))
+        assert len(result["content"]) == READ_FILE_MAX_CHARS
+        assert result["truncated"] is True
+        assert result["size"] == READ_FILE_MAX_CHARS + 500
+
+    def test_read_file_resolves_path(self, tmp_path, monkeypatch):
+        """read_file resolves relative paths against CWD."""
+        f = tmp_path / "data.txt"
+        f.write_text("data", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        result = json.loads(read_file("data.txt"))
+        assert result["content"] == "data"
+
+    def test_read_file_via_execute_tool(self, tmp_path, session_dir):
+        """read_file is dispatched correctly through execute_tool."""
+        f = tmp_path / "test.txt"
+        f.write_text("via dispatch", encoding="utf-8")
+
+        result = json.loads(execute_tool(session_dir, "read_file", {"path": str(f)}))
+        assert result["content"] == "via dispatch"
+
+
+# === Slice 7a: run_command tests ===
+
+class TestRunCommand:
+    def test_run_simple_command(self):
+        """run_command returns stdout for a simple command."""
+        result = json.loads(run_command("echo hello"))
+        assert "hello" in result["stdout"]
+        assert result["exit_code"] == 0
+
+    def test_run_failing_command(self):
+        """run_command returns stderr and non-zero exit code for failing commands."""
+        result = json.loads(run_command("python -c \"import sys; print('err', file=sys.stderr); sys.exit(1)\""))
+        assert result["exit_code"] == 1
+        assert "err" in result["stderr"]
+
+    def test_run_command_timeout(self):
+        """run_command returns error on timeout."""
+        result = json.loads(run_command("python -c \"import time; time.sleep(10)\"", timeout=1))
+        assert "error" in result
+        assert "timed out" in result["error"].lower()
+
+    def test_run_command_confirmation_denied(self):
+        """run_command returns error when user denies confirmation."""
+        deny_callback = lambda cmd: False
+        result = json.loads(run_command("echo hello", confirmation_callback=deny_callback))
+        assert "error" in result
+        assert "denied" in result["error"].lower()
+
+    def test_run_command_confirmation_approved(self):
+        """run_command executes when user approves confirmation."""
+        approve_callback = lambda cmd: True
+        result = json.loads(run_command("echo approved", confirmation_callback=approve_callback))
+        assert "approved" in result["stdout"]
+        assert result["exit_code"] == 0
+
+    def test_run_command_no_callback_executes(self):
+        """run_command executes without confirmation when no callback provided."""
+        result = json.loads(run_command("echo no-callback"))
+        assert "no-callback" in result["stdout"]
+
+    def test_run_command_truncates_long_output(self):
+        """run_command truncates stdout beyond RUN_COMMAND_MAX_CHARS."""
+        # Generate output longer than the limit
+        result = json.loads(run_command(
+            f"python -c \"print('x' * {RUN_COMMAND_MAX_CHARS + 500})\""
+        ))
+        assert len(result["stdout"]) <= RUN_COMMAND_MAX_CHARS + 1  # +1 for trailing newline before truncation
+        assert result.get("stdout_truncated") is True
+
+    def test_run_command_via_execute_tool(self, session_dir):
+        """run_command is dispatched correctly through execute_tool with callback."""
+        approve = lambda cmd: True
+        result = json.loads(execute_tool(
+            session_dir, "run_command",
+            {"command": "echo dispatch-test"},
+            confirmation_callback=approve,
+        ))
+        assert "dispatch-test" in result["stdout"]
