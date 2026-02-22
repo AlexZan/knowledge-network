@@ -106,6 +106,14 @@ def increment_turn(session_dir: Path) -> int:
     return state["turn_count"]
 
 
+def increment_session_count(session_dir: Path) -> int:
+    """Increment the session count (number of CLI launches). Returns the new count."""
+    state = _load_session_state(session_dir)
+    state["session_count"] = state.get("session_count", 0) + 1
+    _save_session_state(session_dir, state)
+    return state["session_count"]
+
+
 # === Summary reference tracking (for summary eviction) ===
 
 def _load_summary_references(session_dir: Path) -> dict[str, int]:

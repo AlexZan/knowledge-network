@@ -821,3 +821,81 @@ class TestReopenE2E:
             f"api-design should not be in expanded set after reopen. Expanded: {expanded}"
         )
         print(f"Transitioned from expanded (read-only) to open (active). Expanded set: {expanded}")
+
+
+@requires_llm
+class TestCrossSessionE2E:
+    """Slice 6: Verify cross-session persistence works end-to-end with real LLM."""
+
+    def test_effort_survives_restart(self, tmp_path):
+        """Create effort in session 1, simulate restart, LLM sees the effort."""
+        session_dir = tmp_path / "session"
+
+        # Session 1: open an effort and work on it
+        process_turn(
+            session_dir,
+            "Let's debug the memory leak in the worker pool",
+            model=MODEL
+        )
+        active = get_active_effort(session_dir)
+        assert active is not None
+        effort_id = active["id"]
+        print(f"\nSession 1: opened effort '{effort_id}'")
+
+        process_turn(
+            session_dir,
+            "The pool spawns threads but never joins them on shutdown",
+            model=MODEL
+        )
+
+        # Simulate restart: append session marker (like CLI does on launch)
+        from oi.cli import _append_session_marker
+        from oi.state import increment_session_count
+        _append_session_marker(session_dir)
+        session_num = increment_session_count(session_dir)
+        print(f"Simulated restart (session #{session_num})")
+
+        # Session 2: verify the effort is still active
+        active = get_active_effort(session_dir)
+        assert active is not None and active["id"] == effort_id, (
+            f"Effort should survive restart. Active: {active}"
+        )
+
+        # Ask LLM about it — should know about the memory leak topic
+        response = process_turn(
+            session_dir,
+            "What were we working on?",
+            model=MODEL
+        )
+        response_lower = response.lower()
+        has_context = (
+            "memory" in response_lower
+            or "leak" in response_lower
+            or "worker" in response_lower
+            or "pool" in response_lower
+            or "thread" in response_lower
+        )
+        assert has_context, (
+            f"LLM should recall effort context after restart. Response: {response[:300]}"
+        )
+        print(f"LLM recalls context: {response[:200]}")
+
+    def test_session_marker_in_ambient_window(self, tmp_path):
+        """Session marker appears in ambient window so LLM sees session boundary."""
+        session_dir = tmp_path / "session"
+
+        # Session 1: ambient conversation
+        process_turn(session_dir, "Hello, how are you?", model=MODEL)
+
+        # Simulate restart
+        from oi.cli import _append_session_marker
+        _append_session_marker(session_dir)
+
+        # Session 2: the marker should be visible in _build_messages
+        from oi.orchestrator import _build_messages
+        messages = _build_messages(session_dir)
+        all_content = " ".join(m["content"] for m in messages)
+        assert "New session started" in all_content, (
+            "Session marker should appear in ambient window"
+        )
+        print(f"\nSession marker visible in context")

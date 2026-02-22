@@ -76,6 +76,11 @@ When no effort is open:
 - Respond normally to whatever the user asks
 - Only call open_effort if they signal starting focused work
 
+## Session Persistence
+Efforts persist across sessions. When the user returns, open efforts are still open
+and concluded efforts are still searchable. If you see "--- New session started ---"
+in the conversation, the user has returned after ending a previous session.
+
 ## Important
 - When opening a new effort while one is already open, the new one becomes active
 - When in doubt, just respond to the user's message without calling any tools

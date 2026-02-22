@@ -13,7 +13,9 @@ from oi.tools import (
 from oi.state import (
     _load_expanded, _save_expanded, _load_expanded_state,
     _load_session_state, _save_session_state, increment_turn,
+    increment_session_count, _load_manifest,
 )
+from oi.cli import _append_session_marker, _show_startup
 
 
 @pytest.fixture
@@ -420,3 +422,130 @@ class TestReopenEffort:
 
         assert result["status"] == "concluded"
         assert "retry logic" in result["summary"]
+
+
+# === Slice 6: Cross-session persistence tests ===
+
+class TestSessionMarker:
+    def test_session_marker_appended_to_raw(self, session_dir):
+        """Session marker is appended to raw.jsonl on startup."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _append_session_marker(session_dir)
+
+        raw_file = session_dir / "raw.jsonl"
+        assert raw_file.exists()
+        lines = raw_file.read_text(encoding="utf-8").strip().split("\n")
+        marker = json.loads(lines[-1])
+        assert marker["role"] == "system"
+        assert "New session started" in marker["content"]
+        assert "ts" in marker
+
+    def test_multiple_session_markers(self, session_dir):
+        """Multiple launches append multiple markers."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _append_session_marker(session_dir)
+        _append_session_marker(session_dir)
+
+        raw_file = session_dir / "raw.jsonl"
+        lines = raw_file.read_text(encoding="utf-8").strip().split("\n")
+        assert len(lines) == 2
+        for line in lines:
+            entry = json.loads(line)
+            assert entry["role"] == "system"
+            assert "New session started" in entry["content"]
+
+
+class TestSessionCount:
+    def test_session_count_increments(self, session_dir):
+        """Session count increments across restarts."""
+        assert increment_session_count(session_dir) == 1
+        assert increment_session_count(session_dir) == 2
+        assert increment_session_count(session_dir) == 3
+
+        state = _load_session_state(session_dir)
+        assert state["session_count"] == 3
+
+    def test_session_count_independent_of_turn(self, session_dir):
+        """Session count and turn count are independent."""
+        increment_turn(session_dir)
+        increment_turn(session_dir)
+        assert increment_session_count(session_dir) == 1
+
+        state = _load_session_state(session_dir)
+        assert state["turn_count"] == 2
+        assert state["session_count"] == 1
+
+
+class TestCrossSessionPersistence:
+    def test_efforts_persist_across_sessions(self, session_dir):
+        """Efforts created in one session are visible after reload."""
+        open_effort(session_dir, "my-task")
+        effort = get_open_effort(session_dir)
+        assert effort is not None
+        assert effort["id"] == "my-task"
+
+        # Simulate restart: reload manifest from same dir
+        manifest = _load_manifest(session_dir)
+        open_efforts = [e for e in manifest.get("efforts", []) if e.get("status") == "open"]
+        assert len(open_efforts) == 1
+        assert open_efforts[0]["id"] == "my-task"
+
+    def test_concluded_efforts_persist(self, session_dir):
+        """Concluded efforts with summaries persist across sessions."""
+        setup_concluded_effort(session_dir, "old-bug", "Fixed the old bug.")
+
+        manifest = _load_manifest(session_dir)
+        concluded = [e for e in manifest.get("efforts", []) if e.get("status") == "concluded"]
+        assert len(concluded) == 1
+        assert concluded[0]["summary"] == "Fixed the old bug."
+
+    def test_turn_counter_persists(self, session_dir):
+        """Turn counter survives across sessions."""
+        increment_turn(session_dir)
+        increment_turn(session_dir)
+        increment_turn(session_dir)
+
+        # Simulate restart: reload from same dir
+        state = _load_session_state(session_dir)
+        assert state["turn_count"] == 3
+
+        # Continue counting
+        assert increment_turn(session_dir) == 4
+
+
+class TestStartupDisplay:
+    def test_startup_shows_project_and_session(self, session_dir, capsys):
+        """Startup display shows project name and session number."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _show_startup(session_dir, "physics", 4)
+        output = capsys.readouterr().out
+        assert "Project: physics" in output
+        assert "Session #4" in output
+
+    def test_startup_shows_open_efforts(self, session_dir, capsys):
+        """Startup display lists open efforts."""
+        open_effort(session_dir, "quantum")
+        open_effort(session_dir, "gravity")
+        _show_startup(session_dir, "physics", 1)
+        output = capsys.readouterr().out
+        assert "2 open effort(s)" in output
+        assert "quantum" in output
+        assert "gravity" in output
+
+    def test_startup_shows_concluded_count(self, session_dir, capsys):
+        """Startup display shows concluded effort count."""
+        setup_concluded_effort(session_dir, "old-a", "Done A")
+        setup_concluded_effort(session_dir, "old-b", "Done B")
+        _show_startup(session_dir, "default", 1)
+        output = capsys.readouterr().out
+        assert "2 concluded effort(s) searchable" in output
+
+    def test_startup_empty_session(self, session_dir, capsys):
+        """Startup display works with empty session."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _show_startup(session_dir, "default", 1)
+        output = capsys.readouterr().out
+        assert "Project: default" in output
+        assert "Session #1" in output
+        assert "open effort" not in output
+        assert "concluded" not in output
