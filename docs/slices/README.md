@@ -2,11 +2,11 @@
 
 Building a general-purpose AI system with persistent memory, tool use, and knowledge accumulation.
 
-CCM whitepaper published (Slices 1-4). Now focused on product development.
+CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network vision ([thesis.md](../thesis.md)).
 
 ---
 
-## Completed (CCM Foundation)
+## Completed
 
 | Slice | Name | What it does | Spec |
 |-------|------|-------------|------|
@@ -14,87 +14,83 @@ CCM whitepaper published (Slices 1-4). Now focused on product development.
 | 2 | Expansion & Multi-Effort | Concluded efforts recallable on demand. Multiple simultaneous efforts. | [02-expansion-multi-effort.md](02-expansion-multi-effort.md) |
 | 3 | Salience Decay | Expanded efforts auto-collapse when no longer referenced. | [03-salience-decay.md](03-salience-decay.md) |
 | 4 | Bounded Working Context | Summary eviction, ambient windowing, `search_efforts`. O(1) working memory. | [04-bounded-working-context.md](04-bounded-working-context.md) |
+| 5 | Effort Reopening | Concluded efforts can be reopened and extended. Re-conclusion updates summary. | [05-effort-reopening.md](05-effort-reopening.md) |
+| 6 | Cross-Session Persistence | Per-project sessions, session markers, efforts survive restarts. | — |
+| 7 | Tool Use | `read_file`, `write_file`, `append_file`, `run_command`. Confirmation callback system. | — |
+
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slice 8 builds the knowledge graph — the core vision.
 
 ---
 
-## Next: Slice 5 — Effort Reopening
+## Architectural Decisions for Slice 8
 
-Completes the effort lifecycle. Concluded efforts can be reopened and extended, not just viewed.
-
-- `reopen_effort` tool: flip concluded → open, preserve raw log, append new messages
-- Ambiguous match detection: search concluded efforts when user starts a related topic
-- LLM asks user: reopen or start new? (only when ambiguous)
-- Re-conclusion updates summary to cover full extended conversation
-
-**Spec**: [05-effort-reopening.md](05-effort-reopening.md)
+- [Decision 010: ONE CHAT](../decisions/010-one-chat-no-projects.md) — No projects, no sessions. One global knowledge space. User launches `oi` and talks.
+- [Decision 011: Efforts Are KG Nodes](../decisions/011-efforts-are-kg-nodes.md) — Everything is a node in the knowledge graph. Efforts are one node type. Every node has a summary (in context) and raw log (expandable). Schema + tools + instructions per type.
 
 ---
 
-## Future Slices
+## Next: Slice 8 — Knowledge Graph
 
-### Slice 6: Cross-Session Persistence
+The knowledge graph is the single persistent layer. Every node has a summary (compacted knowledge in context) and a raw log (source conversation, expandable on demand). This is CCM generalized beyond efforts.
 
-Efforts and summaries survive between sessions. The bridge from single-session CCM to persistent knowledge.
+Ordered to prove the thesis early: 8a builds the foundation, 8b proves confidence and conflict resolution work before investing in convenience features.
 
-- Manifest and raw logs persist across CLI launches
-- Session linking: resume efforts from previous sessions
-- Manifest merging when sessions overlap
+### Sub-slices
 
-### Slice 7: Tool Use
+| Slice | Name | Thesis | What it does |
+|-------|------|--------|-------------|
+| 8a | Graph Foundation | 2 | ONE CHAT CLI. Common node base (summary + raw log). Graph store. `fact` node type. `add_knowledge` tool. Basic edges (support, contradiction). |
+| 8b | Conflict + Confidence | 4, 5 | Contradiction detection. Truth vs preference classification. Confidence from topology (inbound support, failed contradictions, independent convergence). |
+| 8c | Schema System + Types | 2 | YAML schema definitions. Effort migration to graph store. `preference`, `decision` node types. `query_knowledge` tool. Generic expand/collapse for all types. |
+| 8d | Abstraction + Privacy | 3 | `principle` node type. Auto-generalization from multiple related nodes. Privacy gradient (raw → contextual → principle → universal). Schema-detection agent. |
 
-The system becomes an agent — can act on the world, not just talk. Likely multiple sub-slices.
+### Dependencies
 
-- Bash execution, file system access
-- RAG / document ingestion
-- Search (web, codebase, knowledge base)
-- Error recovery, permissions, output capture
+```
+8a: Graph Foundation (nodes + edges)
+ ↓
+8b: Conflict + Confidence (proves the thesis)
+ ↓
+8c: Schema System + Types (convenience, more node types)
+ ↓
+8d: Abstraction + Privacy (highest-level knowledge)
+```
 
-**Phase boundary**: Slices 1-6 are a memory system. Slice 7 makes it an agent. Different architectural concerns.
+### Scenarios
 
-### Slice 8: Knowledge Graph
+See [08-knowledge-graph-scenarios.md](08-knowledge-graph-scenarios.md) — narrative walkthroughs of the full Slice 8 user experience. Written before the 010/011 architectural decisions; will be updated per sub-slice.
 
-Cross-session knowledge accumulation. The core of the Knowledge Network vision. Future KN whitepaper.
+---
 
-- Conclusion nodes with typed connections (support, contradiction, generalization)
-- Cross-session link detection
-- Confidence from network topology
-- Abstraction hierarchy and privacy gradient
-
-See [thesis.md](../thesis.md) for the full KN vision (Theses 2-5).
+## Future
 
 ### Slice 9: Workflow Integration
 
-Workflows (like TDD pipeline) become tools the system can invoke. Future workflow whitepaper.
+Workflows (like TDD pipeline) become tools the system can invoke.
 
 - oi-pipe as a subsystem, not a separate project
 - Workflow orchestration through tool calls
-- Reassess priority after Slice 7 (tool use)
+- Reassess priority after Slice 8
 
 ---
 
-## Dependencies
+## Icebox
 
-```
-Slices 1-4: CCM Foundation (done)
-    ↓
-Slice 5: Effort Reopening (completes lifecycle)
-    ↓
-Slice 6: Cross-Session Persistence (memory survives)
-    ↓
-Slice 7: Tool Use (system becomes agent)
-    ↓
-  ┌─────┴─────┐
-  ↓           ↓
-Slice 8     Slice 9
-Knowledge   Workflow
-Graph       Integration
-(KN paper)  (WF paper)
-```
+Capabilities that may be valuable but aren't blocking the core vision. Revisit as needed.
+
+- **RAG / document ingestion** — Ingest external documents into knowledge graph
+- **Web search tool** — Dedicated web search beyond `run_command` + `curl`
+- **Codebase search tool** — Structured grep/find with semantic output
+- **Tool error recovery** — Retry logic, better error classification
+- **Model ladder** — Escalation from cheap → expensive models per task
+- **Dashboard** — Visual entry point to the knowledge graph (brainstorm: `docs/brainstorm/sessions-and-dashboard.md`)
+- **Schema-detection agent** — Auto-propose new node types from conversation patterns (could move earlier)
 
 ---
 
 ## Related Documents
 
-- [CCM Whitepaper](../ccm-whitepaper.md) — Published
+- [CCM Whitepaper](../ccm-whitepaper.md) — Published (Slices 1-4)
 - [Thesis](../thesis.md) — Knowledge Network vision (Theses 2-5)
 - [Technical Reference](../PROJECT.md) — Architecture (needs update)
+- [Scenarios](08-knowledge-graph-scenarios.md) — Slice 8 UX walkthroughs
