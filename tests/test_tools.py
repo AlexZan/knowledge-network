@@ -8,7 +8,8 @@ from oi.tools import (
     open_effort, close_effort, effort_status,
     get_open_effort, get_active_effort, get_all_open_efforts,
     expand_effort, collapse_effort, switch_effort, search_efforts,
-    reopen_effort, read_file, run_command, execute_tool,
+    reopen_effort, read_file, run_command, write_file, append_file,
+    execute_tool,
     READ_FILE_MAX_CHARS, RUN_COMMAND_MAX_CHARS,
 )
 from oi.state import (
@@ -659,3 +660,142 @@ class TestRunCommand:
             confirmation_callback=approve,
         ))
         assert "dispatch-test" in result["stdout"]
+
+
+# === Slice 7b: write_file tests ===
+
+class TestWriteFile:
+    def test_write_new_file(self, tmp_path):
+        """write_file creates a new file and returns status/path/size."""
+        target = tmp_path / "hello.txt"
+        approve = lambda desc: True
+        result = json.loads(write_file(str(target), "Hello World", confirmation_callback=approve))
+        assert result["status"] == "written"
+        assert result["size"] == 11
+        assert target.read_text(encoding="utf-8") == "Hello World"
+
+    def test_write_overwrites_existing(self, tmp_path):
+        """write_file replaces existing file content."""
+        target = tmp_path / "data.txt"
+        target.write_text("old content", encoding="utf-8")
+        approve = lambda desc: True
+        result = json.loads(write_file(str(target), "new content", confirmation_callback=approve))
+        assert result["status"] == "written"
+        assert result["size"] == 11
+        assert target.read_text(encoding="utf-8") == "new content"
+
+    def test_write_creates_parent_dirs(self, tmp_path):
+        """write_file creates parent directories if they don't exist."""
+        target = tmp_path / "a" / "b" / "c" / "deep.txt"
+        approve = lambda desc: True
+        result = json.loads(write_file(str(target), "deep", confirmation_callback=approve))
+        assert result["status"] == "written"
+        assert target.read_text(encoding="utf-8") == "deep"
+
+    def test_write_confirmation_denied(self, tmp_path):
+        """write_file returns error when callback returns False."""
+        target = tmp_path / "denied.txt"
+        deny = lambda desc: False
+        result = json.loads(write_file(str(target), "content", confirmation_callback=deny))
+        assert "error" in result
+        assert "denied" in result["error"].lower()
+        assert not target.exists()
+
+    def test_write_confirmation_message_new_file(self, tmp_path):
+        """Confirmation message for a new file includes 'Write' and char count."""
+        target = tmp_path / "new.txt"
+        captured = {}
+        def capture(desc):
+            captured["desc"] = desc
+            return True
+        write_file(str(target), "hello", confirmation_callback=capture)
+        assert "Write:" in captured["desc"]
+        assert "new file" in captured["desc"]
+        assert "5 chars" in captured["desc"]
+
+    def test_write_confirmation_message_overwrite(self, tmp_path):
+        """Confirmation message for overwrite includes old and new sizes."""
+        target = tmp_path / "exist.txt"
+        target.write_text("short", encoding="utf-8")
+        captured = {}
+        def capture(desc):
+            captured["desc"] = desc
+            return True
+        write_file(str(target), "much longer content here", confirmation_callback=capture)
+        assert "Overwrite:" in captured["desc"]
+        assert "existing" in captured["desc"]
+
+    def test_write_via_execute_tool(self, tmp_path, session_dir):
+        """write_file is dispatched correctly through execute_tool."""
+        target = tmp_path / "dispatch.txt"
+        approve = lambda desc: True
+        result = json.loads(execute_tool(
+            session_dir, "write_file",
+            {"path": str(target), "content": "via dispatch"},
+            confirmation_callback=approve,
+        ))
+        assert result["status"] == "written"
+        assert target.read_text(encoding="utf-8") == "via dispatch"
+
+
+# === Slice 7b: append_file tests ===
+
+class TestAppendFile:
+    def test_append_to_existing_file(self, tmp_path):
+        """append_file adds content without replacing, returns total size."""
+        target = tmp_path / "log.txt"
+        target.write_text("line1\n", encoding="utf-8")
+        approve = lambda desc: True
+        result = json.loads(append_file(str(target), "line2\n", confirmation_callback=approve))
+        assert result["status"] == "appended"
+        assert target.read_text(encoding="utf-8") == "line1\nline2\n"
+        assert result["size"] == target.stat().st_size
+
+    def test_append_creates_file_if_missing(self, tmp_path):
+        """append_file creates new file when appending to nonexistent path."""
+        target = tmp_path / "new_log.txt"
+        approve = lambda desc: True
+        result = json.loads(append_file(str(target), "first entry\n", confirmation_callback=approve))
+        assert result["status"] == "appended"
+        assert target.read_text(encoding="utf-8") == "first entry\n"
+
+    def test_append_creates_parent_dirs(self, tmp_path):
+        """append_file creates parent directories if needed."""
+        target = tmp_path / "deep" / "nested" / "log.txt"
+        approve = lambda desc: True
+        result = json.loads(append_file(str(target), "entry\n", confirmation_callback=approve))
+        assert result["status"] == "appended"
+        assert target.read_text(encoding="utf-8") == "entry\n"
+
+    def test_append_confirmation_denied(self, tmp_path):
+        """append_file returns error when callback returns False."""
+        target = tmp_path / "denied.txt"
+        deny = lambda desc: False
+        result = json.loads(append_file(str(target), "content", confirmation_callback=deny))
+        assert "error" in result
+        assert "denied" in result["error"].lower()
+        assert not target.exists()
+
+    def test_append_confirmation_message(self, tmp_path):
+        """Confirmation message includes 'Append' and char count."""
+        target = tmp_path / "log.txt"
+        captured = {}
+        def capture(desc):
+            captured["desc"] = desc
+            return True
+        append_file(str(target), "12345", confirmation_callback=capture)
+        assert "Append:" in captured["desc"]
+        assert "+5 chars" in captured["desc"]
+
+    def test_append_via_execute_tool(self, tmp_path, session_dir):
+        """append_file is dispatched correctly through execute_tool."""
+        target = tmp_path / "dispatch.txt"
+        target.write_text("existing\n", encoding="utf-8")
+        approve = lambda desc: True
+        result = json.loads(execute_tool(
+            session_dir, "append_file",
+            {"path": str(target), "content": "appended\n"},
+            confirmation_callback=approve,
+        ))
+        assert result["status"] == "appended"
+        assert target.read_text(encoding="utf-8") == "existing\nappended\n"

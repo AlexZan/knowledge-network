@@ -924,6 +924,31 @@ class TestToolUseE2E:
         )
         print(f"\nLLM read file response: {response[:200]}")
 
+    def test_llm_writes_file(self, tmp_path):
+        """User asks to create a file → LLM calls write_file → file exists with correct content."""
+        session_dir = tmp_path / "session"
+        target = tmp_path / "hello.txt"
+
+        # Auto-approve all actions for E2E test
+        approve_all = lambda desc: True
+
+        response = process_turn(
+            session_dir,
+            f"Create a file at {target} with the content 'Hello World'",
+            model=MODEL,
+            confirmation_callback=approve_all,
+        )
+
+        assert target.exists(), (
+            f"LLM should have created the file. Response: {response[:300]}"
+        )
+        content = target.read_text(encoding="utf-8")
+        assert "Hello World" in content, (
+            f"File should contain 'Hello World'. Got: {content[:200]}"
+        )
+        print(f"\nLLM write_file response: {response[:200]}")
+        print(f"File content: {content[:100]}")
+
     def test_llm_runs_command(self, tmp_path):
         """User asks to run a command → LLM calls run_command → discusses output."""
         session_dir = tmp_path / "session"

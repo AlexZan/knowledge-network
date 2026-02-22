@@ -1,6 +1,6 @@
 """Tool definitions and handlers for effort management and environment interaction.
 
-Ten LLM-callable tools:
+Twelve LLM-callable tools:
 - open_effort(name): Start tracking focused work (multiple can be open)
 - close_effort(id?): Conclude an effort with summary
 - effort_status(): Get status of all efforts
@@ -11,6 +11,8 @@ Ten LLM-callable tools:
 - search_efforts(query): Search past efforts by keyword
 - read_file(path): Read a file's contents from the local filesystem
 - run_command(command): Execute a shell command (requires user confirmation)
+- write_file(path, content): Create or overwrite a file (requires user confirmation)
+- append_file(path, content): Append content to a file (requires user confirmation)
 """
 
 import json
@@ -227,6 +229,54 @@ TOOL_DEFINITIONS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_file",
+            "description": (
+                "Create or overwrite a file. Use when the user asks to create, modify, "
+                "or save files. The user will be asked to confirm before writing."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to write (absolute or relative to CWD)"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The content to write to the file"
+                    }
+                },
+                "required": ["path", "content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "append_file",
+            "description": (
+                "Append content to a file. Use for adding to logs, notes, or existing "
+                "files without replacing their content. The user will be asked to confirm."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Path to the file to append to (absolute or relative to CWD)"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "The content to append to the file"
+                    }
+                },
+                "required": ["path", "content"]
+            }
+        }
+    },
 ]
 
 
@@ -234,6 +284,8 @@ TOOL_DEFINITIONS = [
 TOOL_REGISTRY = {
     "read_file": {"requires_confirmation": False},
     "run_command": {"requires_confirmation": True},
+    "write_file": {"requires_confirmation": True},
+    "append_file": {"requires_confirmation": True},
 }
 
 READ_FILE_MAX_CHARS = 10_000
@@ -635,6 +687,68 @@ def run_command(
         return json.dumps({"error": f"Error executing command: {e}"})
 
 
+def write_file(
+    path: str,
+    content: str,
+    confirmation_callback: Callable[[str], bool] | None = None,
+) -> str:
+    """Create or overwrite a file. Requires user confirmation via callback.
+
+    Creates parent directories if needed. Returns JSON with status, path, and size.
+    """
+    try:
+        filepath = Path(path).resolve()
+        is_new = not filepath.exists()
+        old_size = filepath.stat().st_size if not is_new else 0
+
+        # Build confirmation message
+        if is_new:
+            desc = f"Write: {filepath} (new file, {len(content)} chars)"
+        else:
+            desc = f"Overwrite: {filepath} (existing, {old_size} → {len(content)} chars)"
+
+        if confirmation_callback is not None:
+            if not confirmation_callback(desc):
+                return json.dumps({"error": "Write denied by user."})
+
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        filepath.write_text(content, encoding="utf-8")
+        return json.dumps({"status": "written", "path": str(filepath), "size": len(content)})
+    except PermissionError:
+        return json.dumps({"error": f"Permission denied: {path}"})
+    except Exception as e:
+        return json.dumps({"error": f"Error writing file: {e}"})
+
+
+def append_file(
+    path: str,
+    content: str,
+    confirmation_callback: Callable[[str], bool] | None = None,
+) -> str:
+    """Append content to a file. Requires user confirmation via callback.
+
+    Creates parent directories and file if needed. Returns JSON with status, path, and total size.
+    """
+    try:
+        filepath = Path(path).resolve()
+        desc = f"Append: {filepath} (+{len(content)} chars)"
+
+        if confirmation_callback is not None:
+            if not confirmation_callback(desc):
+                return json.dumps({"error": "Append denied by user."})
+
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        with open(filepath, "a", encoding="utf-8") as f:
+            f.write(content)
+
+        total_size = filepath.stat().st_size
+        return json.dumps({"status": "appended", "path": str(filepath), "size": total_size})
+    except PermissionError:
+        return json.dumps({"error": f"Permission denied: {path}"})
+    except Exception as e:
+        return json.dumps({"error": f"Error appending to file: {e}"})
+
+
 def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str = None, confirmation_callback: Callable[[str], bool] | None = None) -> str:
     """Execute a tool by name. Returns the tool result as a JSON string."""
     if tool_name == "open_effort":
@@ -660,6 +774,18 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
             tool_args["command"],
             confirmation_callback=confirmation_callback,
             timeout=tool_args.get("timeout", RUN_COMMAND_TIMEOUT),
+        )
+    elif tool_name == "write_file":
+        return write_file(
+            tool_args["path"],
+            tool_args["content"],
+            confirmation_callback=confirmation_callback,
+        )
+    elif tool_name == "append_file":
+        return append_file(
+            tool_args["path"],
+            tool_args["content"],
+            confirmation_callback=confirmation_callback,
         )
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})

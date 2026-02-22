@@ -170,6 +170,14 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
         elif tool_name == "run_command":
             exit_code = result.get("exit_code", "?")
             parts.append(f"--- Command exited: {exit_code} ---")
+        elif tool_name == "write_file":
+            path = result.get("path", "")
+            size = result.get("size", 0)
+            parts.append(f"--- Wrote file: {path} ({size} chars) ---")
+        elif tool_name == "append_file":
+            path = result.get("path", "")
+            size = result.get("size", 0)
+            parts.append(f"--- Appended to file: {path} ({size} chars total) ---")
 
     return "\n".join(parts)
 
