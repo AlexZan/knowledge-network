@@ -9,13 +9,14 @@ from oi.tools import (
     get_open_effort, get_active_effort, get_all_open_efforts,
     expand_effort, collapse_effort, switch_effort, search_efforts,
     reopen_effort, read_file, run_command, write_file, append_file,
-    execute_tool,
+    add_knowledge, execute_tool,
     READ_FILE_MAX_CHARS, RUN_COMMAND_MAX_CHARS,
 )
 from oi.state import (
     _load_expanded, _save_expanded, _load_expanded_state,
     _load_session_state, _save_session_state, increment_turn,
     increment_session_count, _load_manifest,
+    _load_knowledge, _save_knowledge,
 )
 from oi.cli import _append_session_marker, _show_startup
 
@@ -516,19 +517,11 @@ class TestCrossSessionPersistence:
 
 
 class TestStartupDisplay:
-    def test_startup_shows_project_and_session(self, session_dir, capsys):
-        """Startup display shows project name and session number."""
-        session_dir.mkdir(parents=True, exist_ok=True)
-        _show_startup(session_dir, "physics", 4)
-        output = capsys.readouterr().out
-        assert "Project: physics" in output
-        assert "Session #4" in output
-
     def test_startup_shows_open_efforts(self, session_dir, capsys):
         """Startup display lists open efforts."""
         open_effort(session_dir, "quantum")
         open_effort(session_dir, "gravity")
-        _show_startup(session_dir, "physics", 1)
+        _show_startup(session_dir)
         output = capsys.readouterr().out
         assert "2 open effort(s)" in output
         assert "quantum" in output
@@ -538,17 +531,15 @@ class TestStartupDisplay:
         """Startup display shows concluded effort count."""
         setup_concluded_effort(session_dir, "old-a", "Done A")
         setup_concluded_effort(session_dir, "old-b", "Done B")
-        _show_startup(session_dir, "default", 1)
+        _show_startup(session_dir)
         output = capsys.readouterr().out
         assert "2 concluded effort(s) searchable" in output
 
     def test_startup_empty_session(self, session_dir, capsys):
         """Startup display works with empty session."""
         session_dir.mkdir(parents=True, exist_ok=True)
-        _show_startup(session_dir, "default", 1)
+        _show_startup(session_dir)
         output = capsys.readouterr().out
-        assert "Project: default" in output
-        assert "Session #1" in output
         assert "open effort" not in output
         assert "concluded" not in output
 
@@ -799,3 +790,229 @@ class TestAppendFile:
         ))
         assert result["status"] == "appended"
         assert target.read_text(encoding="utf-8") == "existing\nappended\n"
+
+
+# === Slice 8a: Knowledge store tests ===
+
+class TestKnowledgeStore:
+    def test_load_empty_knowledge(self, session_dir):
+        """Loading from non-existent file returns empty structure."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        knowledge = _load_knowledge(session_dir)
+        assert knowledge == {"nodes": [], "edges": []}
+
+    def test_save_and_load_knowledge(self, session_dir):
+        """Round-trip save/load preserves data."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        knowledge = {
+            "nodes": [{"id": "fact-001", "type": "fact", "summary": "Test fact", "status": "active"}],
+            "edges": [],
+        }
+        _save_knowledge(session_dir, knowledge)
+        loaded = _load_knowledge(session_dir)
+        assert len(loaded["nodes"]) == 1
+        assert loaded["nodes"][0]["summary"] == "Test fact"
+
+    def test_add_knowledge_creates_node(self, session_dir):
+        """add_knowledge creates a fact node with correct fields."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        result = json.loads(add_knowledge(session_dir, "fact", "API uses JWT with RS256"))
+        assert result["status"] == "added"
+        assert result["node_id"] == "fact-001"
+        assert result["node_type"] == "fact"
+
+        knowledge = _load_knowledge(session_dir)
+        assert len(knowledge["nodes"]) == 1
+        node = knowledge["nodes"][0]
+        assert node["id"] == "fact-001"
+        assert node["type"] == "fact"
+        assert node["summary"] == "API uses JWT with RS256"
+        assert node["status"] == "active"
+        assert node["created"] is not None
+
+    def test_add_knowledge_auto_id(self, session_dir):
+        """Sequential IDs are generated per type."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        r1 = json.loads(add_knowledge(session_dir, "fact", "First fact"))
+        r2 = json.loads(add_knowledge(session_dir, "fact", "Second fact"))
+        r3 = json.loads(add_knowledge(session_dir, "preference", "Tabs over spaces"))
+        assert r1["node_id"] == "fact-001"
+        assert r2["node_id"] == "fact-002"
+        assert r3["node_id"] == "preference-001"
+
+    def test_add_knowledge_with_edges(self, session_dir):
+        """related_to creates edges in the knowledge graph."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT")
+        result = json.loads(add_knowledge(
+            session_dir, "fact", "JWT uses RS256 signing",
+            related_to=["fact-001"], edge_type="supports",
+        ))
+        assert result["node_id"] == "fact-002"
+
+        knowledge = _load_knowledge(session_dir)
+        assert len(knowledge["edges"]) == 1
+        edge = knowledge["edges"][0]
+        assert edge["source"] == "fact-002"
+        assert edge["target"] == "fact-001"
+        assert edge["type"] == "supports"
+
+    def test_add_knowledge_with_source(self, session_dir):
+        """Source field is stored on the node."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "decision", "Use PostgreSQL", source="db-selection effort")
+        knowledge = _load_knowledge(session_dir)
+        assert knowledge["nodes"][0]["source"] == "db-selection effort"
+
+    def test_add_knowledge_via_execute_tool(self, session_dir):
+        """add_knowledge dispatches correctly through execute_tool."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        result = json.loads(execute_tool(
+            session_dir, "add_knowledge",
+            {"node_type": "preference", "summary": "Dark mode preferred"},
+        ))
+        assert result["status"] == "added"
+        assert result["node_id"] == "preference-001"
+
+    def test_knowledge_in_context(self, session_dir):
+        """_build_messages includes knowledge section in system prompt."""
+        from oi.orchestrator import _build_messages
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT with RS256")
+        add_knowledge(session_dir, "preference", "Tabs over spaces")
+
+        messages = _build_messages(session_dir)
+        system_content = messages[0]["content"]
+        assert "Knowledge graph:" in system_content
+        assert "[fact] API uses JWT with RS256" in system_content
+        assert "[preference] Tabs over spaces" in system_content
+
+
+# === Slice 8b: Knowledge extraction tests ===
+
+class TestExtractKnowledgeLLM:
+    """Test extract_knowledge() with mocked LLM."""
+
+    def test_parses_valid_json(self):
+        """Valid JSON array from LLM is parsed correctly."""
+        from unittest.mock import patch
+        from oi.llm import extract_knowledge
+
+        mock_response = '[{"node_type": "fact", "summary": "Python uses GIL"}, {"node_type": "decision", "summary": "Use PostgreSQL for storage"}]'
+        with patch("oi.llm.chat", return_value=mock_response):
+            result = extract_knowledge("some effort content", "test-effort")
+        assert len(result) == 2
+        assert result[0] == {"node_type": "fact", "summary": "Python uses GIL"}
+        assert result[1] == {"node_type": "decision", "summary": "Use PostgreSQL for storage"}
+
+    def test_returns_empty_on_bad_json(self):
+        """Non-JSON response returns empty list."""
+        from unittest.mock import patch
+        from oi.llm import extract_knowledge
+
+        with patch("oi.llm.chat", return_value="I found some interesting facts..."):
+            result = extract_knowledge("content", "test-effort")
+        assert result == []
+
+    def test_strips_markdown_fences(self):
+        """JSON wrapped in markdown code fences is parsed correctly."""
+        from unittest.mock import patch
+        from oi.llm import extract_knowledge
+
+        mock_response = '```json\n[{"node_type": "fact", "summary": "Redis uses single thread"}]\n```'
+        with patch("oi.llm.chat", return_value=mock_response):
+            result = extract_knowledge("content", "test-effort")
+        assert len(result) == 1
+        assert result[0]["summary"] == "Redis uses single thread"
+
+    def test_filters_invalid_node_types(self):
+        """Invalid node_type values are filtered out, valid ones kept."""
+        from unittest.mock import patch
+        from oi.llm import extract_knowledge
+
+        mock_response = '[{"node_type": "solution", "summary": "bad type"}, {"node_type": "fact", "summary": "valid fact"}]'
+        with patch("oi.llm.chat", return_value=mock_response):
+            result = extract_knowledge("content", "test-effort")
+        assert len(result) == 1
+        assert result[0]["node_type"] == "fact"
+
+    def test_returns_empty_on_exception(self):
+        """LLM raising exception returns empty list."""
+        from unittest.mock import patch
+        from oi.llm import extract_knowledge
+
+        with patch("oi.llm.chat", side_effect=RuntimeError("API error")):
+            result = extract_knowledge("content", "test-effort")
+        assert result == []
+
+
+class TestCloseEffortKnowledgeExtraction:
+    """Test that close_effort integrates knowledge extraction."""
+
+    def test_close_effort_extracts_knowledge_nodes(self, session_dir):
+        """Extracted nodes are saved to knowledge.yaml with source=effort_id."""
+        from unittest.mock import patch
+
+        # Open effort and write substantial content
+        open_effort(session_dir, "db-design")
+        effort_file = session_dir / "efforts" / "db-design.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text(
+            json.dumps({"role": "user", "content": "We decided to use PostgreSQL for all persistent storage because it handles JSON well.", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "Good choice. PostgreSQL's JSONB type is great for semi-structured data.", "ts": "t2"}) + "\n",
+            encoding="utf-8",
+        )
+
+        mock_nodes = [{"node_type": "decision", "summary": "Use PostgreSQL for all persistent storage"}]
+        with patch("oi.llm.summarize_effort", return_value="Discussed database choice."):
+            with patch("oi.llm.extract_knowledge", return_value=mock_nodes):
+                result = json.loads(close_effort(session_dir, effort_id="db-design"))
+
+        assert result["status"] == "concluded"
+        assert len(result["knowledge_extracted"]) == 1
+        assert result["knowledge_extracted"][0]["node_type"] == "decision"
+        assert result["knowledge_extracted"][0]["summary"] == "Use PostgreSQL for all persistent storage"
+        assert "node_id" in result["knowledge_extracted"][0]
+
+        # Verify persisted to knowledge.yaml
+        knowledge = _load_knowledge(session_dir)
+        assert len(knowledge["nodes"]) == 1
+        assert knowledge["nodes"][0]["source"] == "db-design"
+
+    def test_close_effort_succeeds_when_extraction_returns_empty(self, session_dir):
+        """Close succeeds when extract_knowledge returns []."""
+        from unittest.mock import patch
+
+        open_effort(session_dir, "trivial")
+        effort_file = session_dir / "efforts" / "trivial.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text(
+            json.dumps({"role": "user", "content": "Just checking something quick about the API endpoint.", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "The endpoint is /api/v1/users.", "ts": "t2"}) + "\n",
+            encoding="utf-8",
+        )
+
+        with patch("oi.llm.summarize_effort", return_value="Quick API check."):
+            with patch("oi.llm.extract_knowledge", return_value=[]):
+                result = json.loads(close_effort(session_dir, effort_id="trivial"))
+
+        assert result["status"] == "concluded"
+        assert result["knowledge_extracted"] == []
+
+    def test_close_effort_skips_extraction_for_short_effort(self, session_dir):
+        """Short content skips both summarization and extraction."""
+        from unittest.mock import patch
+
+        open_effort(session_dir, "tiny")
+        effort_file = session_dir / "efforts" / "tiny.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text('{"role":"user","content":"hi","ts":"t1"}\n', encoding="utf-8")
+
+        with patch("oi.llm.summarize_effort") as mock_summarize:
+            with patch("oi.llm.extract_knowledge") as mock_extract:
+                result = json.loads(close_effort(session_dir, effort_id="tiny"))
+
+        assert result["status"] == "concluded"
+        assert result["knowledge_extracted"] == []
+        mock_summarize.assert_not_called()
+        mock_extract.assert_not_called()

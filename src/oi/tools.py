@@ -1,6 +1,6 @@
 """Tool definitions and handlers for effort management and environment interaction.
 
-Twelve LLM-callable tools:
+Thirteen LLM-callable tools:
 - open_effort(name): Start tracking focused work (multiple can be open)
 - close_effort(id?): Conclude an effort with summary
 - effort_status(): Get status of all efforts
@@ -13,6 +13,7 @@ Twelve LLM-callable tools:
 - run_command(command): Execute a shell command (requires user confirmation)
 - write_file(path, content): Create or overwrite a file (requires user confirmation)
 - append_file(path, content): Append content to a file (requires user confirmation)
+- add_knowledge(node_type, summary, ...): Add a fact/preference/decision to the knowledge graph
 """
 
 import json
@@ -25,6 +26,7 @@ from .state import (
     _load_manifest, _save_manifest,
     _load_expanded, _load_expanded_state, _save_expanded,
     _load_session_state, _save_session_state, increment_turn,
+    _load_knowledge, _save_knowledge,
 )
 
 
@@ -277,6 +279,47 @@ TOOL_DEFINITIONS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_knowledge",
+            "description": (
+                "Add a fact, preference, or decision to the knowledge graph. "
+                "Call when the user states something worth remembering permanently — "
+                "factual information, preferences, or decisions. "
+                "Do NOT capture transient details or in-progress discussion."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "node_type": {
+                        "type": "string",
+                        "enum": ["fact", "preference", "decision"],
+                        "description": "Type of knowledge node"
+                    },
+                    "summary": {
+                        "type": "string",
+                        "description": "Concise summary of the knowledge"
+                    },
+                    "source": {
+                        "type": "string",
+                        "description": "Where this knowledge came from (effort name, conversation context)"
+                    },
+                    "related_to": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "IDs of related existing nodes (optional)"
+                    },
+                    "edge_type": {
+                        "type": "string",
+                        "enum": ["supports", "contradicts"],
+                        "description": "Relationship type to related_to nodes (optional)"
+                    }
+                },
+                "required": ["node_type", "summary"]
+            }
+        }
+    },
 ]
 
 
@@ -286,6 +329,7 @@ TOOL_REGISTRY = {
     "run_command": {"requires_confirmation": True},
     "write_file": {"requires_confirmation": True},
     "append_file": {"requires_confirmation": True},
+    "add_knowledge": {"requires_confirmation": False},
 }
 
 READ_FILE_MAX_CHARS = 10_000
@@ -351,7 +395,7 @@ def open_effort(session_dir: Path, name: str) -> str:
 
 def close_effort(session_dir: Path, model: str = None, effort_id: str = None) -> str:
     """Close an effort. If effort_id is None, close the active effort. Returns JSON result."""
-    from .llm import summarize_effort as llm_summarize, DEFAULT_MODEL
+    from .llm import summarize_effort as llm_summarize, extract_knowledge as llm_extract_knowledge, DEFAULT_MODEL
 
     if effort_id:
         # Close specific effort by ID
@@ -377,11 +421,24 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None) ->
     if effort_file.exists():
         effort_content = effort_file.read_text(encoding="utf-8")
 
-    # Summarize via LLM
+    # Summarize via LLM and extract knowledge
     if len(effort_content.strip()) < 50:
         summary = f"Brief effort: {effort_id} (too short to summarize)"
+        extracted_nodes = []
     else:
         summary = llm_summarize(effort_content, model or DEFAULT_MODEL)
+        raw_extracted = llm_extract_knowledge(effort_content, effort_id, model or DEFAULT_MODEL)
+        extracted_nodes = []
+        for node in raw_extracted:
+            result = json.loads(add_knowledge(
+                session_dir, node["node_type"], node["summary"], source=effort_id,
+            ))
+            if result.get("status") == "added":
+                extracted_nodes.append({
+                    "node_id": result["node_id"],
+                    "node_type": result["node_type"],
+                    "summary": node["summary"],
+                })
 
     # Update manifest
     manifest = _load_manifest(session_dir)
@@ -407,7 +464,8 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None) ->
     return json.dumps({
         "status": "concluded",
         "effort_id": effort_id,
-        "summary": summary
+        "summary": summary,
+        "knowledge_extracted": extracted_nodes
     })
 
 
@@ -749,6 +807,49 @@ def append_file(
         return json.dumps({"error": f"Error appending to file: {e}"})
 
 
+def add_knowledge(
+    session_dir: Path,
+    node_type: str,
+    summary: str,
+    source: str = None,
+    related_to: list = None,
+    edge_type: str = "supports",
+) -> str:
+    """Add a fact, preference, or decision to the knowledge graph. Returns JSON result."""
+    knowledge = _load_knowledge(session_dir)
+
+    # Generate ID: type-NNN where NNN is max existing + 1
+    existing_ids = [n["id"] for n in knowledge["nodes"] if n["id"].startswith(f"{node_type}-")]
+    counter = len(existing_ids) + 1
+    node_id = f"{node_type}-{counter:03d}"
+    now = datetime.now().isoformat()
+
+    node = {
+        "id": node_id,
+        "type": node_type,
+        "summary": summary,
+        "raw_file": None,
+        "status": "active",
+        "source": source,
+        "created": now,
+        "updated": now,
+    }
+    knowledge["nodes"].append(node)
+
+    # Add edges if related_to provided
+    if related_to:
+        for target_id in related_to:
+            knowledge["edges"].append({
+                "source": node_id,
+                "target": target_id,
+                "type": edge_type,
+                "created": now,
+            })
+
+    _save_knowledge(session_dir, knowledge)
+    return json.dumps({"status": "added", "node_id": node_id, "node_type": node_type})
+
+
 def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str = None, confirmation_callback: Callable[[str], bool] | None = None) -> str:
     """Execute a tool by name. Returns the tool result as a JSON string."""
     if tool_name == "open_effort":
@@ -786,6 +887,15 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
             tool_args["path"],
             tool_args["content"],
             confirmation_callback=confirmation_callback,
+        )
+    elif tool_name == "add_knowledge":
+        return add_knowledge(
+            session_dir,
+            tool_args["node_type"],
+            tool_args["summary"],
+            source=tool_args.get("source"),
+            related_to=tool_args.get("related_to"),
+            edge_type=tool_args.get("edge_type", "supports"),
         )
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})

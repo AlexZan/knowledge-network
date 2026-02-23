@@ -17,7 +17,7 @@ from typing import Callable
 
 from .llm import chat_with_tools, DEFAULT_MODEL
 from .prompts import load_prompt
-from .state import _load_expanded, increment_turn
+from .state import _load_expanded, _load_knowledge, increment_turn
 from .tools import (
     TOOL_DEFINITIONS, execute_tool,
     get_active_effort, get_all_open_efforts,
@@ -105,9 +105,21 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
                 "not shown in working memory. You can then expand_effort(id) for full details."
             )
 
+    # Knowledge graph nodes
+    knowledge_section = ""
+    knowledge = _load_knowledge(session_dir)
+    active_nodes = [n for n in knowledge.get("nodes", []) if n.get("status") == "active"]
+    if active_nodes:
+        kg_parts = ["\nKnowledge graph:"]
+        for n in active_nodes:
+            kg_parts.append(f"- [{n['type']}] {n['summary']}")
+        knowledge_section = "\n".join(kg_parts)
+
     full_system = system_prompt
     if manifest_section:
         full_system += "\n" + manifest_section
+    if knowledge_section:
+        full_system += "\n" + knowledge_section
     if memory_section:
         full_system += memory_section
 
@@ -152,7 +164,17 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
             parts.append(f"--- Started effort: {result['effort_id']} ---")
         elif tool_name == "close_effort":
             summary = result.get("summary", "")
-            parts.append(f"--- Concluded effort: {result['effort_id']} ---\nSummary: {summary}")
+            knowledge = result.get("knowledge_extracted", [])
+            banner_lines = [
+                f"--- Concluded effort: {result['effort_id']} ---",
+                f"Summary: {summary}",
+            ]
+            if knowledge:
+                banner_lines.append("")
+                banner_lines.append("Knowledge nodes extracted:")
+                for node in knowledge:
+                    banner_lines.append(f"  [{node['node_type']}] {node['summary']}")
+            parts.append("\n".join(banner_lines))
         elif tool_name == "expand_effort":
             tokens = result.get("tokens_loaded", 0)
             parts.append(f"--- Expanded effort: {result['effort_id']} ({tokens} tokens loaded) ---")
@@ -178,6 +200,10 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
             path = result.get("path", "")
             size = result.get("size", 0)
             parts.append(f"--- Appended to file: {path} ({size} chars total) ---")
+        elif tool_name == "add_knowledge":
+            node_id = result.get("node_id", "")
+            node_type = result.get("node_type", "")
+            parts.append(f"--- Knowledge added: [{node_type}] {node_id} ---")
 
     return "\n".join(parts)
 

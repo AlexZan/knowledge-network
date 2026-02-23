@@ -19,7 +19,7 @@ from .orchestrator import process_turn
 from .state import increment_session_count
 
 
-DEFAULT_SESSION_DIR = Path.home() / ".oi" / "projects" / "default"
+DEFAULT_DATA_DIR = Path.home() / ".oi"
 
 
 def _append_session_marker(session_dir: Path):
@@ -35,8 +35,8 @@ def _append_session_marker(session_dir: Path):
         f.write(json.dumps(entry) + "\n")
 
 
-def _show_startup(session_dir: Path, project_name: str, session_num: int):
-    """Show project status on CLI launch."""
+def _show_startup(session_dir: Path):
+    """Show status on CLI launch."""
     manifest_path = session_dir / "manifest.yaml"
     open_efforts = []
     concluded_count = 0
@@ -47,7 +47,6 @@ def _show_startup(session_dir: Path, project_name: str, session_num: int):
         open_efforts = [e for e in efforts if e.get("status") == "open"]
         concluded_count = sum(1 for e in efforts if e.get("status") == "concluded")
 
-    click.echo(f"[Project: {project_name} | Session #{session_num}]")
     if open_efforts:
         click.echo(f"[{len(open_efforts)} open effort(s)]")
         for e in open_efforts:
@@ -58,28 +57,19 @@ def _show_startup(session_dir: Path, project_name: str, session_num: int):
 
 
 @click.command()
-@click.option("--session-dir", default=None, help="Session directory path (overrides --project)")
-@click.option("--project", default=None, help="Project name for per-project sessions")
-def main(session_dir: str | None, project: str | None) -> None:
+@click.option("--data-dir", default=None, help="Data directory (default: ~/.oi/)")
+def main(data_dir: str | None) -> None:
     """Open Intelligence - Effort-based context management."""
-    if session_dir:
-        session_path = Path(session_dir)
-        project_name = session_path.name
-    elif project:
-        session_path = Path.home() / ".oi" / "projects" / project
-        project_name = project
-    else:
-        session_path = DEFAULT_SESSION_DIR
-        project_name = "default"
+    session_path = Path(data_dir) if data_dir else DEFAULT_DATA_DIR
 
     session_path.mkdir(parents=True, exist_ok=True)
 
     # Increment session count and append session marker
-    session_num = increment_session_count(session_path)
+    increment_session_count(session_path)
     _append_session_marker(session_path)
 
     # Show startup display
-    _show_startup(session_path, project_name, session_num)
+    _show_startup(session_path)
 
     click.echo("Type 'exit' to quit.\n")
 

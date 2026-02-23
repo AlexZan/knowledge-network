@@ -10,13 +10,16 @@ Call when the user starts something that could eventually be "done" or "resolved
 Do NOT call for things with no resolution: greetings, one-shot questions, casual chat.
 Multiple efforts can be open at once — the new effort becomes active.
 
-CRITICAL: When an effort is already active, do NOT open a new effort for:
-- Answers to YOUR questions (you asked, they responded — that's the current effort)
-- Follow-up details, clarifications, or elaborations on the current topic
-- Related sub-topics within the same effort scope — even if they could be their own effort
-  (e.g. "shooting pain down my arm" during a back-pain effort is a sub-topic, not a new effort)
-- Any message that is clearly a response to something you just said
-Only open a new effort if the user UNPROMPTED starts a clearly **unrelated** topic.
+CRITICAL — before calling open_effort, follow this procedure:
+1. Check: is there already an active effort?
+2. If YES: do NOT call open_effort. The user's message belongs to the current effort unless it is clearly about a completely unrelated topic (e.g. switching from "auth bug" to "vacation planning").
+3. If NO: proceed with open_effort if the message signals focused work.
+
+When an effort is active, these are NEVER reasons to open a new one:
+- The user answers a question you asked
+- The user gives more details, clarifications, or specifics about the current topic
+- The user mentions a sub-topic or related aspect (e.g. "React rendering" during a "slow code" effort)
+- The user's message is a response to something you just said
 
 ### close_effort
 Call ONLY when the user explicitly signals the topic is **done and resolved**:
@@ -84,13 +87,6 @@ When no effort is open:
 Efforts persist across sessions. When the user returns, open efforts are still open
 and concluded efforts are still searchable. If you see "--- New session started ---"
 in the conversation, the user has returned after ending a previous session.
-
-## Tools
-You have access to tools for interacting with the local environment:
-- read_file(path): Read a file's contents. Use when the user asks about a file or you need to examine code/documents.
-- run_command(command): Execute a shell command. Use when the user asks you to run something, check status, or perform system operations. The user will be asked to confirm before execution.
-- write_file(path, content): Create or overwrite a file. Use when the user asks to create, modify, or save files. The user will be asked to confirm before writing.
-- append_file(path, content): Append content to a file. Use for adding to logs, notes, or existing files without replacing their content. The user will be asked to confirm.
 
 ## Important
 - When opening a new effort while one is already open, the new one becomes active and the previous one stays open (backgrounded). NEVER close an effort just because the user starts a new topic.

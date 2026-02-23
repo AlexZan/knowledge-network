@@ -12,94 +12,74 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Slice 1 via oi-pipe TDD Pipeline
+## Current Status: Slice 8b Complete, 8c Next
 
-Pivoted to **dev-first approach** ([decision 008](decisions/008-dev-first-pivot.md)). Building Slice 1 (two-log proof) using the oi-pipe TDD pipeline (`D:/Dev/oi/pipeline/`). Current effort: `efforts/chat-cli/`.
-
-### Pipeline Progress: Test Architect Stage
-
-Generated tests for Stories 4-9 using the pipeline. Key improvements made to oi-pipe during this effort:
-
-| Improvement | What | Why |
-|-------------|------|-----|
-| Package skeleton | AST-based code context (~500 tokens) | Full source caused pattern-copying; no context caused wrong package names |
-| Scenario context | Target architecture injected into prompt | Tests verify new file-based architecture, not existing object model |
-| Stub generator | Auto-creates missing functions from test imports | Tests run and fail meaningfully (AssertionError) instead of opaque ImportError |
-| SUT rule | Rule #10: every test has an unmocked System Under Test | Eliminated defective tests that compute behavior inline |
-| Model switch | deepseek-reasoner for test-architect | Better TDD: invents new interfaces instead of constraining to existing functions |
-| `--story N` flag | Extract single story from stories.md | Review tests one story at a time |
-| `--experiment` flag | Save to tests/experiments/ by model name | Compare model outputs without overwriting |
-
-### What's Built (Slice 1a Legacy)
+Slices 1-7 built the memory system (efforts, compaction, decay, persistence, tool use). Slices 8a-8b added the knowledge graph foundation (manual + auto-extraction). Next: node linking and contradiction detection (8c).
 
 ### What's Built
 
-| Component | Status | Notes |
-|-----------|--------|-------|
-| Raw chatlog | ✅ Done | Append-only JSONL, permanent archive |
-| Artifact model | ✅ Done | effort/fact/event with status/resolution |
-| Agentic interpretation | ✅ Done | LLM decides what artifacts to create |
-| Configurable schemas | ✅ Done | YAML-based, user can override |
-| External prompts | ✅ Done | Markdown files, editable |
-| Context building | ⚠️ Partial | Loads ALL artifacts + last 5 raw exchanges |
+| Slice | Status | Key Feature |
+|-------|--------|-------------|
+| 1-5 | Done | Effort lifecycle: open → work → close → summary. Expansion, decay, search, reopen. |
+| 6 | Done | Cross-session persistence, session markers |
+| 7 | Done | read_file, write_file, append_file, run_command with confirmation callbacks |
+| 8a | Done | `add_knowledge` tool, `knowledge.yaml` (nodes + edges), knowledge shown in system prompt |
+| 8b | Done | `extract_knowledge()` LLM call on effort close, 0-5 nodes auto-persisted |
 
-### What's Missing (to complete 1a)
+### What's Next: 8c (Node Linking)
 
-- **Relevance-based retrieval** - Currently loads all artifacts, should load only relevant
-- **Remove "last 5 exchanges" crutch** - Artifacts should carry continuity, not raw chat
-- **Mark exchanges as processed** - So they don't load into context
+Spec: [08c-node-linking.md](slices/08c-node-linking.md)
+
+When a new node is added, find related existing nodes and classify the relationship (supports/contradicts/none). Two-stage pipeline: keyword retrieval → LLM linker agent. Foundation for confidence scoring (8d).
+
+---
+
+## Key Architectural Decisions
+
+### System Prompt Optimization (Slice 8b)
+
+Removed redundant tool descriptions from system prompt — they're already in `TOOL_DEFINITIONS` (passed via API `tools` parameter). System prompt now only contains behavioral rules (when to call tools, when NOT to). Saves ~130 tokens/turn.
+
+### MCP Not Needed Pre-MVP
+
+MCP would add transport/process overhead for no benefit at current scale. Tool descriptions already load via `tools` parameter, not system prompt. MCP becomes valuable when: third-party tools, multiple LLM hosts, or hot-swappable tool servers.
+
+### Linker Pipeline: Standalone Function
+
+The node-linking pipeline (`find_candidates` → `link_nodes`) must be a standalone function, not embedded in tool handlers. Both chat mode and future data-ingest mode call the same pipeline — only the entry point differs.
+
+### Tool Chaining Analysis
+
+Analyzed all tool call patterns for optimization opportunities. Only one always-sequential pattern exists: `close_effort` → `summarize` → `extract_knowledge` → `add_knowledge` (already server-side). All other sequences are LLM-controlled and conditional on user intent.
 
 ---
 
 ## Implementation Pivots
 
-### Pivot 1: Effort→Conclusion to Flexible Artifacts
+### Pivot: Artifact Model → Effort Model (Pre-Slice 1)
 
-**Original**: Thread model with effort→conclusion pairs, triggered by explicit conclusions.
+**Original**: Flexible `Artifact` type with dynamic `artifact_type` (effort, fact, event).
+**Pivot**: Dedicated effort model with explicit lifecycle (open → concluded). Knowledge nodes separate.
+**Why**: Efforts have clear lifecycle semantics. Mixing them with facts/events created ambiguity.
 
-**Pivot**: Single `Artifact` type with dynamic `artifact_type` field. Types: effort (with status/resolution), fact, event. More flexible, captures more patterns.
+### Pivot: oi-pipe TDD → Direct Implementation (Slice 1+)
 
-**Why**: Not everything is an effort→conclusion. Facts ("What's the capital of France?") and events ("I'm tired") don't fit the effort model.
+**Original**: Build slices using oi-pipe TDD pipeline.
+**Pivot**: Direct implementation with manual tests, using oi-pipe lessons for test design.
+**Why**: Pipeline overhead wasn't justified for the knowledge-network codebase size. Pipeline lessons (generate→validate→retry, small models need procedures) still apply.
 
-### Pivot 2: Static Context File to Dynamic Assembly
+### Pivot: Monolithic Slice 8b → Sub-slices (Post-8b)
 
-**Original mental model**: A hybrid file with compressed artifacts + unprocessed raw chat.
-
-**Pivot**: Keep raw chatlog and artifacts separate, dynamically assemble context JIT based on the query.
-
-**Why**: Cleaner architecture. Different queries need different context. Scales better.
-
----
-
-## Architectural Insight: Context Builder as Core
-
-The context builder is the heart of the system:
-
-```
-User query → Context Builder → Assembled context → LLM → Response → Interpreter → Artifact
-                   ↑
-         Retrieval (programmatic) + Selection (agentic)
-```
-
-Everything should be a user-extensible primitive:
-- `~/.oi/schemas/*.yaml` - artifact types ✅
-- `~/.oi/prompts/*.md` - prompts
-- `~/.oi/tools/*.py` - custom retrieval/assembly (future)
+**Original roadmap**: 8b was "Conflict + Confidence" (contradiction detection + truth/preference classification + topology scoring).
+**Pivot**: Split into 8c (contradiction detection), 8d (confidence from topology).
+**Why**: Each sub-slice is independently testable. Contradiction detection is useful without confidence; confidence needs edges to exist first.
 
 ---
 
 ## For Agents
 
-1. **Read [thesis.md](thesis.md)** - understand the vision
-2. **Read [slices/README.md](slices/README.md)** - see the roadmap
-3. **Read [PROJECT.md](PROJECT.md)** - current technical state
-4. **Current work**: Completing Slice 1a - relevance-based retrieval, removing raw chat crutch
-5. **Key gap**: Context builder loads everything, should load only relevant artifacts
-
----
-
-## Open Decisions
-
-- How to determine artifact relevance? (embeddings? keywords? recency? LLM selection?)
-- When to fall back to raw chatlog for detail?
-- How to handle multi-session efforts? (user returns days later)
+1. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
+2. **Read [slices/README.md](slices/README.md)** — see the roadmap
+3. **Read [PROJECT.md](PROJECT.md)** — current technical state
+4. **Current work**: Slice 8c — node linking and contradiction detection
+5. **Key spec**: [08c-node-linking.md](slices/08c-node-linking.md)

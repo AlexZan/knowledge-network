@@ -17,8 +17,10 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 5 | Effort Reopening | Concluded efforts can be reopened and extended. Re-conclusion updates summary. | [05-effort-reopening.md](05-effort-reopening.md) |
 | 6 | Cross-Session Persistence | Per-project sessions, session markers, efforts survive restarts. | — |
 | 7 | Tool Use | `read_file`, `write_file`, `append_file`, `run_command`. Confirmation callback system. | — |
+| 8a | Knowledge Store | `add_knowledge` tool. `fact`, `preference`, `decision` node types. `knowledge.yaml` with nodes + edges. Knowledge graph shown in system prompt. | — |
+| 8b | Auto-Extract on Close | `extract_knowledge()` LLM call on effort close. 0-5 nodes auto-persisted. Extraction banner in close output. | — |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slice 8 builds the knowledge graph — the core vision.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8b add the knowledge graph foundation.
 
 ---
 
@@ -29,31 +31,29 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 
 ---
 
-## Next: Slice 8 — Knowledge Graph
+## Next
 
-The knowledge graph is the single persistent layer. Every node has a summary (compacted knowledge in context) and a raw log (source conversation, expandable on demand). This is CCM generalized beyond efforts.
-
-Ordered to prove the thesis early: 8a builds the foundation, 8b proves confidence and conflict resolution work before investing in convenience features.
+The knowledge graph now stores nodes and auto-extracts them. Next slices prove the core thesis: confidence emerges from topology, not explicit scores.
 
 ### Sub-slices
 
 | Slice | Name | Thesis | What it does |
 |-------|------|--------|-------------|
-| 8a | Graph Foundation | 2 | ONE CHAT CLI. Common node base (summary + raw log). Graph store. `fact` node type. `add_knowledge` tool. Basic edges (support, contradiction). |
-| 8b | Conflict + Confidence | 4, 5 | Contradiction detection. Truth vs preference classification. Confidence from topology (inbound support, failed contradictions, independent convergence). |
-| 8c | Schema System + Types | 2 | YAML schema definitions. Effort migration to graph store. `preference`, `decision` node types. `query_knowledge` tool. Generic expand/collapse for all types. |
-| 8d | Abstraction + Privacy | 3 | `principle` node type. Auto-generalization from multiple related nodes. Privacy gradient (raw → contextual → principle → universal). Schema-detection agent. |
+| 8c | Contradiction Detection | 4 | When adding a node, LLM checks existing nodes for conflicts. Flags contradictions with `contradicts` edges. User can resolve (supersede old node, keep both, discard new). |
+| 8d | Confidence from Topology | 4, 5 | Confidence score derived from graph structure: inbound `supports` edges, survived contradiction attempts, independent convergence from separate efforts. No explicit confidence assignment. |
+| 8e | Schema System + Types | 2 | YAML schema definitions. Effort migration to graph store. `query_knowledge` tool. Generic expand/collapse for all node types. |
+| 8f | Abstraction + Privacy | 3 | `principle` node type. Auto-generalization from multiple related nodes. Privacy gradient (raw → contextual → principle → universal). Schema-detection agent. |
 
 ### Dependencies
 
 ```
-8a: Graph Foundation (nodes + edges)
+8c: Contradiction Detection (flag conflicts)
  ↓
-8b: Conflict + Confidence (proves the thesis)
+8d: Confidence from Topology (proves the thesis)
  ↓
-8c: Schema System + Types (convenience, more node types)
+8e: Schema System + Types (convenience, query tool)
  ↓
-8d: Abstraction + Privacy (highest-level knowledge)
+8f: Abstraction + Privacy (highest-level knowledge)
 ```
 
 ### Scenarios

@@ -1,5 +1,6 @@
 """LLM interaction layer using litellm."""
 
+import json
 import os
 from litellm import completion
 
@@ -35,5 +36,51 @@ def summarize_effort(effort_content: str, model: str = DEFAULT_MODEL) -> str:
         )}
     ]
     return chat(messages, model)
+
+
+def extract_knowledge(effort_content: str, effort_id: str, model: str = DEFAULT_MODEL) -> list[dict]:
+    """Extract knowledge nodes from a concluded effort's raw log.
+
+    Returns list of dicts: [{"node_type": ..., "summary": ...}, ...]
+    Returns empty list on failure (best-effort).
+    """
+    messages = [
+        {"role": "system", "content": (
+            "You extract permanent knowledge from conversation logs. "
+            "Respond ONLY with a JSON array. No explanation, no markdown, no prose."
+        )},
+        {"role": "user", "content": (
+            "Extract 0-5 knowledge nodes from this effort log worth remembering permanently.\n\n"
+            "Rules:\n"
+            "- Only extract facts, preferences, or decisions that are general and reusable\n"
+            "- Skip transient details, in-progress discussion, and effort-specific mechanics\n"
+            "- Each summary must be self-contained (no pronouns like 'it', 'this')\n"
+            "- node_type must be one of: fact, preference, decision\n\n"
+            "Respond with ONLY a JSON array:\n"
+            '[{"node_type": "fact", "summary": "..."}, {"node_type": "decision", "summary": "..."}]\n'
+            "If nothing is worth extracting, respond with: []\n\n"
+            f"Effort: {effort_id}\n\n"
+            f"{effort_content}"
+        )}
+    ]
+    try:
+        raw = chat(messages, model)
+        text = raw.strip()
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1]) if len(lines) > 2 else text
+        nodes = json.loads(text)
+        if not isinstance(nodes, list):
+            return []
+        valid = []
+        for n in nodes:
+            if (isinstance(n, dict)
+                    and n.get("node_type") in ("fact", "preference", "decision")
+                    and isinstance(n.get("summary"), str)
+                    and n["summary"].strip()):
+                valid.append({"node_type": n["node_type"], "summary": n["summary"].strip()})
+        return valid
+    except Exception:
+        return []
 
 

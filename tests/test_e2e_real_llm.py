@@ -17,7 +17,7 @@ from oi.orchestrator import process_turn, _build_messages
 from oi.tools import get_open_effort, get_active_effort, get_all_open_efforts
 from oi.state import (
     _load_expanded, _load_expanded_state, _load_session_state,
-    _save_summary_references,
+    _save_summary_references, _load_knowledge,
 )
 from oi.tokens import count_tokens
 from oi.decay import DECAY_THRESHOLD, SUMMARY_EVICTION_THRESHOLD
@@ -967,3 +967,95 @@ class TestToolUseE2E:
             f"LLM should have run the command and shown the output. Response: {response[:300]}"
         )
         print(f"\nLLM run_command response: {response[:200]}")
+
+
+@requires_llm
+class TestKnowledgeExtractionE2E:
+    """Slice 8b: Verify knowledge extraction on close works end-to-end with real LLM."""
+
+    def test_close_effort_extracts_knowledge_nodes(self, tmp_path):
+        """Open effort with factual content, close it, verify knowledge.yaml has nodes."""
+        session_dir = tmp_path / "session"
+
+        # Open effort
+        process_turn(
+            session_dir,
+            "Let's discuss our database architecture decisions.",
+            model=MODEL,
+        )
+        assert get_active_effort(session_dir) is not None
+
+        # Add factual content
+        process_turn(
+            session_dir,
+            "We've decided to use PostgreSQL for all persistent storage because of its "
+            "JSONB support. We'll use Redis for caching with a 60-second TTL. "
+            "The API will follow REST conventions with /api/v1/ prefix.",
+            model=MODEL,
+        )
+
+        # Close the effort
+        response = process_turn(
+            session_dir,
+            "That covers everything. This effort is done, please close it.",
+            model=MODEL,
+        )
+        if get_open_effort(session_dir) is not None:
+            response = process_turn(
+                session_dir,
+                "Please call close_effort to conclude this effort. We are done.",
+                model=MODEL,
+            )
+
+        assert get_open_effort(session_dir) is None, (
+            f"Effort should be concluded. Response: {response[:300]}"
+        )
+
+        # Verify knowledge.yaml has extracted nodes
+        knowledge = _load_knowledge(session_dir)
+        nodes = knowledge.get("nodes", [])
+        print(f"\nExtracted {len(nodes)} knowledge nodes:")
+        for n in nodes:
+            print(f"  [{n['type']}] {n['summary']} (source: {n.get('source')})")
+
+        assert len(nodes) >= 1, (
+            f"Expected at least 1 extracted knowledge node. Got: {nodes}"
+        )
+        # Verify structure
+        for node in nodes:
+            assert node["type"] in ("fact", "preference", "decision")
+            assert isinstance(node["summary"], str)
+            assert len(node["summary"]) > 0
+            assert node.get("source") is not None  # source should be effort_id
+
+
+@requires_llm
+class TestKnowledgeE2E:
+    """Slice 8a: Verify add_knowledge works end-to-end with real LLM."""
+
+    def test_llm_captures_preference(self, tmp_path):
+        """User states a preference → LLM calls add_knowledge with type 'preference'."""
+        session_dir = tmp_path / "session"
+
+        response = process_turn(
+            session_dir,
+            "I always prefer tabs over spaces for indentation. Remember that.",
+            model=MODEL,
+        )
+
+        knowledge = _load_knowledge(session_dir)
+        nodes = knowledge.get("nodes", [])
+        assert len(nodes) >= 1, (
+            f"LLM should have called add_knowledge. Nodes: {nodes}. Response: {response[:300]}"
+        )
+        # Check that at least one node captures the preference
+        pref_nodes = [n for n in nodes if n["type"] == "preference"]
+        assert len(pref_nodes) >= 1, (
+            f"Expected a preference node. Got types: {[n['type'] for n in nodes]}. Response: {response[:300]}"
+        )
+        summary_lower = pref_nodes[0]["summary"].lower()
+        assert "tab" in summary_lower, (
+            f"Preference should mention tabs. Got: {pref_nodes[0]['summary']}"
+        )
+        print(f"\nKnowledge captured: {pref_nodes[0]}")
+        print(f"Response: {response[:200]}")

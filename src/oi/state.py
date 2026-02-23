@@ -122,6 +122,24 @@ def _load_summary_references(session_dir: Path) -> dict[str, int]:
     return state.get("summary_last_referenced_turn", {})
 
 
+# === Knowledge graph (nodes + edges) ===
+
+def _load_knowledge(session_dir: Path) -> dict:
+    """Load knowledge.yaml, returning empty structure if missing."""
+    path = session_dir / "knowledge.yaml"
+    if path.exists():
+        return yaml.safe_load(path.read_text(encoding="utf-8")) or {"nodes": [], "edges": []}
+    return {"nodes": [], "edges": []}
+
+
+def _save_knowledge(session_dir: Path, knowledge: dict):
+    """Write knowledge.yaml."""
+    path = session_dir / "knowledge.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        yaml.dump(knowledge, f, default_flow_style=False)
+
+
 def _save_summary_references(session_dir: Path, refs: dict[str, int]):
     """Update summary_last_referenced_turn in expanded.json (merge, don't overwrite)."""
     expanded_path = session_dir / "expanded.json"
