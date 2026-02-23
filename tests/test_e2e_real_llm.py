@@ -9,6 +9,7 @@ Run with: pytest tests/test_e2e_real_llm.py -v -s
 Requires: DEEPSEEK_API_KEY environment variable
 """
 
+import json
 import os
 import yaml
 import pytest
@@ -1059,3 +1060,172 @@ class TestKnowledgeE2E:
         )
         print(f"\nKnowledge captured: {pref_nodes[0]}")
         print(f"Response: {response[:200]}")
+
+
+@requires_llm
+class TestNodeLinkingE2E:
+    """Slice 8c: Verify node linking works end-to-end with real LLM."""
+
+    def test_supporting_facts_create_edge(self, tmp_path):
+        """Add two JWT-related facts → supports edge created between them."""
+        from oi.tools import add_knowledge
+
+        session_dir = tmp_path / "session"
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        # First fact (no linking — nothing to link against)
+        add_knowledge(session_dir, "fact", "API uses JWT tokens for authentication", model=MODEL)
+
+        # Second fact — should find first fact and classify as supports
+        result = json.loads(add_knowledge(
+            session_dir, "fact", "JWT tokens use RS256 signing algorithm", model=MODEL,
+        ))
+        print(f"\nResult: {result}")
+
+        knowledge = _load_knowledge(session_dir)
+        edges = knowledge.get("edges", [])
+        supports_edges = [e for e in edges if e["type"] == "supports"]
+        print(f"Edges: {edges}")
+
+        assert len(supports_edges) >= 1, (
+            f"Expected at least one supports edge. Edges: {edges}"
+        )
+
+    def test_contradicting_facts_create_edge(self, tmp_path):
+        """Add 'use JWT' then 'use session cookies' → contradicts edge created."""
+        from oi.tools import add_knowledge
+
+        session_dir = tmp_path / "session"
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        add_knowledge(session_dir, "decision", "Use JWT tokens for API authentication", model=MODEL)
+        result = json.loads(add_knowledge(
+            session_dir, "decision",
+            "Use session cookies instead of JWT for authentication",
+            model=MODEL,
+        ))
+        print(f"\nResult: {result}")
+
+        knowledge = _load_knowledge(session_dir)
+        edges = knowledge.get("edges", [])
+        contradicts_edges = [e for e in edges if e["type"] == "contradicts"]
+        print(f"Edges: {edges}")
+
+        assert len(contradicts_edges) >= 1, (
+            f"Expected at least one contradicts edge. Edges: {edges}"
+        )
+        # Verify has_contradiction flags
+        for node in knowledge["nodes"]:
+            if node["id"] in ("decision-001", "decision-002"):
+                if any(e["type"] == "contradicts" and
+                       (e["source"] == node["id"] or e["target"] == node["id"])
+                       for e in edges):
+                    assert node.get("has_contradiction") is True, (
+                        f"Node {node['id']} should have has_contradiction=True"
+                    )
+
+    def test_unrelated_facts_no_edges(self, tmp_path):
+        """Add JWT fact then weather fact → no edges created."""
+        from oi.tools import add_knowledge
+
+        session_dir = tmp_path / "session"
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        add_knowledge(session_dir, "fact", "API uses JWT tokens for authentication", model=MODEL)
+        result = json.loads(add_knowledge(
+            session_dir, "fact",
+            "The weather forecast shows rain tomorrow afternoon",
+            model=MODEL,
+        ))
+        print(f"\nResult: {result}")
+
+        knowledge = _load_knowledge(session_dir)
+        edges = knowledge.get("edges", [])
+        print(f"Edges: {edges}")
+
+        assert len(edges) == 0, (
+            f"Expected no edges between unrelated facts. Edges: {edges}"
+        )
+
+
+@requires_llm
+class TestConfidenceE2E:
+    """Slice 8d: Verify confidence from topology works end-to-end with real LLM."""
+
+    def test_confidence_progresses_with_support(self, tmp_path):
+        """Add node, then add supporting node from different source → confidence rises."""
+        from oi.tools import add_knowledge
+        from oi.confidence import compute_confidence
+
+        session_dir = tmp_path / "session"
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        # First node — low confidence (isolated)
+        r1 = json.loads(add_knowledge(
+            session_dir, "fact", "API uses JWT tokens for authentication",
+            source="effort-a", model=MODEL,
+        ))
+        assert r1["confidence"]["level"] == "low"
+        print(f"\nNode 1 confidence: {r1['confidence']}")
+
+        # Second node from different source, should support first
+        r2 = json.loads(add_knowledge(
+            session_dir, "fact", "JWT tokens use RS256 signing algorithm",
+            source="effort-b", model=MODEL,
+        ))
+        print(f"Node 2 result: {r2}")
+
+        # Re-check fact-001 confidence (it should now have inbound support)
+        knowledge = _load_knowledge(session_dir)
+        conf = compute_confidence("fact-001", knowledge)
+        print(f"fact-001 confidence after support: {conf}")
+
+        # With 1 inbound support from different source → medium
+        edges = knowledge.get("edges", [])
+        inbound = [e for e in edges if e["target"] == "fact-001" and e["type"] == "supports"]
+        if inbound:
+            assert conf["level"] in ("medium", "high"), (
+                f"Expected medium+ after support. Got: {conf}"
+            )
+        else:
+            print("LLM did not create supports edge — skipping confidence check")
+
+    def test_contested_shown_for_contradiction(self, tmp_path):
+        """Add contradicting node → contested confidence, shown in system prompt."""
+        from oi.tools import add_knowledge
+        from oi.confidence import compute_confidence
+        from oi.orchestrator import _build_messages
+
+        session_dir = tmp_path / "session"
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        add_knowledge(
+            session_dir, "decision", "Use JWT tokens for API authentication",
+            source="effort-a", model=MODEL,
+        )
+        add_knowledge(
+            session_dir, "decision", "Use session cookies instead of JWT for authentication",
+            source="effort-b", model=MODEL,
+        )
+
+        knowledge = _load_knowledge(session_dir)
+        edges = knowledge.get("edges", [])
+        contradicts_edges = [e for e in edges if e["type"] == "contradicts"]
+        print(f"\nEdges: {edges}")
+
+        if contradicts_edges:
+            # Check that at least one node is contested
+            target_id = contradicts_edges[0]["target"]
+            conf = compute_confidence(target_id, knowledge)
+            print(f"Contested node {target_id} confidence: {conf}")
+            assert conf["level"] == "contested"
+
+            # Check system prompt annotation
+            messages = _build_messages(session_dir)
+            system_content = messages[0]["content"]
+            assert "contested" in system_content, (
+                f"Expected 'contested' in system prompt. Got: {system_content[-500:]}"
+            )
+            print("'contested' annotation found in system prompt")
+        else:
+            print("LLM did not create contradicts edge — skipping contested check")

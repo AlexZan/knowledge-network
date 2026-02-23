@@ -18,6 +18,7 @@ from typing import Callable
 from .llm import chat_with_tools, DEFAULT_MODEL
 from .prompts import load_prompt
 from .state import _load_expanded, _load_knowledge, increment_turn
+from .confidence import compute_confidence
 from .tools import (
     TOOL_DEFINITIONS, execute_tool,
     get_active_effort, get_all_open_efforts,
@@ -65,6 +66,21 @@ def _read_jsonl_messages(filepath: Path, max_messages: int | None = None) -> lis
     return messages
 
 
+def _confidence_annotation(conf: dict) -> str:
+    """Format a confidence annotation for display. Returns empty string for low."""
+    level = conf.get("level", "low")
+    if level == "contested":
+        n = conf.get("inbound_contradicts", 0)
+        return f"(contested - {n} contradiction{'s' if n != 1 else ''})"
+    elif level == "high":
+        n = conf.get("independent_sources", 0)
+        return f"(high confidence, {n} sources)"
+    elif level == "medium":
+        n = conf.get("independent_sources", 0)
+        return f"(medium confidence, {n} source{'s' if n != 1 else ''})"
+    return ""
+
+
 def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[dict]:
     """Build the LLM message list from working context.
 
@@ -105,14 +121,19 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
                 "not shown in working memory. You can then expand_effort(id) for full details."
             )
 
-    # Knowledge graph nodes
+    # Knowledge graph nodes with confidence annotations
     knowledge_section = ""
     knowledge = _load_knowledge(session_dir)
     active_nodes = [n for n in knowledge.get("nodes", []) if n.get("status") == "active"]
     if active_nodes:
         kg_parts = ["\nKnowledge graph:"]
         for n in active_nodes:
-            kg_parts.append(f"- [{n['type']}] {n['summary']}")
+            conf = compute_confidence(n["id"], knowledge)
+            annotation = _confidence_annotation(conf)
+            if annotation:
+                kg_parts.append(f"- [{n['type']}] {n['summary']} {annotation}")
+            else:
+                kg_parts.append(f"- [{n['type']}] {n['summary']}")
         knowledge_section = "\n".join(kg_parts)
 
     full_system = system_prompt
@@ -203,7 +224,15 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
         elif tool_name == "add_knowledge":
             node_id = result.get("node_id", "")
             node_type = result.get("node_type", "")
-            parts.append(f"--- Knowledge added: [{node_type}] {node_id} ---")
+            conf = result.get("confidence", {})
+            conf_level = conf.get("level", "low")
+            banner_lines = [f"--- Knowledge added: [{node_type}] {node_id} (confidence: {conf_level}) ---"]
+            for edge in result.get("edges_created", []):
+                if edge["edge_type"] == "contradicts":
+                    banner_lines.append(f"  !! Contradicts: {edge['target_id']}")
+                else:
+                    banner_lines.append(f"  Supports: {edge['target_id']}")
+            parts.append("\n".join(banner_lines))
 
     return "\n".join(parts)
 

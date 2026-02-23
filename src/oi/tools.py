@@ -432,6 +432,7 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None) ->
         for node in raw_extracted:
             result = json.loads(add_knowledge(
                 session_dir, node["node_type"], node["summary"], source=effort_id,
+                model=model or DEFAULT_MODEL,
             ))
             if result.get("status") == "added":
                 extracted_nodes.append({
@@ -814,8 +815,12 @@ def add_knowledge(
     source: str = None,
     related_to: list = None,
     edge_type: str = "supports",
+    model: str = None,
 ) -> str:
     """Add a fact, preference, or decision to the knowledge graph. Returns JSON result."""
+    from .llm import DEFAULT_MODEL
+    from .confidence import compute_confidence
+
     knowledge = _load_knowledge(session_dir)
 
     # Generate ID: type-NNN where NNN is max existing + 1
@@ -836,7 +841,7 @@ def add_knowledge(
     }
     knowledge["nodes"].append(node)
 
-    # Add edges if related_to provided
+    # Add edges if related_to provided (manual edges)
     if related_to:
         for target_id in related_to:
             knowledge["edges"].append({
@@ -846,8 +851,42 @@ def add_knowledge(
                 "created": now,
             })
 
+    # Auto-linking: find candidates and classify relationships
+    auto_edges = []
+    try:
+        from .linker import run_linking
+        link_results = run_linking(node, knowledge, model=model or DEFAULT_MODEL)
+        existing_targets = {e["target"] for e in knowledge["edges"] if e["source"] == node_id}
+        for lr in link_results:
+            if lr["target_id"] not in existing_targets:
+                knowledge["edges"].append({
+                    "source": node_id,
+                    "target": lr["target_id"],
+                    "type": lr["edge_type"],
+                    "reasoning": lr.get("reasoning", ""),
+                    "created": now,
+                })
+                existing_targets.add(lr["target_id"])
+                auto_edges.append(lr)
+                if lr["edge_type"] == "contradicts":
+                    node["has_contradiction"] = True
+                    for n in knowledge["nodes"]:
+                        if n["id"] == lr["target_id"]:
+                            n["has_contradiction"] = True
+    except Exception:
+        pass  # Best-effort: linking failure doesn't block knowledge addition
+
     _save_knowledge(session_dir, knowledge)
-    return json.dumps({"status": "added", "node_id": node_id, "node_type": node_type})
+
+    result = {"status": "added", "node_id": node_id, "node_type": node_type}
+    if auto_edges:
+        result["edges_created"] = auto_edges
+
+    # Compute confidence from current graph state
+    conf = compute_confidence(node_id, knowledge)
+    result["confidence"] = conf
+
+    return json.dumps(result)
 
 
 def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str = None, confirmation_callback: Callable[[str], bool] | None = None) -> str:
@@ -896,6 +935,7 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
             source=tool_args.get("source"),
             related_to=tool_args.get("related_to"),
             edge_type=tool_args.get("edge_type", "supports"),
+            model=model,
         )
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})

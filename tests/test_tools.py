@@ -1016,3 +1016,178 @@ class TestCloseEffortKnowledgeExtraction:
         assert result["knowledge_extracted"] == []
         mock_summarize.assert_not_called()
         mock_extract.assert_not_called()
+
+
+# === Slice 8c: Node linking integration tests ===
+
+class TestNodeLinking:
+    """Integration tests for auto-linking in add_knowledge."""
+
+    def test_add_knowledge_triggers_linking(self, session_dir):
+        """Mock run_linking returns supports edge → edge persisted in knowledge.yaml."""
+        from unittest.mock import patch
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT tokens")
+
+        mock_links = [{"target_id": "fact-001", "edge_type": "supports", "reasoning": "Related JWT"}]
+        with patch("oi.linker.run_linking", return_value=mock_links):
+            result = json.loads(add_knowledge(session_dir, "fact", "JWT uses RS256 signing"))
+
+        assert result["status"] == "added"
+        assert result["node_id"] == "fact-002"
+        assert len(result.get("edges_created", [])) == 1
+        assert result["edges_created"][0]["edge_type"] == "supports"
+
+        knowledge = _load_knowledge(session_dir)
+        auto_edges = [e for e in knowledge["edges"] if e["source"] == "fact-002"]
+        assert len(auto_edges) == 1
+        assert auto_edges[0]["target"] == "fact-001"
+        assert auto_edges[0]["type"] == "supports"
+
+    def test_add_knowledge_linking_creates_contradicts_edge(self, session_dir):
+        """Contradicts edge sets has_contradiction flag on both nodes."""
+        from unittest.mock import patch
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "decision", "Use JWT tokens for auth")
+
+        mock_links = [{"target_id": "decision-001", "edge_type": "contradicts", "reasoning": "Conflicting"}]
+        with patch("oi.linker.run_linking", return_value=mock_links):
+            result = json.loads(add_knowledge(session_dir, "decision", "Use session cookies for auth"))
+
+        assert result["edges_created"][0]["edge_type"] == "contradicts"
+
+        knowledge = _load_knowledge(session_dir)
+        new_node = next(n for n in knowledge["nodes"] if n["id"] == "decision-002")
+        old_node = next(n for n in knowledge["nodes"] if n["id"] == "decision-001")
+        assert new_node.get("has_contradiction") is True
+        assert old_node.get("has_contradiction") is True
+
+    def test_add_knowledge_linking_skips_empty_graph(self, session_dir):
+        """First node → run_linking gets graph with only self, returns empty."""
+        from unittest.mock import patch
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        with patch("oi.linker.run_linking", return_value=[]) as mock_link:
+            result = json.loads(add_knowledge(session_dir, "fact", "First fact ever"))
+
+        assert result["status"] == "added"
+        assert "edges_created" not in result
+        mock_link.assert_called_once()
+
+    def test_add_knowledge_linking_fails_gracefully(self, session_dir):
+        """run_linking raises → node still added, no edges."""
+        from unittest.mock import patch
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "Existing fact")
+
+        with patch("oi.linker.run_linking", side_effect=RuntimeError("LLM down")):
+            result = json.loads(add_knowledge(session_dir, "fact", "New fact"))
+
+        assert result["status"] == "added"
+        assert result["node_id"] == "fact-002"
+        assert "edges_created" not in result
+
+        knowledge = _load_knowledge(session_dir)
+        assert len(knowledge["nodes"]) == 2
+
+    def test_add_knowledge_no_duplicate_edges(self, session_dir):
+        """Manual related_to + auto-link to same target = one edge."""
+        from unittest.mock import patch
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT tokens")
+
+        mock_links = [{"target_id": "fact-001", "edge_type": "supports", "reasoning": "Related"}]
+        with patch("oi.linker.run_linking", return_value=mock_links):
+            result = json.loads(add_knowledge(
+                session_dir, "fact", "JWT uses RS256 signing",
+                related_to=["fact-001"], edge_type="supports",
+            ))
+
+        knowledge = _load_knowledge(session_dir)
+        edges_from_002 = [e for e in knowledge["edges"] if e["source"] == "fact-002"]
+        # Should have only the manual edge, auto-link skipped because target already in edge set
+        assert len(edges_from_002) == 1
+        # edges_created should be empty since the auto-link was a duplicate
+        assert result.get("edges_created") is None or len(result.get("edges_created", [])) == 0
+
+    def test_add_knowledge_result_includes_edges_created(self, session_dir):
+        """Return JSON has edges_created field with target_id, edge_type, reasoning."""
+        from unittest.mock import patch
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "First fact")
+
+        mock_links = [
+            {"target_id": "fact-001", "edge_type": "supports", "reasoning": "Both about same topic"},
+        ]
+        with patch("oi.linker.run_linking", return_value=mock_links):
+            result = json.loads(add_knowledge(session_dir, "fact", "Second fact"))
+
+        assert "edges_created" in result
+        assert len(result["edges_created"]) == 1
+        edge = result["edges_created"][0]
+        assert edge["target_id"] == "fact-001"
+        assert edge["edge_type"] == "supports"
+        assert edge["reasoning"] == "Both about same topic"
+
+    def test_add_knowledge_persists_reasoning(self, session_dir):
+        """Auto-linked edges persist reasoning field in knowledge.yaml."""
+        from unittest.mock import patch
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT tokens")
+
+        mock_links = [{"target_id": "fact-001", "edge_type": "supports", "reasoning": "Both about JWT auth"}]
+        with patch("oi.linker.run_linking", return_value=mock_links):
+            add_knowledge(session_dir, "fact", "JWT uses RS256 signing")
+
+        knowledge = _load_knowledge(session_dir)
+        auto_edges = [e for e in knowledge["edges"] if e["source"] == "fact-002"]
+        assert len(auto_edges) == 1
+        assert auto_edges[0]["reasoning"] == "Both about JWT auth"
+
+    def test_add_knowledge_result_includes_confidence(self, session_dir):
+        """add_knowledge result includes confidence dict with level."""
+        from unittest.mock import patch
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        # First node — no edges → low
+        result1 = json.loads(add_knowledge(session_dir, "fact", "First fact", source="effort-a"))
+        assert "confidence" in result1
+        assert result1["confidence"]["level"] == "low"
+
+        # Second node with support edge → medium for the new node? No — the new node
+        # supports fact-001, not the other way around. The new node has 0 inbound → low.
+        mock_links = [{"target_id": "fact-001", "edge_type": "supports", "reasoning": "related"}]
+        with patch("oi.linker.run_linking", return_value=mock_links):
+            result2 = json.loads(add_knowledge(session_dir, "fact", "Second fact", source="effort-b"))
+        assert "confidence" in result2
+        # fact-002 has 0 inbound supports (it supports fact-001, not vice versa)
+        assert result2["confidence"]["level"] == "low"
+
+    def test_existing_edges_without_reasoning_work(self, session_dir):
+        """Edges created before reasoning field was added still work (no KeyError)."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Manually create a graph with an edge missing "reasoning"
+        knowledge = {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Old fact", "status": "active", "source": "effort-a"},
+                {"id": "fact-002", "type": "fact", "summary": "Another fact", "status": "active", "source": "effort-b"},
+            ],
+            "edges": [
+                {"source": "fact-002", "target": "fact-001", "type": "supports", "created": "2024-01-01"},
+                # Note: no "reasoning" field — simulates pre-8d edge
+            ],
+        }
+        _save_knowledge(session_dir, knowledge)
+
+        # compute_confidence should still work
+        from oi.confidence import compute_confidence
+        conf = compute_confidence("fact-001", knowledge)
+        assert conf["level"] == "medium"
+        assert conf["inbound_supports"] == 1
