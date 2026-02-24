@@ -8,11 +8,13 @@ from pathlib import Path
 from .state import (
     _load_expanded_state, _load_manifest, _save_expanded,
     _load_summary_references, _save_summary_references,
+    _load_knowledge_references, _save_knowledge_references,
 )
 from .tools import collapse_effort
 
 DECAY_THRESHOLD = 3
 SUMMARY_EVICTION_THRESHOLD = 20
+KNOWLEDGE_EVICTION_THRESHOLD = 30
 AMBIENT_WINDOW = 10
 MIN_KEYWORD_OVERLAP = 2
 
@@ -177,5 +179,62 @@ def get_evicted_summary_ids(session_dir: Path, current_turn: int) -> set[str]:
     for eid, last_ref in refs.items():
         if current_turn - last_ref >= SUMMARY_EVICTION_THRESHOLD:
             evicted.add(eid)
+
+    return evicted
+
+
+def update_knowledge_references(session_dir: Path, current_turn: int,
+                                user_message: str, assistant_response: str):
+    """Update knowledge_last_referenced_turn for all active knowledge nodes.
+
+    For each active node:
+    1. Extract keywords from summary
+    2. Check if user_message or assistant_response references it
+    3. If yes: set knowledge_last_referenced_turn[node_id] = current_turn
+    """
+    from .state import _load_knowledge
+
+    knowledge = _load_knowledge(session_dir)
+    active_nodes = [n for n in knowledge.get("nodes", []) if n.get("status") == "active"]
+
+    if not active_nodes:
+        return
+
+    refs = _load_knowledge_references(session_dir)
+
+    for node in active_nodes:
+        nid = node["id"]
+        summary = node.get("summary", "") or ""
+        keywords = extract_keywords(summary)
+
+        referenced = (
+            is_referenced(user_message, nid, keywords)
+            or is_referenced(assistant_response, nid, keywords)
+        )
+
+        if referenced:
+            refs[nid] = current_turn
+        elif nid not in refs:
+            # First time seeing this node — initialize with current turn (grace period)
+            refs[nid] = current_turn
+
+    _save_knowledge_references(session_dir, refs)
+
+
+def get_evicted_knowledge_ids(session_dir: Path, current_turn: int) -> set[str]:
+    """Return set of node IDs whose knowledge should be excluded from system prompt.
+
+    A node is evicted if:
+    - It has a knowledge_last_referenced_turn entry AND
+    - (current_turn - last_ref) >= KNOWLEDGE_EVICTION_THRESHOLD
+
+    Nodes WITHOUT an entry are NOT evicted (grace period).
+    """
+    refs = _load_knowledge_references(session_dir)
+    evicted = set()
+
+    for nid, last_ref in refs.items():
+        if current_turn - last_ref >= KNOWLEDGE_EVICTION_THRESHOLD:
+            evicted.add(nid)
 
     return evicted

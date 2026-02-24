@@ -981,10 +981,18 @@ class TestKnowledgeExtractionE2E:
         # Open effort
         process_turn(
             session_dir,
-            "Let's discuss our database architecture decisions.",
+            "Let's work on our database architecture decisions. Open an effort for this.",
             model=MODEL,
         )
-        assert get_active_effort(session_dir) is not None
+        if get_active_effort(session_dir) is None:
+            process_turn(
+                session_dir,
+                "Please call open_effort to start tracking this work.",
+                model=MODEL,
+            )
+        assert get_active_effort(session_dir) is not None, (
+            "LLM did not open an effort after two attempts"
+        )
 
         # Add factual content
         process_turn(

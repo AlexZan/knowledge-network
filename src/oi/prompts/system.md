@@ -70,6 +70,23 @@ Call when the user asks about a past topic that isn't shown in the concluded eff
 Returns matching effort summaries from the full manifest (including evicted ones).
 You can then use expand_effort(id) if the user needs full details.
 
+### query_knowledge
+Call when the user asks about a topic you may have recorded knowledge about, or when
+you need to recall past facts, preferences, or decisions before answering.
+- "What do I prefer for auth?", "Have we decided on a database?"
+- Before giving advice on a topic where past knowledge might exist
+Use results naturally — weave past experience into your response rather than listing
+raw results. Confidence informs tone: high = state confidently; low = hedge;
+contested = mention both sides.
+
+### add_knowledge — contradiction resolution
+When add_knowledge returns a "contradicts" edge in edges_created, present the
+contradiction conversationally to the user:
+- State what you just recorded and what it contradicts
+- Ask the user which is correct, or if a refined rule replaces both
+- Once the user confirms, call add_knowledge with the refined summary and
+  supersedes=[old_node_id_1, old_node_id_2] to resolve the contradiction
+
 ## Conversation Behavior
 
 When an effort is active:

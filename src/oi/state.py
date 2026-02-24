@@ -148,3 +148,18 @@ def _save_summary_references(session_dir: Path, refs: dict[str, int]):
     existing = _load_expanded_state(session_dir)
     existing["summary_last_referenced_turn"] = refs
     expanded_path.write_text(json.dumps(existing), encoding="utf-8")
+
+
+# === Knowledge reference tracking (for knowledge eviction) ===
+
+def _load_knowledge_references(session_dir: Path) -> dict[str, int]:
+    """Load knowledge_last_referenced_turn from session_state.json."""
+    state = _load_session_state(session_dir)
+    return state.get("knowledge_last_referenced_turn", {})
+
+
+def _save_knowledge_references(session_dir: Path, refs: dict[str, int]):
+    """Update knowledge_last_referenced_turn in session_state.json."""
+    state = _load_session_state(session_dir)
+    state["knowledge_last_referenced_turn"] = refs
+    _save_session_state(session_dir, state)

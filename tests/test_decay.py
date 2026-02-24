@@ -6,12 +6,14 @@ from helpers import setup_concluded_effort
 from oi.decay import (
     extract_keywords, is_referenced, check_decay, DECAY_THRESHOLD,
     update_summary_references, get_evicted_summary_ids,
-    SUMMARY_EVICTION_THRESHOLD,
+    update_knowledge_references, get_evicted_knowledge_ids,
+    SUMMARY_EVICTION_THRESHOLD, KNOWLEDGE_EVICTION_THRESHOLD,
 )
 from oi.state import (
     _load_expanded, _load_expanded_state, _save_expanded,
     _load_session_state, _save_session_state,
     _load_summary_references,
+    _load_knowledge_references, _save_knowledge_references,
 )
 from oi.tools import expand_effort
 
@@ -300,3 +302,52 @@ class TestSummaryEviction:
         # One turn before threshold: diff=19 < 20
         evicted = get_evicted_summary_ids(session_dir, 10 + SUMMARY_EVICTION_THRESHOLD - 1)
         assert "auth-bug" not in evicted
+
+
+# === Knowledge eviction ===
+
+class TestKnowledgeEviction:
+    def test_update_knowledge_references_tracks_referenced_node(self, session_dir):
+        """Referenced knowledge nodes get their turn tracked."""
+        from oi.knowledge import add_knowledge
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT authentication")
+        update_knowledge_references(session_dir, 5, "What about JWT auth?", "Here's the info.")
+        refs = _load_knowledge_references(session_dir)
+        assert refs["fact-001"] == 5
+
+    def test_update_knowledge_references_initializes_unreferenced(self, session_dir):
+        """Unreferenced nodes get initialized with grace period at current turn."""
+        from oi.knowledge import add_knowledge
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT authentication")
+        update_knowledge_references(session_dir, 5, "unrelated weather chat", "sunny")
+        refs = _load_knowledge_references(session_dir)
+        assert refs["fact-001"] == 5
+
+    def test_get_evicted_knowledge_returns_old_nodes(self, session_dir):
+        """Nodes not referenced for KNOWLEDGE_EVICTION_THRESHOLD turns are evicted."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_knowledge_references(session_dir, {"fact-001": 1})
+        evicted = get_evicted_knowledge_ids(session_dir, 1 + KNOWLEDGE_EVICTION_THRESHOLD)
+        assert "fact-001" in evicted
+
+    def test_get_evicted_knowledge_excludes_recently_referenced(self, session_dir):
+        """Recently referenced nodes are not evicted."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_knowledge_references(session_dir, {"fact-001": 20})
+        evicted = get_evicted_knowledge_ids(session_dir, 25)
+        assert "fact-001" not in evicted
+
+    def test_knowledge_eviction_threshold_boundary(self, session_dir):
+        """Exactly at threshold = evicted; one before = not evicted."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_knowledge_references(session_dir, {"fact-001": 10})
+
+        # Exactly at threshold
+        evicted = get_evicted_knowledge_ids(session_dir, 10 + KNOWLEDGE_EVICTION_THRESHOLD)
+        assert "fact-001" in evicted
+
+        # One before
+        evicted = get_evicted_knowledge_ids(session_dir, 10 + KNOWLEDGE_EVICTION_THRESHOLD - 1)
+        assert "fact-001" not in evicted

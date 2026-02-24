@@ -23,7 +23,11 @@ from .tools import (
     TOOL_DEFINITIONS, execute_tool,
     get_active_effort, get_all_open_efforts,
 )
-from .decay import check_decay, DECAY_THRESHOLD, update_summary_references, get_evicted_summary_ids, AMBIENT_WINDOW
+from .decay import (
+    check_decay, DECAY_THRESHOLD, update_summary_references, get_evicted_summary_ids,
+    update_knowledge_references, get_evicted_knowledge_ids, AMBIENT_WINDOW,
+)
+from .session_log import log_event
 
 
 MAX_TOOL_ROUNDS = 3
@@ -108,20 +112,27 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
                 "not shown in working memory. You can then expand_effort(id) for full details."
             )
 
-    # Knowledge graph nodes with confidence annotations
+    # Knowledge graph nodes with confidence annotations (filtered by eviction)
     knowledge_section = ""
     knowledge = _load_knowledge(session_dir)
     active_nodes = [n for n in knowledge.get("nodes", []) if n.get("status") == "active"]
-    if active_nodes:
+    evicted_knowledge = get_evicted_knowledge_ids(session_dir, current_turn) if current_turn is not None else set()
+    visible_nodes = [n for n in active_nodes if n["id"] not in evicted_knowledge]
+    evicted_count = len(active_nodes) - len(visible_nodes)
+    if visible_nodes:
         kg_parts = ["\nKnowledge graph:"]
-        for n in active_nodes:
+        for n in visible_nodes:
             conf = compute_confidence(n["id"], knowledge)
             annotation = confidence_annotation(conf)
             if annotation:
                 kg_parts.append(f"- [{n['type']}] {n['summary']} {annotation}")
             else:
                 kg_parts.append(f"- [{n['type']}] {n['summary']}")
+        if evicted_count > 0:
+            kg_parts.append(f"({evicted_count} older knowledge node(s) not shown — use query_knowledge to find them)")
         knowledge_section = "\n".join(kg_parts)
+    elif evicted_count > 0:
+        knowledge_section = f"\nKnowledge graph:\n({evicted_count} older knowledge node(s) not shown — use query_knowledge to find them)"
 
     full_system = system_prompt
     if manifest_section:
@@ -224,7 +235,7 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
     return "\n".join(parts)
 
 
-def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODEL, confirmation_callback: Callable[[str], bool] | None = None) -> str:
+def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODEL, confirmation_callback: Callable[[str], bool] | None = None, session_id: str = None) -> str:
     """Process a single conversation turn.
 
     Returns the assistant's final response text.
@@ -240,6 +251,10 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
 
     # 4. Add user message
     messages.append({"role": "user", "content": user_message})
+
+    # Log user message to session
+    if session_id:
+        log_event(session_dir, session_id, "user-message", {"content": user_message})
 
     # 5. Tool-calling loop
     assistant_content = ""
@@ -258,8 +273,38 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
             tool_name = tool_call.function.name
             tool_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
 
-            tool_result = execute_tool(session_dir, tool_name, tool_args, model, confirmation_callback=confirmation_callback)
+            tool_result = execute_tool(session_dir, tool_name, tool_args, model, confirmation_callback=confirmation_callback, session_id=session_id)
             tools_fired.append((tool_name, tool_args, tool_result))
+
+            # Log tool call to session
+            if session_id:
+                log_event(session_dir, session_id, "tool-call", {
+                    "tool": tool_name,
+                    "args": tool_args,
+                    "result_summary": tool_result[:200] if len(tool_result) > 200 else tool_result,
+                })
+                # Log node events from add_knowledge
+                if tool_name == "add_knowledge":
+                    try:
+                        r = json.loads(tool_result)
+                        if r.get("status") == "added":
+                            log_event(session_dir, session_id, "node-created", {
+                                "node_id": r["node_id"],
+                                "node_type": r["node_type"],
+                            })
+                            # Log supersession events
+                            for edge in r.get("edges_created", []):
+                                if edge.get("edge_type") == "contradicts":
+                                    pass  # contradiction noted in edges_created
+                        # Check if supersedes was used
+                        if tool_args.get("supersedes"):
+                            for sid in tool_args["supersedes"]:
+                                log_event(session_dir, session_id, "node-superseded", {
+                                    "old_node_id": sid,
+                                    "new_node_id": r.get("node_id"),
+                                })
+                    except (json.JSONDecodeError, KeyError):
+                        pass
 
             messages.append({
                 "role": "tool",
@@ -281,7 +326,11 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
     else:
         final_response = assistant_content
 
-    # 8. Log messages to appropriate file (active effort or ambient)
+    # 8. Log assistant message to session
+    if session_id:
+        log_event(session_dir, session_id, "assistant-message", {"content": assistant_content})
+
+    # 9. Log messages to appropriate file (active effort or ambient)
     active_after = get_active_effort(session_dir)
 
     if active_before:
@@ -294,13 +343,16 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
         _log_message(session_dir, None, "user", user_message)
         _log_message(session_dir, None, "assistant", final_response)
 
-    # 9. Check decay for all expanded efforts
+    # 10. Check decay for all expanded efforts
     decayed_ids = check_decay(session_dir, current_turn, user_message, final_response)
 
-    # 10. Update summary reference tracking for eviction
+    # 11. Update summary reference tracking for eviction
     update_summary_references(session_dir, current_turn, user_message, final_response)
 
-    # 11. Append decay banners to response if any
+    # 12. Update knowledge reference tracking for eviction
+    update_knowledge_references(session_dir, current_turn, user_message, final_response)
+
+    # 13. Append decay banners to response if any
     if decayed_ids:
         decay_banners = "\n".join(
             f"--- Auto-collapsed effort: {eid} (inactive for {DECAY_THRESHOLD} turns) ---"

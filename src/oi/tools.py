@@ -1,6 +1,6 @@
 """Tool definitions and handlers for effort management and environment interaction.
 
-Thirteen LLM-callable tools:
+Fourteen LLM-callable tools:
 - open_effort(name): Start tracking focused work (multiple can be open)
 - close_effort(id?): Conclude an effort with summary
 - effort_status(): Get status of all efforts
@@ -14,6 +14,7 @@ Thirteen LLM-callable tools:
 - write_file(path, content): Create or overwrite a file (requires user confirmation)
 - append_file(path, content): Append content to a file (requires user confirmation)
 - add_knowledge(node_type, summary, ...): Add a fact/preference/decision to the knowledge graph
+- query_knowledge(query, ...): Search the knowledge graph by topic
 """
 
 import json
@@ -27,7 +28,7 @@ from .state import (
     _load_expanded, _load_expanded_state, _save_expanded,
     _load_session_state, _save_session_state, increment_turn,
 )
-from .knowledge import add_knowledge
+from .knowledge import add_knowledge, query_knowledge
 
 
 # Tool definitions in OpenAI function calling format
@@ -314,9 +315,47 @@ TOOL_DEFINITIONS = [
                         "type": "string",
                         "enum": ["supports", "contradicts"],
                         "description": "Relationship type to related_to nodes (optional)"
+                    },
+                    "supersedes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Node IDs to mark as superseded by this new node (for contradiction resolution)"
                     }
                 },
                 "required": ["node_type", "summary"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "query_knowledge",
+            "description": (
+                "Search your accumulated knowledge by topic. Use results to inform "
+                "your response naturally — weave relevant past experience into your "
+                "advice rather than listing raw results. Confidence levels should "
+                "inform your tone: high = state confidently; low = hedge; "
+                "contested = mention both sides."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "Keyword search string (topic, concept, or node ID)"
+                    },
+                    "node_type": {
+                        "type": "string",
+                        "enum": ["fact", "preference", "decision"],
+                        "description": "Filter results by node type (optional)"
+                    },
+                    "min_confidence": {
+                        "type": "string",
+                        "enum": ["low", "medium", "high"],
+                        "description": "Minimum confidence level filter (optional)"
+                    }
+                },
+                "required": ["query"]
             }
         }
     },
@@ -330,6 +369,7 @@ TOOL_REGISTRY = {
     "write_file": {"requires_confirmation": True},
     "append_file": {"requires_confirmation": True},
     "add_knowledge": {"requires_confirmation": False},
+    "query_knowledge": {"requires_confirmation": False},
 }
 
 READ_FILE_MAX_CHARS = 10_000
@@ -809,7 +849,7 @@ def append_file(
 
 
 
-def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str = None, confirmation_callback: Callable[[str], bool] | None = None) -> str:
+def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str = None, confirmation_callback: Callable[[str], bool] | None = None, session_id: str = None) -> str:
     """Execute a tool by name. Returns the tool result as a JSON string."""
     if tool_name == "open_effort":
         return open_effort(session_dir, tool_args["name"])
@@ -856,6 +896,15 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
             related_to=tool_args.get("related_to"),
             edge_type=tool_args.get("edge_type", "supports"),
             model=model,
+            supersedes=tool_args.get("supersedes"),
+            session_id=session_id,
+        )
+    elif tool_name == "query_knowledge":
+        return query_knowledge(
+            session_dir,
+            tool_args["query"],
+            node_type=tool_args.get("node_type"),
+            min_confidence=tool_args.get("min_confidence"),
         )
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})

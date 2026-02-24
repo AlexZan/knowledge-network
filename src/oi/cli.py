@@ -17,6 +17,7 @@ import yaml
 
 from .orchestrator import process_turn
 from .state import increment_session_count
+from .session_log import create_session_log
 
 
 DEFAULT_DATA_DIR = Path.home() / ".oi"
@@ -64,8 +65,9 @@ def main(data_dir: str | None) -> None:
 
     session_path.mkdir(parents=True, exist_ok=True)
 
-    # Increment session count and append session marker
+    # Increment session count, create session log, and append session marker
     increment_session_count(session_path)
+    session_id = create_session_log(session_path)
     _append_session_marker(session_path)
 
     # Show startup display
@@ -96,7 +98,7 @@ def main(data_dir: str | None) -> None:
             break
 
         try:
-            response = process_turn(session_path, user_input, confirmation_callback=_confirm_action)
+            response = process_turn(session_path, user_input, confirmation_callback=_confirm_action, session_id=session_id)
             click.echo()
             click.echo(response)
             click.echo()

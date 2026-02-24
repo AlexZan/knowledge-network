@@ -9,8 +9,10 @@ from unittest.mock import patch, MagicMock
 from helpers import setup_concluded_effort
 from oi.orchestrator import _build_messages, _log_message, process_turn
 from oi.tools import open_effort, expand_effort, get_active_effort
-from oi.decay import AMBIENT_WINDOW, SUMMARY_EVICTION_THRESHOLD, update_summary_references
-from oi.state import _save_summary_references
+from oi.decay import AMBIENT_WINDOW, SUMMARY_EVICTION_THRESHOLD, KNOWLEDGE_EVICTION_THRESHOLD, update_summary_references
+from oi.state import _save_summary_references, _save_knowledge_references
+from oi.knowledge import add_knowledge
+from oi.session_log import create_session_log, read_session_log
 
 
 @pytest.fixture
@@ -311,3 +313,103 @@ class TestProcessTurn:
         if a_file.exists():
             a_content = a_file.read_text()
             assert "Do something for B" not in a_content
+
+
+# === Slice 8e: Knowledge eviction tests ===
+
+class TestKnowledgeEviction:
+    def test_evicted_knowledge_excluded_from_system_prompt(self, session_dir):
+        """Evicted knowledge nodes don't appear in system prompt."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT authentication")
+        # Track reference at turn 1
+        _save_knowledge_references(session_dir, {"fact-001": 1})
+
+        # At turn 1 + KNOWLEDGE_EVICTION_THRESHOLD, it should be evicted
+        messages = _build_messages(session_dir, current_turn=1 + KNOWLEDGE_EVICTION_THRESHOLD)
+        system_content = messages[0]["content"]
+        assert "JWT" not in system_content
+        assert "older knowledge node(s) not shown" in system_content
+
+    def test_recently_referenced_knowledge_in_system_prompt(self, session_dir):
+        """Recently referenced knowledge nodes remain in system prompt."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "API uses JWT authentication")
+        _save_knowledge_references(session_dir, {"fact-001": 25})
+
+        messages = _build_messages(session_dir, current_turn=30)
+        system_content = messages[0]["content"]
+        assert "JWT" in system_content
+        assert "older knowledge node(s) not shown" not in system_content
+
+
+# === Slice 8e: Session log integration tests ===
+
+class TestSessionLogIntegration:
+    def _mock_response(self, content, tool_calls=None):
+        msg = MagicMock()
+        msg.content = content
+        msg.tool_calls = tool_calls
+        return msg
+
+    @patch("oi.orchestrator.chat_with_tools")
+    def test_process_turn_logs_user_and_assistant(self, mock_chat, session_dir):
+        """process_turn logs user-message and assistant-message events."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        session_id = create_session_log(session_dir)
+        mock_chat.return_value = self._mock_response("Hi there!")
+        process_turn(session_dir, "Hello", session_id=session_id)
+
+        events = read_session_log(session_dir, session_id)
+        types = [e["type"] for e in events]
+        assert "user-message" in types
+        assert "assistant-message" in types
+        user_ev = next(e for e in events if e["type"] == "user-message")
+        assert user_ev["data"]["content"] == "Hello"
+
+    @patch("oi.orchestrator.chat_with_tools")
+    def test_process_turn_logs_tool_calls(self, mock_chat, session_dir):
+        """process_turn logs tool-call events."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        session_id = create_session_log(session_dir)
+
+        tool_call = MagicMock()
+        tool_call.function.name = "open_effort"
+        tool_call.function.arguments = json.dumps({"name": "test-effort"})
+        tool_call.id = "call_456"
+
+        mock_chat.side_effect = [
+            self._mock_response(None, tool_calls=[tool_call]),
+            self._mock_response("Started tracking."),
+        ]
+        process_turn(session_dir, "Start effort", session_id=session_id)
+
+        events = read_session_log(session_dir, session_id)
+        tool_events = [e for e in events if e["type"] == "tool-call"]
+        assert len(tool_events) >= 1
+        assert tool_events[0]["data"]["tool"] == "open_effort"
+
+    @patch("oi.orchestrator.chat_with_tools")
+    def test_process_turn_logs_node_created(self, mock_chat, session_dir):
+        """process_turn logs node-created events when add_knowledge is called."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        session_id = create_session_log(session_dir)
+
+        tool_call = MagicMock()
+        tool_call.function.name = "add_knowledge"
+        tool_call.function.arguments = json.dumps({
+            "node_type": "fact",
+            "summary": "Test fact for logging",
+        })
+        tool_call.id = "call_789"
+
+        mock_chat.side_effect = [
+            self._mock_response(None, tool_calls=[tool_call]),
+            self._mock_response("Noted."),
+        ]
+        process_turn(session_dir, "Remember this fact", session_id=session_id)
+
+        events = read_session_log(session_dir, session_id)
+        node_events = [e for e in events if e["type"] == "node-created"]
+        assert len(node_events) == 1
+        assert node_events[0]["data"]["node_id"] == "fact-001"
