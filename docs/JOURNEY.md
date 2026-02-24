@@ -12,9 +12,9 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Slice 8e Complete, 8f Next
+## Current Status: Slice 8f Complete, 8g Next
 
-Slices 1-7 built the memory system. Slices 8a-8d added the knowledge graph (store, auto-extraction, linking, confidence). Slice 8e made the graph usable at runtime: searchable, evictable, with contradiction resolution and session audit logs. Next: unified graph storage (8f).
+Slices 1-7 built the memory system. Slices 8a-8d added the knowledge graph (store, auto-extraction, linking, confidence). Slice 8e made the graph usable at runtime. Slice 8f made every node traceable to its source conversation. Next: pattern detection and generalization (8g).
 
 ### What's Built
 
@@ -27,10 +27,11 @@ Slices 1-7 built the memory system. Slices 8a-8d added the knowledge graph (stor
 | 8b | Done | `extract_knowledge()` LLM call on effort close, 0-5 nodes auto-persisted |
 | 8c+8d | Done | Auto-linking (keyword overlap + LLM classification), confidence from topology (low/medium/high/contested) |
 | 8e | Done | `query_knowledge` tool, knowledge eviction (30-turn threshold), `supersedes` for contradiction resolution, session audit logs |
+| 8f | Done | `expand_knowledge`/`collapse_knowledge` tools, session fragment extraction, knowledge decay, `close_effort` forwards `session_id` |
 
-### What's Next: 8f (Traceable Knowledge)
+### What's Next: 8g (The Agent Generalizes)
 
-Any knowledge node expandable to its source conversation. Session log linking (builds on 8e's `created_in_session`). `expand_knowledge` tool. Effort migration deferred — current dual storage works fine.
+Pattern detection across efforts. `principle` node type auto-generated when enough instances converge. Abstraction layers (raw → contextual → general → universal). Privacy gradient — specific details stay private, generalized principles are shareable.
 
 ---
 
@@ -81,4 +82,4 @@ Analyzed all tool call patterns for optimization opportunities. Only one always-
 1. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
 2. **Read [slices/README.md](slices/README.md)** — see the roadmap
 3. **Read [PROJECT.md](PROJECT.md)** — current technical state
-4. **Current work**: Slice 8f — traceable knowledge (expand any node to source conversation)
+4. **Current work**: Slice 8g — the agent generalizes (pattern detection, principles, abstraction layers)

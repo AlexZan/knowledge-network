@@ -163,3 +163,43 @@ def _save_knowledge_references(session_dir: Path, refs: dict[str, int]):
     state = _load_session_state(session_dir)
     state["knowledge_last_referenced_turn"] = refs
     _save_session_state(session_dir, state)
+
+
+# === Expanded knowledge state (which knowledge nodes have context loaded) ===
+
+def _load_expanded_knowledge(session_dir: Path) -> set:
+    """Load the set of currently expanded knowledge node IDs from expanded.json."""
+    state = _load_expanded_state(session_dir)
+    return set(state.get("expanded_knowledge", []))
+
+
+def _save_expanded_knowledge(session_dir: Path, node_id_set: set, last_expanded_turn: dict | None = None):
+    """Save the set of expanded knowledge node IDs to expanded.json.
+
+    Preserves existing expanded_knowledge_at timestamps for nodes that were already expanded.
+    Updates knowledge_last_expanded_turn if provided.
+    """
+    expanded_path = session_dir / "expanded.json"
+    expanded_path.parent.mkdir(parents=True, exist_ok=True)
+    now = datetime.now().isoformat()
+
+    # Load existing state to preserve timestamps and other fields
+    existing = _load_expanded_state(session_dir)
+
+    # Build expanded_knowledge_at: keep existing timestamps, add new ones
+    existing_at = existing.get("expanded_knowledge_at", {})
+    expanded_at = {}
+    for nid in node_id_set:
+        expanded_at[nid] = existing_at.get(nid, now)
+
+    # Build knowledge_last_expanded_turn: merge provided over existing, prune removed
+    existing_let = existing.get("knowledge_last_expanded_turn", {})
+    let = last_expanded_turn if last_expanded_turn is not None else existing_let
+    let = {nid: let[nid] for nid in node_id_set if nid in let}
+
+    # Update only the knowledge-related keys, preserving everything else
+    existing["expanded_knowledge"] = list(node_id_set)
+    existing["expanded_knowledge_at"] = expanded_at
+    existing["knowledge_last_expanded_turn"] = let
+
+    expanded_path.write_text(json.dumps(existing), encoding="utf-8")

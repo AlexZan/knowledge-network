@@ -4,7 +4,8 @@ import pytest
 
 from helpers import setup_concluded_effort
 from oi.decay import (
-    extract_keywords, is_referenced, check_decay, DECAY_THRESHOLD,
+    extract_keywords, is_referenced, check_decay, check_knowledge_decay,
+    DECAY_THRESHOLD,
     update_summary_references, get_evicted_summary_ids,
     update_knowledge_references, get_evicted_knowledge_ids,
     SUMMARY_EVICTION_THRESHOLD, KNOWLEDGE_EVICTION_THRESHOLD,
@@ -14,8 +15,11 @@ from oi.state import (
     _load_session_state, _save_session_state,
     _load_summary_references,
     _load_knowledge_references, _save_knowledge_references,
+    _load_expanded_knowledge, _save_expanded_knowledge,
 )
-from oi.tools import expand_effort
+from oi.tools import expand_effort, expand_knowledge
+from oi.knowledge import add_knowledge
+from oi.session_log import create_session_log, log_event
 
 
 @pytest.fixture
@@ -351,3 +355,59 @@ class TestKnowledgeEviction:
         # One before
         evicted = get_evicted_knowledge_ids(session_dir, 10 + KNOWLEDGE_EVICTION_THRESHOLD - 1)
         assert "fact-001" not in evicted
+
+
+# === Slice 8f: Knowledge decay tests ===
+
+class TestCheckKnowledgeDecay:
+    def _setup_expanded_knowledge(self, session_dir, node_summary="Python uses GIL for thread safety"):
+        """Helper: create a session-sourced node and expand it."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        sid = create_session_log(session_dir)
+        log_event(session_dir, sid, "user-message", {"content": "test"})
+        log_event(session_dir, sid, "assistant-message", {"content": "noted"})
+        add_knowledge(session_dir, "fact", node_summary, session_id=sid)
+        log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
+        _save_session_state(session_dir, {"turn_count": 1})
+        expand_knowledge(session_dir, "fact-001")
+        return sid
+
+    def test_collapses_after_threshold(self, session_dir):
+        """Expanded knowledge auto-collapses after DECAY_THRESHOLD turns without reference."""
+        self._setup_expanded_knowledge(session_dir)
+        assert "fact-001" in _load_expanded_knowledge(session_dir)
+
+        # Turns without reference
+        for turn in range(2, 2 + DECAY_THRESHOLD - 1):
+            decayed = check_knowledge_decay(session_dir, turn, "unrelated", "unrelated")
+            assert decayed == []
+            assert "fact-001" in _load_expanded_knowledge(session_dir)
+
+        # Turn at threshold: should decay
+        decay_turn = 1 + DECAY_THRESHOLD
+        decayed = check_knowledge_decay(session_dir, decay_turn, "unrelated", "unrelated")
+        assert "fact-001" in decayed
+        assert "fact-001" not in _load_expanded_knowledge(session_dir)
+
+    def test_reference_resets_counter(self, session_dir):
+        """Referencing a knowledge node resets the decay counter."""
+        self._setup_expanded_knowledge(session_dir, "Python uses GIL for thread safety")
+
+        # Turns without reference
+        check_knowledge_decay(session_dir, 2, "unrelated", "unrelated")
+        check_knowledge_decay(session_dir, 3, "unrelated", "unrelated")
+
+        # Reference by mentioning keywords
+        decayed = check_knowledge_decay(session_dir, 4, "What about python GIL thread?", "Here's info.")
+        assert decayed == []
+        assert "fact-001" in _load_expanded_knowledge(session_dir)
+
+        # Verify counter was reset
+        state = _load_expanded_state(session_dir)
+        assert state["knowledge_last_expanded_turn"]["fact-001"] == 4
+
+    def test_no_expanded_returns_empty(self, session_dir):
+        """No expanded knowledge means nothing to check."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        decayed = check_knowledge_decay(session_dir, 5, "hello", "hi")
+        assert decayed == []

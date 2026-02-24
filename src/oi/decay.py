@@ -9,6 +9,8 @@ from .state import (
     _load_expanded_state, _load_manifest, _save_expanded,
     _load_summary_references, _save_summary_references,
     _load_knowledge_references, _save_knowledge_references,
+    _load_expanded_knowledge, _save_expanded_knowledge,
+    _load_knowledge,
 )
 from .tools import collapse_effort
 
@@ -238,3 +240,59 @@ def get_evicted_knowledge_ids(session_dir: Path, current_turn: int) -> set[str]:
             evicted.add(nid)
 
     return evicted
+
+
+def check_knowledge_decay(session_dir: Path, current_turn: int, user_message: str, assistant_response: str) -> list[str]:
+    """Check all expanded knowledge nodes for decay. Returns list of auto-collapsed node IDs.
+
+    Same DECAY_THRESHOLD as effort decay. For each expanded knowledge node:
+    1. Get node summary for keyword extraction
+    2. Check if user_message or assistant_response references it
+    3. If yes: update knowledge_last_expanded_turn
+    4. If no: check if turns_since >= DECAY_THRESHOLD
+    5. If decayed: remove from expanded set, collect ID
+    """
+    from .tools import collapse_knowledge
+
+    expanded_state = _load_expanded_state(session_dir)
+    expanded_ids = set(expanded_state.get("expanded_knowledge", []))
+
+    if not expanded_ids:
+        return []
+
+    knowledge = _load_knowledge(session_dir)
+    let = expanded_state.get("knowledge_last_expanded_turn", {})
+    decayed = []
+
+    for node_id in list(expanded_ids):
+        # Get summary for keyword extraction
+        summary = ""
+        for n in knowledge.get("nodes", []):
+            if n["id"] == node_id:
+                summary = n.get("summary", "") or ""
+                break
+
+        keywords = extract_keywords(summary)
+
+        # Check if referenced in this turn
+        referenced = (
+            is_referenced(user_message, node_id, keywords)
+            or is_referenced(assistant_response, node_id, keywords)
+        )
+
+        if referenced:
+            let[node_id] = current_turn
+        else:
+            last_ref = let.get(node_id, 0)
+            turns_since = current_turn - last_ref
+            if turns_since >= DECAY_THRESHOLD:
+                collapse_knowledge(session_dir, node_id)
+                expanded_ids.discard(node_id)
+                let.pop(node_id, None)
+                decayed.append(node_id)
+
+    # Save updated state
+    if expanded_ids or decayed:
+        _save_expanded_knowledge(session_dir, expanded_ids, last_expanded_turn=let)
+
+    return decayed

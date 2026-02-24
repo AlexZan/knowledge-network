@@ -22,8 +22,9 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 8c | Node Linking | Auto-linking via keyword overlap + LLM classification. `supports`/`contradicts` edges. | [08c-node-linking.md](08c-node-linking.md) |
 | 8d | Confidence from Topology | Confidence levels (low/medium/high/contested) computed from edge counts + independent sources. Annotations in system prompt. | — |
 | 8e | The Agent Remembers | `query_knowledge` tool, knowledge eviction (30-turn threshold), `supersedes` for contradiction resolution, session audit logs. | — |
+| 8f | Traceable Knowledge | `expand_knowledge`/`collapse_knowledge` tools. Any node expandable to source conversation. Session fragment extraction. Knowledge decay. `close_effort` forwards `session_id`. | — |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slice 8e makes the graph usable at runtime.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime.
 
 ---
 
@@ -44,21 +45,10 @@ Each remaining slice delivers a distinct, noticeable user experience. Scenarios 
 | Slice | Name | Scenario | What the user experiences |
 |-------|------|----------|--------------------------|
 | ~~8e~~ | ~~The Agent Remembers~~ | ~~2, 4~~ | ~~Done — see Completed table above~~ |
-| 8f | Traceable Knowledge | — | Any knowledge node expandable to its source conversation. "Show me where we decided X" works. |
+| ~~8f~~ | ~~Traceable Knowledge~~ | ~~—~~ | ~~Done — see Completed table above~~ |
 | 8g | The Agent Generalizes | 3 | Patterns detected across efforts. Principles distilled automatically. Privacy gradient separates private details from shareable insights. |
 
 Scenario 1 (First Nodes) is already delivered by 8a+8b. Scenario 5 (Accumulated Expertise) is the emergent result of 8e+8g working together over time — not a separate slice.
-
-### 8f: Traceable Knowledge
-
-Any knowledge node can be traced back to the conversation that created it.
-
-**What's built:**
-- Session log linking — knowledge nodes link back to the session log fragment where they were created (builds on 8e's `created_in_session` field)
-- `expand_knowledge` tool — expand any knowledge node to see the conversation context that produced it
-- Collapse after viewing — same expand/collapse pattern as efforts
-
-**UX**: "Show me where we decided to use PostgreSQL" → agent expands decision-003, showing the conversation fragment from the session where it was created.
 
 ### 8g: The Agent Generalizes
 
@@ -81,7 +71,7 @@ Effort migration (efforts as knowledge graph nodes) and schema system. Deferred 
 ```
 8e: The Agent Remembers (query, eviction, resolution, session logs)
  ↓
-8f: Traceable Knowledge (session log linking, expand_knowledge)
+8f: Traceable Knowledge (session log linking, expand_knowledge) ✓
  ↓
 8g: The Agent Generalizes (principles, abstraction, privacy)
 ```
