@@ -1068,7 +1068,7 @@ class TestNodeLinkingE2E:
 
     def test_supporting_facts_create_edge(self, tmp_path):
         """Add two JWT-related facts → supports edge created between them."""
-        from oi.tools import add_knowledge
+        from oi.knowledge import add_knowledge
 
         session_dir = tmp_path / "session"
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -1093,7 +1093,7 @@ class TestNodeLinkingE2E:
 
     def test_contradicting_facts_create_edge(self, tmp_path):
         """Add 'use JWT' then 'use session cookies' → contradicts edge created."""
-        from oi.tools import add_knowledge
+        from oi.knowledge import add_knowledge
 
         session_dir = tmp_path / "session"
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -1126,7 +1126,7 @@ class TestNodeLinkingE2E:
 
     def test_unrelated_facts_no_edges(self, tmp_path):
         """Add JWT fact then weather fact → no edges created."""
-        from oi.tools import add_knowledge
+        from oi.knowledge import add_knowledge
 
         session_dir = tmp_path / "session"
         session_dir.mkdir(parents=True, exist_ok=True)
@@ -1154,7 +1154,7 @@ class TestConfidenceE2E:
 
     def test_confidence_progresses_with_support(self, tmp_path):
         """Add node, then add supporting node from different source → confidence rises."""
-        from oi.tools import add_knowledge
+        from oi.knowledge import add_knowledge
         from oi.confidence import compute_confidence
 
         session_dir = tmp_path / "session"
@@ -1192,7 +1192,7 @@ class TestConfidenceE2E:
 
     def test_contested_shown_for_contradiction(self, tmp_path):
         """Add contradicting node → contested confidence, shown in system prompt."""
-        from oi.tools import add_knowledge
+        from oi.knowledge import add_knowledge
         from oi.confidence import compute_confidence
         from oi.orchestrator import _build_messages
 

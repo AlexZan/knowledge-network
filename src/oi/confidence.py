@@ -75,6 +75,21 @@ def compute_confidence(node_id: str, graph: dict) -> dict:
     }
 
 
+def confidence_annotation(conf: dict) -> str:
+    """Format a confidence annotation for display. Returns empty string for low."""
+    level = conf.get("level", "low")
+    if level == "contested":
+        n = conf.get("inbound_contradicts", 0)
+        return f"(contested - {n} contradiction{'s' if n != 1 else ''})"
+    elif level == "high":
+        n = conf.get("independent_sources", 0)
+        return f"(high confidence, {n} sources)"
+    elif level == "medium":
+        n = conf.get("independent_sources", 0)
+        return f"(medium confidence, {n} source{'s' if n != 1 else ''})"
+    return ""
+
+
 def compute_all_confidences(graph: dict) -> dict:
     """Compute confidence for all active nodes.
 

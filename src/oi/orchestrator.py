@@ -18,7 +18,7 @@ from typing import Callable
 from .llm import chat_with_tools, DEFAULT_MODEL
 from .prompts import load_prompt
 from .state import _load_expanded, _load_knowledge, increment_turn
-from .confidence import compute_confidence
+from .confidence import compute_confidence, confidence_annotation
 from .tools import (
     TOOL_DEFINITIONS, execute_tool,
     get_active_effort, get_all_open_efforts,
@@ -66,19 +66,6 @@ def _read_jsonl_messages(filepath: Path, max_messages: int | None = None) -> lis
     return messages
 
 
-def _confidence_annotation(conf: dict) -> str:
-    """Format a confidence annotation for display. Returns empty string for low."""
-    level = conf.get("level", "low")
-    if level == "contested":
-        n = conf.get("inbound_contradicts", 0)
-        return f"(contested - {n} contradiction{'s' if n != 1 else ''})"
-    elif level == "high":
-        n = conf.get("independent_sources", 0)
-        return f"(high confidence, {n} sources)"
-    elif level == "medium":
-        n = conf.get("independent_sources", 0)
-        return f"(medium confidence, {n} source{'s' if n != 1 else ''})"
-    return ""
 
 
 def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[dict]:
@@ -129,7 +116,7 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
         kg_parts = ["\nKnowledge graph:"]
         for n in active_nodes:
             conf = compute_confidence(n["id"], knowledge)
-            annotation = _confidence_annotation(conf)
+            annotation = confidence_annotation(conf)
             if annotation:
                 kg_parts.append(f"- [{n['type']}] {n['summary']} {annotation}")
             else:

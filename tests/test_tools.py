@@ -9,9 +9,10 @@ from oi.tools import (
     get_open_effort, get_active_effort, get_all_open_efforts,
     expand_effort, collapse_effort, switch_effort, search_efforts,
     reopen_effort, read_file, run_command, write_file, append_file,
-    add_knowledge, execute_tool,
+    execute_tool,
     READ_FILE_MAX_CHARS, RUN_COMMAND_MAX_CHARS,
 )
+from oi.knowledge import add_knowledge
 from oi.state import (
     _load_expanded, _save_expanded, _load_expanded_state,
     _load_session_state, _save_session_state, increment_turn,
