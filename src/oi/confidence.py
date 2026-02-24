@@ -39,6 +39,9 @@ def compute_confidence(node_id: str, graph: dict) -> dict:
             if edge["type"] == "supports":
                 inbound_supports += 1
                 supporter_ids.append(edge["source"])
+            elif edge["type"] == "exemplifies":
+                inbound_supports += 1
+                supporter_ids.append(edge["source"])
             elif edge["type"] == "contradicts":
                 inbound_contradicts += 1
 

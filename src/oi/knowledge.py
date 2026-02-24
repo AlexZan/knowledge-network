@@ -97,6 +97,8 @@ def add_knowledge(
     model: str = None,
     supersedes: list = None,
     session_id: str = None,
+    abstraction_level: int = None,
+    instance_count: int = None,
 ) -> str:
     """Add a fact, preference, or decision to the knowledge graph. Returns JSON result."""
     from .llm import DEFAULT_MODEL
@@ -122,6 +124,10 @@ def add_knowledge(
     }
     if session_id:
         node["created_in_session"] = session_id
+    if abstraction_level is not None:
+        node["abstraction_level"] = abstraction_level
+    if instance_count is not None:
+        node["instance_count"] = instance_count
     knowledge["nodes"].append(node)
 
     # Handle supersession: mark old nodes and transfer edges

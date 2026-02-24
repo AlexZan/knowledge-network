@@ -9,6 +9,7 @@ from oi.tools import (
     get_open_effort, get_active_effort, get_all_open_efforts,
     expand_effort, collapse_effort, switch_effort, search_efforts,
     reopen_effort, read_file, run_command, write_file, append_file,
+    expand_knowledge, collapse_knowledge,
     execute_tool,
     READ_FILE_MAX_CHARS, RUN_COMMAND_MAX_CHARS,
 )
@@ -18,6 +19,7 @@ from oi.state import (
     _load_session_state, _save_session_state, increment_turn,
     increment_session_count, _load_manifest,
     _load_knowledge, _save_knowledge,
+    _load_expanded_knowledge, _save_expanded_knowledge,
 )
 from oi.cli import _append_session_marker, _show_startup
 
@@ -1192,3 +1194,315 @@ class TestNodeLinking:
         conf = compute_confidence("fact-001", knowledge)
         assert conf["level"] == "medium"
         assert conf["inbound_supports"] == 1
+
+
+# === Slice 8f: Expanded knowledge state tests ===
+
+class TestExpandedKnowledgeState:
+    def test_load_empty_expanded_knowledge(self, session_dir):
+        """Loading expanded knowledge from empty session returns empty set."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        result = _load_expanded_knowledge(session_dir)
+        assert result == set()
+
+    def test_save_and_load_expanded_knowledge(self, session_dir):
+        """Round-trip save/load preserves expanded knowledge set."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_expanded_knowledge(session_dir, {"fact-001", "decision-002"})
+        loaded = _load_expanded_knowledge(session_dir)
+        assert loaded == {"fact-001", "decision-002"}
+
+    def test_expanded_knowledge_preserves_effort_state(self, session_dir):
+        """Saving expanded knowledge doesn't clobber effort expanded state."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        # Set up effort expanded state first
+        _save_expanded(session_dir, {"effort-a"}, last_referenced_turn={"effort-a": 5})
+
+        # Save knowledge state
+        _save_expanded_knowledge(session_dir, {"fact-001"}, last_expanded_turn={"fact-001": 3})
+
+        # Effort state should be preserved
+        effort_expanded = _load_expanded(session_dir)
+        assert "effort-a" in effort_expanded
+
+        # Knowledge state should also be there
+        knowledge_expanded = _load_expanded_knowledge(session_dir)
+        assert "fact-001" in knowledge_expanded
+
+    def test_expanded_knowledge_preserves_timestamps(self, session_dir):
+        """Saving expanded knowledge preserves existing expanded_knowledge_at timestamps."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_expanded_knowledge(session_dir, {"fact-001"}, last_expanded_turn={"fact-001": 1})
+        state1 = _load_expanded_state(session_dir)
+        ts = state1["expanded_knowledge_at"]["fact-001"]
+
+        # Save again with fact-001 still present — timestamp preserved
+        _save_expanded_knowledge(session_dir, {"fact-001", "fact-002"}, last_expanded_turn={"fact-001": 1, "fact-002": 3})
+        state2 = _load_expanded_state(session_dir)
+        assert state2["expanded_knowledge_at"]["fact-001"] == ts
+        assert "fact-002" in state2["expanded_knowledge_at"]
+
+
+# === Slice 8f: expand_knowledge / collapse_knowledge tests ===
+
+class TestExpandKnowledge:
+    def test_expand_session_sourced_node(self, session_dir):
+        """Expanding a session-sourced node returns fragment info."""
+        from oi.session_log import create_session_log, log_event
+        session_dir.mkdir(parents=True, exist_ok=True)
+        sid = create_session_log(session_dir)
+
+        # Log conversation then add_knowledge with session_id
+        log_event(session_dir, sid, "user-message", {"content": "Python uses GIL"})
+        log_event(session_dir, sid, "assistant-message", {"content": "Noted as a fact"})
+        add_knowledge(session_dir, "fact", "Python uses GIL for thread safety", session_id=sid)
+        # Manually log the node-created event (normally done by orchestrator)
+        log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
+
+        result = json.loads(expand_knowledge(session_dir, "fact-001"))
+        assert result["status"] == "expanded"
+        assert result["node_id"] == "fact-001"
+        assert result["session_id"] == sid
+        assert result["messages_loaded"] == 2
+
+        # Should be in expanded knowledge state
+        assert "fact-001" in _load_expanded_knowledge(session_dir)
+
+    def test_expand_effort_sourced_node(self, session_dir):
+        """Expanding an effort-sourced node delegates to expand_effort."""
+        setup_concluded_effort(session_dir, "db-design", "Database design decisions.")
+        # Add knowledge with source matching the effort
+        add_knowledge(session_dir, "decision", "Use PostgreSQL", source="db-design")
+
+        result = json.loads(expand_knowledge(session_dir, "decision-001"))
+        assert result["status"] == "expanded"
+        assert result["via_effort"] == "db-design"
+        assert result["node_id"] == "decision-001"
+        # effort should be expanded
+        assert "db-design" in _load_expanded(session_dir)
+
+    def test_expand_nonexistent_node_fails(self, session_dir):
+        """Expanding a non-existent node returns error."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        result = json.loads(expand_knowledge(session_dir, "fact-999"))
+        assert "error" in result
+
+    def test_expand_superseded_node_fails(self, session_dir):
+        """Cannot expand a superseded node."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "Old fact")
+        add_knowledge(session_dir, "fact", "New fact", supersedes=["fact-001"])
+        result = json.loads(expand_knowledge(session_dir, "fact-001"))
+        assert "error" in result
+        assert "superseded" in result["error"]
+
+    def test_expand_already_expanded_fails(self, session_dir):
+        """Cannot expand a node that's already expanded."""
+        from oi.session_log import create_session_log, log_event
+        session_dir.mkdir(parents=True, exist_ok=True)
+        sid = create_session_log(session_dir)
+
+        log_event(session_dir, sid, "user-message", {"content": "test"})
+        log_event(session_dir, sid, "assistant-message", {"content": "noted"})
+        add_knowledge(session_dir, "fact", "Test fact", session_id=sid)
+        log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
+
+        expand_knowledge(session_dir, "fact-001")
+        result = json.loads(expand_knowledge(session_dir, "fact-001"))
+        assert "error" in result
+        assert "already expanded" in result["error"]
+
+    def test_expand_no_traceable_source_fails(self, session_dir):
+        """Node with neither source nor created_in_session returns error."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "Orphan fact")
+        result = json.loads(expand_knowledge(session_dir, "fact-001"))
+        assert "error" in result
+        assert "no traceable source" in result["error"]
+
+    def test_expand_effort_already_expanded_via_effort(self, session_dir):
+        """If effort is already expanded, expand_knowledge reports the error."""
+        setup_concluded_effort(session_dir, "db-design", "Database decisions.")
+        add_knowledge(session_dir, "decision", "Use PostgreSQL", source="db-design")
+        expand_effort(session_dir, "db-design")
+
+        result = json.loads(expand_knowledge(session_dir, "decision-001"))
+        assert "error" in result
+        assert "already expanded" in result["error"]
+
+    def test_expand_knowledge_via_execute_tool(self, session_dir):
+        """expand_knowledge dispatches correctly through execute_tool."""
+        from oi.session_log import create_session_log, log_event
+        session_dir.mkdir(parents=True, exist_ok=True)
+        sid = create_session_log(session_dir)
+        log_event(session_dir, sid, "user-message", {"content": "test msg"})
+        log_event(session_dir, sid, "assistant-message", {"content": "test reply"})
+        add_knowledge(session_dir, "fact", "Test fact", session_id=sid)
+        log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
+
+        result = json.loads(execute_tool(session_dir, "expand_knowledge", {"node_id": "fact-001"}))
+        assert result["status"] == "expanded"
+
+
+class TestCollapseKnowledge:
+    def test_collapse_expanded_knowledge(self, session_dir):
+        """Collapse succeeds and removes from expanded knowledge set."""
+        from oi.session_log import create_session_log, log_event
+        session_dir.mkdir(parents=True, exist_ok=True)
+        sid = create_session_log(session_dir)
+        log_event(session_dir, sid, "user-message", {"content": "test"})
+        log_event(session_dir, sid, "assistant-message", {"content": "noted"})
+        add_knowledge(session_dir, "fact", "Collapsible fact", session_id=sid)
+        log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
+        expand_knowledge(session_dir, "fact-001")
+        assert "fact-001" in _load_expanded_knowledge(session_dir)
+
+        result = json.loads(collapse_knowledge(session_dir, "fact-001"))
+        assert result["status"] == "collapsed"
+        assert "fact-001" not in _load_expanded_knowledge(session_dir)
+
+    def test_collapse_non_expanded_fails(self, session_dir):
+        """Cannot collapse a node that's not expanded."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        result = json.loads(collapse_knowledge(session_dir, "fact-999"))
+        assert "error" in result
+        assert "not currently expanded" in result["error"]
+
+    def test_collapse_knowledge_via_execute_tool(self, session_dir):
+        """collapse_knowledge dispatches correctly through execute_tool."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_expanded_knowledge(session_dir, {"fact-001"})
+        result = json.loads(execute_tool(session_dir, "collapse_knowledge", {"node_id": "fact-001"}))
+        assert result["status"] == "collapsed"
+
+
+# === Slice 8f: close_effort session_id forwarding ===
+
+class TestCloseEffortSessionId:
+    def test_close_effort_forwards_session_id(self, session_dir):
+        """close_effort passes session_id to add_knowledge for auto-extracted nodes."""
+        from unittest.mock import patch
+        from oi.session_log import create_session_log
+        session_dir.mkdir(parents=True, exist_ok=True)
+        sid = create_session_log(session_dir)
+
+        open_effort(session_dir, "test-effort")
+        effort_file = session_dir / "efforts" / "test-effort.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text(
+            json.dumps({"role": "user", "content": "We decided to use Redis for caching because it's fast.", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "Redis is great for caching with TTL support.", "ts": "t2"}) + "\n",
+            encoding="utf-8",
+        )
+
+        mock_nodes = [{"node_type": "decision", "summary": "Use Redis for caching"}]
+        with patch("oi.llm.summarize_effort", return_value="Discussed caching."):
+            with patch("oi.llm.extract_knowledge", return_value=mock_nodes):
+                close_effort(session_dir, effort_id="test-effort", session_id=sid)
+
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert node.get("created_in_session") == sid
+
+    def test_close_effort_without_session_id_still_works(self, session_dir):
+        """close_effort works without session_id (backwards compatible)."""
+        from unittest.mock import patch
+        open_effort(session_dir, "test-effort")
+        effort_file = session_dir / "efforts" / "test-effort.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text(
+            json.dumps({"role": "user", "content": "Did some work on refactoring the authentication module.", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "Completed the refactoring.", "ts": "t2"}) + "\n",
+            encoding="utf-8",
+        )
+
+        mock_nodes = [{"node_type": "fact", "summary": "Refactored auth module"}]
+        with patch("oi.llm.summarize_effort", return_value="Refactored auth."):
+            with patch("oi.llm.extract_knowledge", return_value=mock_nodes):
+                result = json.loads(close_effort(session_dir, effort_id="test-effort"))
+        assert result["status"] == "concluded"
+
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert "created_in_session" not in node
+
+
+# === Slice 8g: Pattern detection in close_effort ===
+
+class TestCloseEffortPatternDetection:
+    def test_close_effort_triggers_pattern_detection(self, session_dir):
+        """close_effort triggers detect_patterns when extraction yields nodes."""
+        from unittest.mock import patch
+        open_effort(session_dir, "test-effort")
+        effort_file = session_dir / "efforts" / "test-effort.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text(
+            json.dumps({"role": "user", "content": "Worked on auth module refactoring.", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "Done with refactoring.", "ts": "t2"}) + "\n",
+            encoding="utf-8",
+        )
+
+        mock_nodes = [{"node_type": "fact", "summary": "Auth uses JWT"}]
+        mock_patterns = [{"action": "created", "principle_id": "principle-001", "instance_count": 3, "summary": "Always validate tokens"}]
+        with patch("oi.llm.summarize_effort", return_value="Refactored auth."):
+            with patch("oi.llm.extract_knowledge", return_value=mock_nodes):
+                with patch("oi.patterns.detect_patterns", return_value=mock_patterns):
+                    result = json.loads(close_effort(session_dir, effort_id="test-effort"))
+
+        assert result["status"] == "concluded"
+        assert "patterns_detected" in result
+        assert len(result["patterns_detected"]) == 1
+        assert result["patterns_detected"][0]["action"] == "created"
+
+    def test_pattern_detection_best_effort(self, session_dir):
+        """detect_patterns raises → close_effort succeeds without patterns."""
+        from unittest.mock import patch
+        open_effort(session_dir, "test-effort")
+        effort_file = session_dir / "efforts" / "test-effort.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text(
+            json.dumps({"role": "user", "content": "Did auth work.", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "Done.", "ts": "t2"}) + "\n",
+            encoding="utf-8",
+        )
+
+        mock_nodes = [{"node_type": "fact", "summary": "Auth uses JWT"}]
+        with patch("oi.llm.summarize_effort", return_value="Auth work."):
+            with patch("oi.llm.extract_knowledge", return_value=mock_nodes):
+                with patch("oi.patterns.detect_patterns", side_effect=Exception("boom")):
+                    result = json.loads(close_effort(session_dir, effort_id="test-effort"))
+
+        assert result["status"] == "concluded"
+        assert "patterns_detected" not in result
+
+    def test_no_patterns_when_no_extraction(self, session_dir):
+        """Short effort → no extraction → no pattern detection."""
+        open_effort(session_dir, "test-effort")
+        effort_file = session_dir / "efforts" / "test-effort.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text("short\n", encoding="utf-8")
+
+        result = json.loads(close_effort(session_dir, effort_id="test-effort"))
+        assert result["status"] == "concluded"
+        assert "patterns_detected" not in result
+
+    def test_no_patterns_when_extraction_empty(self, session_dir):
+        """extract_knowledge returns [] → no pattern detection called."""
+        from unittest.mock import patch
+        open_effort(session_dir, "test-effort")
+        effort_file = session_dir / "efforts" / "test-effort.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text(
+            json.dumps({"role": "user", "content": "Some conversation about nothing.", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "Nothing to extract.", "ts": "t2"}) + "\n",
+            encoding="utf-8",
+        )
+
+        with patch("oi.llm.summarize_effort", return_value="Nothing happened."):
+            with patch("oi.llm.extract_knowledge", return_value=[]):
+                with patch("oi.patterns.detect_patterns") as mock_detect:
+                    result = json.loads(close_effort(session_dir, effort_id="test-effort"))
+
+        assert result["status"] == "concluded"
+        assert "patterns_detected" not in result
+        mock_detect.assert_not_called()

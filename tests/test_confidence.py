@@ -210,3 +210,48 @@ class TestComputeAllConfidences:
     def test_empty_graph(self):
         """Empty graph → empty result."""
         assert compute_all_confidences({"nodes": [], "edges": []}) == {}
+
+
+class TestExemplifies:
+    def test_exemplifies_counted_as_support(self):
+        """Inbound exemplifies edge counts as inbound_supports=1."""
+        graph = _graph(
+            [_node("principle-001", source="system"), _node("fact-001", source="effort-a")],
+            [_edge("fact-001", "principle-001", "exemplifies")],
+        )
+        result = compute_confidence("principle-001", graph)
+        assert result["inbound_supports"] == 1
+
+    def test_exemplifies_sources_counted(self):
+        """Exemplifying nodes from different sources increase independent_sources."""
+        graph = _graph(
+            [
+                _node("principle-001", source="system"),
+                _node("fact-001", source="effort-a"),
+                _node("fact-002", source="effort-b"),
+            ],
+            [
+                _edge("fact-001", "principle-001", "exemplifies"),
+                _edge("fact-002", "principle-001", "exemplifies"),
+            ],
+        )
+        result = compute_confidence("principle-001", graph)
+        assert result["independent_sources"] == 3  # system + effort-a + effort-b
+
+    def test_exemplifies_boosts_to_high(self):
+        """Principle with 3+ sources and 2+ exemplifies → high confidence."""
+        graph = _graph(
+            [
+                _node("principle-001", source="system"),
+                _node("fact-001", source="effort-a"),
+                _node("fact-002", source="effort-b"),
+            ],
+            [
+                _edge("fact-001", "principle-001", "exemplifies"),
+                _edge("fact-002", "principle-001", "exemplifies"),
+            ],
+        )
+        result = compute_confidence("principle-001", graph)
+        assert result["level"] == "high"
+        assert result["inbound_supports"] == 2
+        assert result["independent_sources"] == 3

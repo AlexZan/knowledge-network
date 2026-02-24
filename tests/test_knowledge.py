@@ -319,3 +319,69 @@ class TestSessionIdOnNodes:
         knowledge = _load_knowledge(session_dir)
         node = knowledge["nodes"][0]
         assert "created_in_session" not in node
+
+
+# === Slice 8g: Principle nodes ===
+
+class TestPrincipleNodes:
+    def test_add_principle_node(self, session_dir):
+        """Adding a principle node returns status=added with principle-001 id."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        result = json.loads(add_knowledge(session_dir, "principle", "Always test after each change"))
+        assert result["status"] == "added"
+        assert result["node_id"] == "principle-001"
+        assert result["node_type"] == "principle"
+
+    def test_principle_stores_abstraction_level(self, session_dir):
+        """abstraction_level field is persisted on the node."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "principle", "Test incrementally", abstraction_level=2)
+
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert node["abstraction_level"] == 2
+
+    def test_principle_stores_instance_count(self, session_dir):
+        """instance_count field is persisted on the node."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "principle", "Test incrementally", instance_count=3)
+
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert node["instance_count"] == 3
+
+    def test_exemplifies_edge_stored(self, session_dir):
+        """add_knowledge with related_to + edge_type='exemplifies' creates exemplifies edge."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "principle", "General principle", abstraction_level=2)
+        add_knowledge(
+            session_dir, "fact", "Specific observation",
+            related_to=["principle-001"], edge_type="exemplifies",
+        )
+
+        knowledge = _load_knowledge(session_dir)
+        exemplifies_edges = [e for e in knowledge["edges"] if e["type"] == "exemplifies"]
+        assert len(exemplifies_edges) == 1
+        assert exemplifies_edges[0]["source"] == "fact-001"
+        assert exemplifies_edges[0]["target"] == "principle-001"
+
+    def test_principle_without_optional_fields(self, session_dir):
+        """Principle node works without abstraction_level or instance_count."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        result = json.loads(add_knowledge(session_dir, "principle", "Some principle"))
+        assert result["status"] == "added"
+
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert "abstraction_level" not in node
+        assert "instance_count" not in node
+
+    def test_principle_in_query_results(self, session_dir):
+        """query_knowledge(node_type='principle') returns only principles."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "Some fact about testing")
+        add_knowledge(session_dir, "principle", "Always test incrementally")
+
+        result = json.loads(query_knowledge(session_dir, "test", node_type="principle"))
+        assert len(result["results"]) == 1
+        assert result["results"][0]["type"] == "principle"

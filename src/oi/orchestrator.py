@@ -17,17 +17,21 @@ from typing import Callable
 
 from .llm import chat_with_tools, DEFAULT_MODEL
 from .prompts import load_prompt
-from .state import _load_expanded, _load_knowledge, increment_turn
+from .state import (
+    _load_expanded, _load_knowledge, _load_expanded_knowledge,
+    _load_expanded_state, increment_turn,
+)
 from .confidence import compute_confidence, confidence_annotation
 from .tools import (
     TOOL_DEFINITIONS, execute_tool,
     get_active_effort, get_all_open_efforts,
 )
 from .decay import (
-    check_decay, DECAY_THRESHOLD, update_summary_references, get_evicted_summary_ids,
+    check_decay, check_knowledge_decay, DECAY_THRESHOLD,
+    update_summary_references, get_evicted_summary_ids,
     update_knowledge_references, get_evicted_knowledge_ids, AMBIENT_WINDOW,
 )
-from .session_log import log_event
+from .session_log import log_event, extract_node_context
 
 
 MAX_TOOL_ROUNDS = 3
@@ -124,10 +128,13 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
         for n in visible_nodes:
             conf = compute_confidence(n["id"], knowledge)
             annotation = confidence_annotation(conf)
+            prefix = f"[{n['type']}]"
+            if n.get("type") == "principle" and n.get("instance_count"):
+                prefix = f"[principle, {n['instance_count']} instances]"
             if annotation:
-                kg_parts.append(f"- [{n['type']}] {n['summary']} {annotation}")
+                kg_parts.append(f"- {prefix} {n['summary']} {annotation}")
             else:
-                kg_parts.append(f"- [{n['type']}] {n['summary']}")
+                kg_parts.append(f"- {prefix} {n['summary']}")
         if evicted_count > 0:
             kg_parts.append(f"({evicted_count} older knowledge node(s) not shown — use query_knowledge to find them)")
         knowledge_section = "\n".join(kg_parts)
@@ -151,6 +158,32 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
     for effort_id in sorted(expanded):
         effort_file = session_dir / "efforts" / f"{effort_id}.jsonl"
         messages.extend(_read_jsonl_messages(effort_file))
+
+    # Expanded knowledge fragments (session-sourced nodes with context loaded)
+    expanded_knowledge = _load_expanded_knowledge(session_dir)
+    if expanded_knowledge:
+        knowledge = _load_knowledge(session_dir)
+        expanded_state = _load_expanded_state(session_dir)
+        for node_id in sorted(expanded_knowledge):
+            # Find node to get session_id
+            node = None
+            for n in knowledge.get("nodes", []):
+                if n["id"] == node_id:
+                    node = n
+                    break
+            if not node:
+                continue
+            session_id = node.get("created_in_session")
+            if not session_id:
+                continue
+            fragment = extract_node_context(session_dir, session_id, node_id)
+            if fragment:
+                # Inject as system message banner + conversation fragment
+                messages.append({
+                    "role": "system",
+                    "content": f"--- Expanded knowledge: {node_id} ({node.get('summary', '')}) ---",
+                })
+                messages.extend(fragment)
 
     # All open effort raw logs, with active effort last
     open_efforts = get_all_open_efforts(session_dir)
@@ -193,6 +226,14 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
                 banner_lines.append("Knowledge nodes extracted:")
                 for node in knowledge:
                     banner_lines.append(f"  [{node['node_type']}] {node['summary']}")
+            patterns = result.get("patterns_detected", [])
+            if patterns:
+                banner_lines.append("")
+                for p in patterns:
+                    if p["action"] == "created":
+                        banner_lines.append(f"  Pattern detected ({p['instance_count']} instances): {p['summary']}")
+                    elif p["action"] == "updated":
+                        banner_lines.append(f"  Pattern reinforced ({p['instance_count']} instances): {p['summary']}")
             parts.append("\n".join(banner_lines))
         elif tool_name == "expand_effort":
             tokens = result.get("tokens_loaded", 0)
@@ -231,6 +272,17 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
                 else:
                     banner_lines.append(f"  Supports: {edge['target_id']}")
             parts.append("\n".join(banner_lines))
+        elif tool_name == "expand_knowledge":
+            node_id = result.get("node_id", "")
+            if result.get("via_effort"):
+                tokens = result.get("tokens_loaded", 0)
+                parts.append(f"--- Expanded knowledge: {node_id} via effort '{result['via_effort']}' ({tokens} tokens loaded) ---")
+            else:
+                msgs = result.get("messages_loaded", 0)
+                parts.append(f"--- Expanded knowledge: {node_id} ({msgs} messages loaded from session) ---")
+        elif tool_name == "collapse_knowledge":
+            node_id = result.get("node_id", "")
+            parts.append(f"--- Collapsed knowledge: {node_id} ---")
 
     return "\n".join(parts)
 
@@ -346,18 +398,22 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
     # 10. Check decay for all expanded efforts
     decayed_ids = check_decay(session_dir, current_turn, user_message, final_response)
 
-    # 11. Update summary reference tracking for eviction
+    # 11. Check decay for expanded knowledge nodes
+    decayed_knowledge_ids = check_knowledge_decay(session_dir, current_turn, user_message, final_response)
+
+    # 12. Update summary reference tracking for eviction
     update_summary_references(session_dir, current_turn, user_message, final_response)
 
-    # 12. Update knowledge reference tracking for eviction
+    # 13. Update knowledge reference tracking for eviction
     update_knowledge_references(session_dir, current_turn, user_message, final_response)
 
-    # 13. Append decay banners to response if any
-    if decayed_ids:
-        decay_banners = "\n".join(
-            f"--- Auto-collapsed effort: {eid} (inactive for {DECAY_THRESHOLD} turns) ---"
-            for eid in decayed_ids
-        )
-        final_response = final_response + "\n\n" + decay_banners
+    # 14. Append decay banners to response if any
+    decay_parts = []
+    for eid in decayed_ids:
+        decay_parts.append(f"--- Auto-collapsed effort: {eid} (inactive for {DECAY_THRESHOLD} turns) ---")
+    for nid in decayed_knowledge_ids:
+        decay_parts.append(f"--- Auto-collapsed knowledge: {nid} (inactive for {DECAY_THRESHOLD} turns) ---")
+    if decay_parts:
+        final_response = final_response + "\n\n" + "\n".join(decay_parts)
 
     return final_response

@@ -8,11 +8,11 @@ from unittest.mock import patch, MagicMock
 
 from helpers import setup_concluded_effort
 from oi.orchestrator import _build_messages, _log_message, process_turn
-from oi.tools import open_effort, expand_effort, get_active_effort
+from oi.tools import open_effort, expand_effort, expand_knowledge, get_active_effort
 from oi.decay import AMBIENT_WINDOW, SUMMARY_EVICTION_THRESHOLD, KNOWLEDGE_EVICTION_THRESHOLD, update_summary_references
-from oi.state import _save_summary_references, _save_knowledge_references
+from oi.state import _save_summary_references, _save_knowledge_references, _load_expanded_knowledge
 from oi.knowledge import add_knowledge
-from oi.session_log import create_session_log, read_session_log
+from oi.session_log import create_session_log, log_event, read_session_log
 
 
 @pytest.fixture
@@ -413,3 +413,141 @@ class TestSessionLogIntegration:
         node_events = [e for e in events if e["type"] == "node-created"]
         assert len(node_events) == 1
         assert node_events[0]["data"]["node_id"] == "fact-001"
+
+
+# === Slice 8f: Expanded knowledge in context tests ===
+
+class TestExpandedKnowledgeContext:
+    def test_expanded_knowledge_fragment_in_messages(self, session_dir):
+        """Expanded knowledge node's conversation fragment appears in _build_messages."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        sid = create_session_log(session_dir)
+        log_event(session_dir, sid, "user-message", {"content": "Python uses GIL"})
+        log_event(session_dir, sid, "assistant-message", {"content": "Noted"})
+        add_knowledge(session_dir, "fact", "Python uses GIL for thread safety", session_id=sid)
+        log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
+
+        expand_knowledge(session_dir, "fact-001")
+
+        messages = _build_messages(session_dir)
+        all_content = " ".join(m["content"] for m in messages)
+        assert "Expanded knowledge: fact-001" in all_content
+        assert "Python uses GIL" in all_content
+
+    def test_collapsed_knowledge_not_in_messages(self, session_dir):
+        """After collapsing, knowledge fragment is removed from context."""
+        from oi.tools import collapse_knowledge
+        session_dir.mkdir(parents=True, exist_ok=True)
+        sid = create_session_log(session_dir)
+        log_event(session_dir, sid, "user-message", {"content": "Secret context"})
+        log_event(session_dir, sid, "assistant-message", {"content": "Noted"})
+        add_knowledge(session_dir, "fact", "Secret fact", session_id=sid)
+        log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
+
+        expand_knowledge(session_dir, "fact-001")
+        collapse_knowledge(session_dir, "fact-001")
+
+        messages = _build_messages(session_dir)
+        all_content = " ".join(m["content"] for m in messages)
+        assert "Secret context" not in all_content
+
+    def test_expand_knowledge_banner(self, session_dir):
+        """expand_knowledge produces correct banner in _build_tool_banners."""
+        from oi.orchestrator import _build_tool_banners
+        tools_fired = [
+            ("expand_knowledge", {"node_id": "fact-001"}, json.dumps({
+                "status": "expanded", "node_id": "fact-001",
+                "session_id": "s1", "messages_loaded": 3,
+            })),
+        ]
+        banner = _build_tool_banners(tools_fired)
+        assert "Expanded knowledge: fact-001" in banner
+        assert "3 messages loaded" in banner
+
+    def test_expand_knowledge_via_effort_banner(self, session_dir):
+        """expand_knowledge via effort shows effort info in banner."""
+        from oi.orchestrator import _build_tool_banners
+        tools_fired = [
+            ("expand_knowledge", {"node_id": "decision-001"}, json.dumps({
+                "status": "expanded", "node_id": "decision-001",
+                "via_effort": "db-design", "effort_id": "db-design",
+                "tokens_loaded": 500,
+            })),
+        ]
+        banner = _build_tool_banners(tools_fired)
+        assert "Expanded knowledge: decision-001" in banner
+        assert "db-design" in banner
+        assert "500 tokens" in banner
+
+
+# === Slice 8g: Pattern banners and principle display ===
+
+class TestPatternBanners:
+    def test_banner_shows_pattern_created(self, session_dir):
+        """patterns_detected with action=created shows 'Pattern detected' in banner."""
+        from oi.orchestrator import _build_tool_banners
+        tools_fired = [
+            ("close_effort", {}, json.dumps({
+                "status": "concluded", "effort_id": "test-effort",
+                "summary": "Did stuff", "knowledge_extracted": [],
+                "patterns_detected": [
+                    {"action": "created", "principle_id": "principle-001",
+                     "instance_count": 3, "summary": "Always validate inputs"},
+                ],
+            })),
+        ]
+        banner = _build_tool_banners(tools_fired)
+        assert "Pattern detected (3 instances): Always validate inputs" in banner
+
+    def test_banner_shows_pattern_updated(self, session_dir):
+        """patterns_detected with action=updated shows 'Pattern reinforced' in banner."""
+        from oi.orchestrator import _build_tool_banners
+        tools_fired = [
+            ("close_effort", {}, json.dumps({
+                "status": "concluded", "effort_id": "test-effort",
+                "summary": "More stuff", "knowledge_extracted": [],
+                "patterns_detected": [
+                    {"action": "updated", "principle_id": "principle-001",
+                     "instance_count": 5, "summary": "Always validate inputs"},
+                ],
+            })),
+        ]
+        banner = _build_tool_banners(tools_fired)
+        assert "Pattern reinforced (5 instances): Always validate inputs" in banner
+
+    def test_principle_displayed_with_instance_count(self, session_dir):
+        """Principle node with instance_count shows [principle, N instances] in knowledge section."""
+        from oi.state import _save_knowledge
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "principle-001", "type": "principle",
+                 "summary": "Always test incrementally",
+                 "status": "active", "source": "system",
+                 "instance_count": 3},
+            ],
+            "edges": [],
+        })
+
+        messages = _build_messages(session_dir)
+        system_content = messages[0]["content"]
+        assert "[principle, 3 instances]" in system_content
+        assert "Always test incrementally" in system_content
+
+    def test_principle_displayed_without_instance_count(self, session_dir):
+        """Principle without instance_count shows plain [principle]."""
+        from oi.state import _save_knowledge
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "principle-001", "type": "principle",
+                 "summary": "Some principle",
+                 "status": "active", "source": "system"},
+            ],
+            "edges": [],
+        })
+
+        messages = _build_messages(session_dir)
+        system_content = messages[0]["content"]
+        assert "[principle]" in system_content
+        assert "[principle," not in system_content

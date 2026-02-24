@@ -87,6 +87,12 @@ contradiction conversationally to the user:
 - Once the user confirms, call add_knowledge with the refined summary and
   supersedes=[old_node_id_1, old_node_id_2] to resolve the contradiction
 
+### Pattern detection
+When close_effort reports "Pattern detected" or "Pattern reinforced", mention it
+naturally — e.g. "I'm noticing a pattern across your efforts...".
+Principles are generalized insights stripped of context-specific details.
+Apply them like an experienced colleague: confidently if well-supported, tentatively if new.
+
 ## Conversation Behavior
 
 When an effort is active:

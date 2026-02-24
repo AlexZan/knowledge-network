@@ -1,6 +1,6 @@
 """Tool definitions and handlers for effort management and environment interaction.
 
-Fourteen LLM-callable tools:
+Sixteen LLM-callable tools:
 - open_effort(name): Start tracking focused work (multiple can be open)
 - close_effort(id?): Conclude an effort with summary
 - effort_status(): Get status of all efforts
@@ -15,6 +15,8 @@ Fourteen LLM-callable tools:
 - append_file(path, content): Append content to a file (requires user confirmation)
 - add_knowledge(node_type, summary, ...): Add a fact/preference/decision to the knowledge graph
 - query_knowledge(query, ...): Search the knowledge graph by topic
+- expand_knowledge(node_id): Load source conversation for a knowledge node into context
+- collapse_knowledge(node_id): Remove expanded knowledge context
 """
 
 import json
@@ -27,6 +29,7 @@ from .state import (
     _load_manifest, _save_manifest,
     _load_expanded, _load_expanded_state, _save_expanded,
     _load_session_state, _save_session_state, increment_turn,
+    _load_knowledge, _load_expanded_knowledge, _save_expanded_knowledge,
 )
 from .knowledge import add_knowledge, query_knowledge
 
@@ -295,7 +298,7 @@ TOOL_DEFINITIONS = [
                 "properties": {
                     "node_type": {
                         "type": "string",
-                        "enum": ["fact", "preference", "decision"],
+                        "enum": ["fact", "preference", "decision", "principle"],
                         "description": "Type of knowledge node"
                     },
                     "summary": {
@@ -313,7 +316,7 @@ TOOL_DEFINITIONS = [
                     },
                     "edge_type": {
                         "type": "string",
-                        "enum": ["supports", "contradicts"],
+                        "enum": ["supports", "contradicts", "exemplifies"],
                         "description": "Relationship type to related_to nodes (optional)"
                     },
                     "supersedes": {
@@ -346,7 +349,7 @@ TOOL_DEFINITIONS = [
                     },
                     "node_type": {
                         "type": "string",
-                        "enum": ["fact", "preference", "decision"],
+                        "enum": ["fact", "preference", "decision", "principle"],
                         "description": "Filter results by node type (optional)"
                     },
                     "min_confidence": {
@@ -356,6 +359,48 @@ TOOL_DEFINITIONS = [
                     }
                 },
                 "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "expand_knowledge",
+            "description": (
+                "Load the source conversation for a knowledge node into working context. "
+                "Use when the user asks 'where did we decide X?' or 'show me when we talked about Y'. "
+                "For effort-sourced nodes, delegates to expand_effort. "
+                "For session-sourced nodes, extracts the conversation fragment around the node creation."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "node_id": {
+                        "type": "string",
+                        "description": "The knowledge node ID to trace back to its source conversation."
+                    }
+                },
+                "required": ["node_id"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "collapse_knowledge",
+            "description": (
+                "Remove expanded knowledge context from working memory. "
+                "Call when the user is done reviewing the source conversation for a knowledge node."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "node_id": {
+                        "type": "string",
+                        "description": "The expanded knowledge node ID to collapse."
+                    }
+                },
+                "required": ["node_id"]
             }
         }
     },
@@ -370,6 +415,8 @@ TOOL_REGISTRY = {
     "append_file": {"requires_confirmation": True},
     "add_knowledge": {"requires_confirmation": False},
     "query_knowledge": {"requires_confirmation": False},
+    "expand_knowledge": {"requires_confirmation": False},
+    "collapse_knowledge": {"requires_confirmation": False},
 }
 
 READ_FILE_MAX_CHARS = 10_000
@@ -433,7 +480,7 @@ def open_effort(session_dir: Path, name: str) -> str:
     return json.dumps({"status": "opened", "effort_id": name})
 
 
-def close_effort(session_dir: Path, model: str = None, effort_id: str = None) -> str:
+def close_effort(session_dir: Path, model: str = None, effort_id: str = None, session_id: str = None) -> str:
     """Close an effort. If effort_id is None, close the active effort. Returns JSON result."""
     from .llm import summarize_effort as llm_summarize, extract_knowledge as llm_extract_knowledge, DEFAULT_MODEL
 
@@ -472,7 +519,7 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None) ->
         for node in raw_extracted:
             result = json.loads(add_knowledge(
                 session_dir, node["node_type"], node["summary"], source=effort_id,
-                model=model or DEFAULT_MODEL,
+                model=model or DEFAULT_MODEL, session_id=session_id,
             ))
             if result.get("status") == "added":
                 extracted_nodes.append({
@@ -502,12 +549,26 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None) ->
 
     _save_manifest(session_dir, manifest)
 
-    return json.dumps({
+    # Pattern detection: look for convergence across extracted nodes
+    pattern_results = []
+    if extracted_nodes:
+        try:
+            from .patterns import detect_patterns
+            new_ids = [n["node_id"] for n in extracted_nodes]
+            pattern_results = detect_patterns(session_dir, new_ids, model or DEFAULT_MODEL)
+        except Exception:
+            pass  # Best-effort
+
+    result = {
         "status": "concluded",
         "effort_id": effort_id,
         "summary": summary,
-        "knowledge_extracted": extracted_nodes
-    })
+        "knowledge_extracted": extracted_nodes,
+    }
+    if pattern_results:
+        result["patterns_detected"] = pattern_results
+
+    return json.dumps(result)
 
 
 def expand_effort(session_dir: Path, effort_id: str) -> str:
@@ -565,6 +626,90 @@ def collapse_effort(session_dir: Path, effort_id: str) -> str:
     return json.dumps({
         "status": "collapsed",
         "effort_id": effort_id
+    })
+
+
+def expand_knowledge(session_dir: Path, node_id: str) -> str:
+    """Expand a knowledge node — load its source conversation into working context.
+
+    Routing logic:
+    1. Find node in knowledge.yaml → error if not found or superseded
+    2. Check if already expanded → error if so
+    3. If source matches a concluded effort → delegate to expand_effort
+    4. If created_in_session → extract conversation fragment from session log
+    5. If neither → error "no traceable source"
+    """
+    from .session_log import extract_node_context
+
+    knowledge = _load_knowledge(session_dir)
+    node = None
+    for n in knowledge.get("nodes", []):
+        if n["id"] == node_id:
+            node = n
+            break
+
+    if not node:
+        return json.dumps({"error": f"No knowledge node with id '{node_id}'."})
+
+    if node.get("status") == "superseded":
+        return json.dumps({"error": f"Node '{node_id}' has been superseded by '{node.get('superseded_by', '?')}'."})
+
+    # Check if already expanded
+    expanded_knowledge = _load_expanded_knowledge(session_dir)
+    if node_id in expanded_knowledge:
+        return json.dumps({"error": f"Knowledge node '{node_id}' is already expanded."})
+
+    # Route 1: effort-sourced node — delegate to expand_effort
+    source = node.get("source")
+    if source:
+        manifest = _load_manifest(session_dir)
+        for e in manifest.get("efforts", []):
+            if e["id"] == source and e.get("status") == "concluded":
+                # Delegate to expand_effort
+                effort_result = json.loads(expand_effort(session_dir, source))
+                if "error" in effort_result:
+                    return json.dumps(effort_result)
+                effort_result["via_effort"] = source
+                effort_result["node_id"] = node_id
+                return json.dumps(effort_result)
+
+    # Route 2: session-sourced node
+    session_id = node.get("created_in_session")
+    if session_id:
+        fragment = extract_node_context(session_dir, session_id, node_id)
+        if not fragment:
+            return json.dumps({"error": f"Could not extract context for node '{node_id}' from session '{session_id}'."})
+
+        # Add to expanded knowledge state
+        expanded_knowledge.add(node_id)
+        current_turn = _load_session_state(session_dir).get("turn_count", 0)
+        let = _load_expanded_state(session_dir).get("knowledge_last_expanded_turn", {})
+        let[node_id] = current_turn
+        _save_expanded_knowledge(session_dir, expanded_knowledge, last_expanded_turn=let)
+
+        return json.dumps({
+            "status": "expanded",
+            "node_id": node_id,
+            "session_id": session_id,
+            "messages_loaded": len(fragment),
+        })
+
+    return json.dumps({"error": f"Node '{node_id}' has no traceable source (no source effort or session)."})
+
+
+def collapse_knowledge(session_dir: Path, node_id: str) -> str:
+    """Collapse an expanded knowledge node — remove its context from working memory."""
+    expanded_knowledge = _load_expanded_knowledge(session_dir)
+
+    if node_id not in expanded_knowledge:
+        return json.dumps({"error": f"Knowledge node '{node_id}' is not currently expanded."})
+
+    expanded_knowledge.discard(node_id)
+    _save_expanded_knowledge(session_dir, expanded_knowledge)
+
+    return json.dumps({
+        "status": "collapsed",
+        "node_id": node_id,
     })
 
 
@@ -854,7 +999,7 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
     if tool_name == "open_effort":
         return open_effort(session_dir, tool_args["name"])
     elif tool_name == "close_effort":
-        return close_effort(session_dir, model, effort_id=tool_args.get("id"))
+        return close_effort(session_dir, model, effort_id=tool_args.get("id"), session_id=session_id)
     elif tool_name == "effort_status":
         return effort_status(session_dir)
     elif tool_name == "expand_effort":
@@ -898,6 +1043,8 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
             model=model,
             supersedes=tool_args.get("supersedes"),
             session_id=session_id,
+            abstraction_level=tool_args.get("abstraction_level"),
+            instance_count=tool_args.get("instance_count"),
         )
     elif tool_name == "query_knowledge":
         return query_knowledge(
@@ -906,5 +1053,9 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
             node_type=tool_args.get("node_type"),
             min_confidence=tool_args.get("min_confidence"),
         )
+    elif tool_name == "expand_knowledge":
+        return expand_knowledge(session_dir, tool_args["node_id"])
+    elif tool_name == "collapse_knowledge":
+        return collapse_knowledge(session_dir, tool_args["node_id"])
     else:
         return json.dumps({"error": f"Unknown tool: {tool_name}"})
