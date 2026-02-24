@@ -44,34 +44,21 @@ Each remaining slice delivers a distinct, noticeable user experience. Scenarios 
 | Slice | Name | Scenario | What the user experiences |
 |-------|------|----------|--------------------------|
 | ~~8e~~ | ~~The Agent Remembers~~ | ~~2, 4~~ | ~~Done — see Completed table above~~ |
-| 8f | Everything is a Node | — | Any knowledge node expandable to its source conversation. Efforts migrate to graph store. Schema system for node types. |
+| 8f | Traceable Knowledge | — | Any knowledge node expandable to its source conversation. "Show me where we decided X" works. |
 | 8g | The Agent Generalizes | 3 | Patterns detected across efforts. Principles distilled automatically. Privacy gradient separates private details from shareable insights. |
 
 Scenario 1 (First Nodes) is already delivered by 8a+8b. Scenario 5 (Accumulated Expertise) is the emergent result of 8e+8g working together over time — not a separate slice.
 
-### 8e: The Agent Remembers
+### 8f: Traceable Knowledge
 
-The agent uses its accumulated knowledge proactively, catches its own contradictions, and the full reasoning trail is preserved.
-
-**What's built:**
-- `query_knowledge` — internal function + user-facing tool for searching the graph
-- Knowledge node eviction from system prompt — same pattern as effort eviction (Slice 4). As the graph grows, old/low-confidence nodes drop from the prompt but remain queryable.
-- Interactive contradiction resolution — when contradictions are detected (8c), the agent presents both sides conversationally ("I need to flag something..."), suggests a resolution, and asks for user input. Superseded nodes are marked but preserved.
-- Session audit logs ([Decision 012](../decisions/012-session-as-audit-log.md)) — each session is a chronological record of node creates, references, and ambient conversation. Traceable later.
-
-**Scenario 2 UX**: "I need to design the auth flow for mobile..." → agent responds with standard advice plus "One thing to watch out for: I've seen auth state go stale on reused connections before..." — past experience woven in naturally, not as a raw node dump.
-
-**Scenario 4 UX**: "Profiling shows we should validate once at entry..." → "I need to flag something: this conflicts with advice I've been applying elsewhere..." → conversational resolution flow.
-
-### 8f: Everything is a Node
-
-Realizes [Decision 011](../decisions/011-efforts-are-kg-nodes.md). The knowledge graph becomes the single storage layer. Any piece of knowledge can be traced to its source conversation.
+Any knowledge node can be traced back to the conversation that created it.
 
 **What's built:**
-- Schema system — YAML type definitions per node type (fields, lifecycle, context behavior)
-- Effort migration — efforts stored as graph nodes instead of separate manifest. Existing effort tools unchanged (interface stays, storage moves).
-- Session log linking — knowledge nodes link back to the session log fragment where they were created. Combined with generic expand, any node is traceable.
-- Generic expand/collapse — `expand_effort` generalized to work for any node type. "Show me the conversation where we decided X" works for decisions, facts, anything.
+- Session log linking — knowledge nodes link back to the session log fragment where they were created (builds on 8e's `created_in_session` field)
+- `expand_knowledge` tool — expand any knowledge node to see the conversation context that produced it
+- Collapse after viewing — same expand/collapse pattern as efforts
+
+**UX**: "Show me where we decided to use PostgreSQL" → agent expands decision-003, showing the conversation fragment from the session where it was created.
 
 ### 8g: The Agent Generalizes
 
@@ -85,12 +72,16 @@ The agent notices patterns across efforts and distills them into reusable princi
 
 **Scenario 3 UX**: "Found it. The credential is validated at batch start but not at record processing time..." → "I'm noticing a pattern: this is the third time I've seen auth state go stale between validation and use..." → generalization surfaces naturally.
 
+### Deferred: Unified Graph Store
+
+Effort migration (efforts as knowledge graph nodes) and schema system. Deferred until there's a concrete need to query efforts and knowledge together. Current dual storage (manifest.yaml + knowledge.yaml) works fine.
+
 ### Dependencies
 
 ```
 8e: The Agent Remembers (query, eviction, resolution, session logs)
  ↓
-8f: Everything is a Node (schema, migration, generic expand)
+8f: Traceable Knowledge (session log linking, expand_knowledge)
  ↓
 8g: The Agent Generalizes (principles, abstraction, privacy)
 ```

@@ -28,9 +28,9 @@ Slices 1-7 built the memory system. Slices 8a-8d added the knowledge graph (stor
 | 8c+8d | Done | Auto-linking (keyword overlap + LLM classification), confidence from topology (low/medium/high/contested) |
 | 8e | Done | `query_knowledge` tool, knowledge eviction (30-turn threshold), `supersedes` for contradiction resolution, session audit logs |
 
-### What's Next: 8f (Everything is a Node)
+### What's Next: 8f (Traceable Knowledge)
 
-Efforts migrate from manifest to graph store. Schema system for node types. Any node expandable to its source conversation. Generic expand/collapse replaces effort-specific expand.
+Any knowledge node expandable to its source conversation. Session log linking (builds on 8e's `created_in_session`). `expand_knowledge` tool. Effort migration deferred — current dual storage works fine.
 
 ---
 
@@ -81,4 +81,4 @@ Analyzed all tool call patterns for optimization opportunities. Only one always-
 1. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
 2. **Read [slices/README.md](slices/README.md)** — see the roadmap
 3. **Read [PROJECT.md](PROJECT.md)** — current technical state
-4. **Current work**: Slice 8f — everything is a node (unified graph storage)
+4. **Current work**: Slice 8f — traceable knowledge (expand any node to source conversation)
