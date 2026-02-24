@@ -4,7 +4,7 @@
 
 CCM draws from neuroscience research on working memory, consolidation, and retrieval to manage LLM context. Instead of compressing when context fills, CCM compresses when reasoning resolves -- producing O(1) working memory (~4K tokens constant) regardless of conversation length.
 
-Paper: [Cognitive Context Management: Brain-Inspired Architecture for Bounded AI Memory](docs/ccm-whitepaper.md) (arXiv preprint, February 2026)
+Paper: [Cognitive Context Management: Brain-Inspired Architecture for Bounded AI Memory](https://zenodo.org/records/18752096) (Zenodo, February 2026) | [Source](docs/ccm-whitepaper.md)
 
 ## Key Results
 
