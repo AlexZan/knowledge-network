@@ -204,8 +204,8 @@ class TestProofRun:
             print(f"  {label}: {value}")
         print("=" * 60)
 
-        # Assert significant reduction (system prompt is larger with 10 tools + memory section + knowledge_extracted field, so base overhead is higher)
-        assert savings_pct > 20, f"Expected >20% savings, got {savings_pct:.0f}%"
+        # Assert significant reduction (system prompt grows with each slice — tools, knowledge section, behavioral rules)
+        assert savings_pct > 15, f"Expected >15% savings, got {savings_pct:.0f}%"
 
         # === Turn 13-14: Open new effort ===
         mock_chat.side_effect = [

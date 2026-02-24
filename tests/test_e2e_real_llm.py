@@ -1237,3 +1237,129 @@ class TestConfidenceE2E:
             print("'contested' annotation found in system prompt")
         else:
             print("LLM did not create contradicts edge — skipping contested check")
+
+
+@requires_llm
+class TestProactiveKnowledgeCaptureE2E:
+    """Verify LLM proactively calls add_knowledge for facts/preferences/decisions
+    shared during natural conversation — including mid-effort."""
+
+    def test_multi_turn_knowledge_capture(self, tmp_path):
+        """Simulates a conversation where user shares many facts, preferences,
+        and context across 3 turns. Verifies the LLM captures key items
+        proactively (not waiting for close_effort).
+
+        Based on real user test conversation:
+        Turn 1: preference (beach volleyball), facts (at Miami Beach, developing OI)
+        Turn 2: facts (using Claude Code, plan for self-development)
+        Turn 3: facts (OI = Open Intelligence, brand for AI projects, under Open Systems)
+        """
+        session_dir = tmp_path / "session"
+
+        # Turn 1: preference + facts + effort trigger
+        response1 = process_turn(
+            session_dir,
+            "I like playing beach volleyball, I'm currently at Miami Beach which has "
+            "a lot of nets, I might play there over the next few days while I work on "
+            "this OI system, I'm currently developing you",
+            model=MODEL,
+        )
+        print(f"\nTurn 1 response: {response1[:200]}")
+
+        knowledge = _load_knowledge(session_dir)
+        nodes_t1 = knowledge.get("nodes", [])
+        print(f"Nodes after turn 1: {len(nodes_t1)}")
+        for n in nodes_t1:
+            print(f"  [{n['type']}] {n['summary']}")
+
+        # Turn 1 should capture at minimum the preference and a fact
+        assert len(nodes_t1) >= 2, (
+            f"Turn 1 has preference + facts. Expected >=2 nodes, got {len(nodes_t1)}. "
+            f"Nodes: {[n['summary'] for n in nodes_t1]}"
+        )
+
+        # Turn 2: more facts about development approach
+        response2 = process_turn(
+            session_dir,
+            "Yeah we are getting a lot done. I'm currently using Claude Code to develop "
+            "you, but we will eventually develop you with yourself once you become "
+            "powerful enough, which is close now",
+            model=MODEL,
+        )
+        print(f"\nTurn 2 response: {response2[:200]}")
+
+        knowledge = _load_knowledge(session_dir)
+        nodes_t2 = knowledge.get("nodes", [])
+        print(f"Nodes after turn 2: {len(nodes_t2)}")
+        for n in nodes_t2:
+            print(f"  [{n['type']}] {n['summary']}")
+
+        # Turn 2 should have added new knowledge (Claude Code, self-development)
+        assert len(nodes_t2) > len(nodes_t1), (
+            f"Turn 2 has new facts (Claude Code, self-development). Expected more nodes. "
+            f"Before: {len(nodes_t1)}, after: {len(nodes_t2)}. "
+            f"Nodes: {[n['summary'] for n in nodes_t2]}"
+        )
+
+        # Turn 3: clarification with new facts
+        response3 = process_turn(
+            session_dir,
+            "OI stands for Open Intelligence, which is kind of the brand I'm putting "
+            "all my AI-related projects under, it falls under Open Systems which I'll "
+            "talk about later",
+            model=MODEL,
+        )
+        print(f"\nTurn 3 response: {response3[:200]}")
+
+        knowledge = _load_knowledge(session_dir)
+        all_nodes = knowledge.get("nodes", [])
+        print(f"Nodes after turn 3: {len(all_nodes)}")
+        for n in all_nodes:
+            print(f"  [{n['type']}] {n['summary']}")
+
+        # === Final assertions on the complete knowledge graph ===
+
+        # Total nodes: at least 5 across all 3 turns
+        assert len(all_nodes) >= 5, (
+            f"3 turns with rich content should produce >=5 nodes. "
+            f"Got {len(all_nodes)}: {[n['summary'] for n in all_nodes]}"
+        )
+
+        # Keyword coverage: check key items are captured in any node
+        all_summaries = " ".join(n["summary"].lower() for n in all_nodes)
+        checks = {
+            "beach volleyball": ["volleyball", "beach volleyball"],
+            "Miami Beach location": ["miami"],
+            "Claude Code usage": ["claude code", "claude"],
+            "OI / Open Intelligence": ["open intelligence", "oi stands", "oi system"],
+        }
+        captured = {}
+        missed = []
+        for label, keywords in checks.items():
+            found = any(kw in all_summaries for kw in keywords)
+            captured[label] = found
+            if not found:
+                missed.append(label)
+
+        print(f"\nCapture results: {captured}")
+        if missed:
+            print(f"MISSED: {missed}")
+
+        # At least 3 of 4 must-capture items
+        assert len(missed) <= 1, (
+            f"LLM missed too many knowledge items: {missed}. "
+            f"All summaries: {[n['summary'] for n in all_nodes]}"
+        )
+
+        # Must have at least 1 preference node (beach volleyball)
+        types = [n["type"] for n in all_nodes]
+        assert "preference" in types, (
+            f"Expected at least one preference node (beach volleyball). Types: {types}"
+        )
+        # And multiple facts
+        fact_count = types.count("fact")
+        assert fact_count >= 2, (
+            f"Expected at least 2 fact nodes. Got {fact_count}. Types: {types}"
+        )
+
+        print(f"\nFinal: {len(all_nodes)} nodes, types={types}")
