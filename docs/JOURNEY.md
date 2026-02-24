@@ -12,9 +12,9 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Slice 8b Complete, 8c Next
+## Current Status: Slice 8e Complete, 8f Next
 
-Slices 1-7 built the memory system (efforts, compaction, decay, persistence, tool use). Slices 8a-8b added the knowledge graph foundation (manual + auto-extraction). Next: node linking and contradiction detection (8c).
+Slices 1-7 built the memory system. Slices 8a-8d added the knowledge graph (store, auto-extraction, linking, confidence). Slice 8e made the graph usable at runtime: searchable, evictable, with contradiction resolution and session audit logs. Next: unified graph storage (8f).
 
 ### What's Built
 
@@ -25,12 +25,12 @@ Slices 1-7 built the memory system (efforts, compaction, decay, persistence, too
 | 7 | Done | read_file, write_file, append_file, run_command with confirmation callbacks |
 | 8a | Done | `add_knowledge` tool, `knowledge.yaml` (nodes + edges), knowledge shown in system prompt |
 | 8b | Done | `extract_knowledge()` LLM call on effort close, 0-5 nodes auto-persisted |
+| 8c+8d | Done | Auto-linking (keyword overlap + LLM classification), confidence from topology (low/medium/high/contested) |
+| 8e | Done | `query_knowledge` tool, knowledge eviction (30-turn threshold), `supersedes` for contradiction resolution, session audit logs |
 
-### What's Next: 8c (Node Linking)
+### What's Next: 8f (Everything is a Node)
 
-Spec: [08c-node-linking.md](slices/08c-node-linking.md)
-
-When a new node is added, find related existing nodes and classify the relationship (supports/contradicts/none). Two-stage pipeline: keyword retrieval → LLM linker agent. Foundation for confidence scoring (8d).
+Efforts migrate from manifest to graph store. Schema system for node types. Any node expandable to its source conversation. Generic expand/collapse replaces effort-specific expand.
 
 ---
 
@@ -81,5 +81,4 @@ Analyzed all tool call patterns for optimization opportunities. Only one always-
 1. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
 2. **Read [slices/README.md](slices/README.md)** — see the roadmap
 3. **Read [PROJECT.md](PROJECT.md)** — current technical state
-4. **Current work**: Slice 8c — node linking and contradiction detection
-5. **Key spec**: [08c-node-linking.md](slices/08c-node-linking.md)
+4. **Current work**: Slice 8f — everything is a node (unified graph storage)

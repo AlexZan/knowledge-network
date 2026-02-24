@@ -21,8 +21,9 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 8b | Auto-Extract on Close | `extract_knowledge()` LLM call on effort close. 0-5 nodes auto-persisted. Extraction banner in close output. | — |
 | 8c | Node Linking | Auto-linking via keyword overlap + LLM classification. `supports`/`contradicts` edges. | [08c-node-linking.md](08c-node-linking.md) |
 | 8d | Confidence from Topology | Confidence levels (low/medium/high/contested) computed from edge counts + independent sources. Annotations in system prompt. | — |
+| 8e | The Agent Remembers | `query_knowledge` tool, knowledge eviction (30-turn threshold), `supersedes` for contradiction resolution, session audit logs. | — |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slice 8e makes the graph usable at runtime.
 
 ---
 
@@ -42,7 +43,7 @@ Each remaining slice delivers a distinct, noticeable user experience. Scenarios 
 
 | Slice | Name | Scenario | What the user experiences |
 |-------|------|----------|--------------------------|
-| 8e | The Agent Remembers | 2, 4 | Past experience woven into advice. Contradictions caught and resolved conversationally. Reasoning trail preserved in session logs. |
+| ~~8e~~ | ~~The Agent Remembers~~ | ~~2, 4~~ | ~~Done — see Completed table above~~ |
 | 8f | Everything is a Node | — | Any knowledge node expandable to its source conversation. Efforts migrate to graph store. Schema system for node types. |
 | 8g | The Agent Generalizes | 3 | Patterns detected across efforts. Principles distilled automatically. Privacy gradient separates private details from shareable insights. |
 
