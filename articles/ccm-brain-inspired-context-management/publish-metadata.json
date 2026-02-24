@@ -1,9 +1,0 @@
-{
-  "title": "Your LLM Forgets Everything After 200K Tokens. The Brain Doesn't. Here's What I Borrowed.",
-  "published": {
-    "medium": "https://medium.com/@alexzanfir/your-llm-forgets-everything-after-200k-tokens-the-brain-doesnt-here-s-what-i-borrowed-40582bf1b166",
-    "substack": "https://open.substack.com/pub/lexzan/p/your-llm-forgets-everything-after"
-  },
-  "subtitle": "I built an AI memory system modeled on how the brain compresses, retains, and forgets — and it cut working memory by 97%.",
-  "tags": ["AI Memory", "Context Window", "Neuroscience", "LLM Architecture", "Cognitive Science"]
-}
