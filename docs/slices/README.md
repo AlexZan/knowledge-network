@@ -19,8 +19,10 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 7 | Tool Use | `read_file`, `write_file`, `append_file`, `run_command`. Confirmation callback system. | — |
 | 8a | Knowledge Store | `add_knowledge` tool. `fact`, `preference`, `decision` node types. `knowledge.yaml` with nodes + edges. Knowledge graph shown in system prompt. | — |
 | 8b | Auto-Extract on Close | `extract_knowledge()` LLM call on effort close. 0-5 nodes auto-persisted. Extraction banner in close output. | — |
+| 8c | Node Linking | Auto-linking via keyword overlap + LLM classification. `supports`/`contradicts` edges. | [08c-node-linking.md](08c-node-linking.md) |
+| 8d | Confidence from Topology | Confidence levels (low/medium/high/contested) computed from edge counts + independent sources. Annotations in system prompt. | — |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8b add the knowledge graph foundation.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence.
 
 ---
 
@@ -39,19 +41,19 @@ The knowledge graph now stores nodes and auto-extracts them. Next slices prove t
 
 | Slice | Name | Thesis | What it does |
 |-------|------|--------|-------------|
-| 8c | Contradiction Detection | 4 | When adding a node, LLM checks existing nodes for conflicts. Flags contradictions with `contradicts` edges. User can resolve (supersede old node, keep both, discard new). |
-| 8d | Confidence from Topology | 4, 5 | Confidence score derived from graph structure: inbound `supports` edges, survived contradiction attempts, independent convergence from separate efforts. No explicit confidence assignment. |
-| 8e | Schema System + Types | 2 | YAML schema definitions. Effort migration to graph store. `query_knowledge` tool. Generic expand/collapse for all node types. |
+| 8e-1 | Query Knowledge | — | `query_knowledge` tool: keyword search, type/confidence filtering. Prerequisite for system prompt trimming. | [08e1-query-knowledge.md](08e1-query-knowledge.md) |
+| 8e-2 | Schema System | 2 | YAML schema definitions per node type. Type-specific validation on `add_knowledge`. |
+| 8e-3 | Effort Migration | 2 | Efforts become graph nodes. Generic expand/collapse for all node types. |
 | 8f | Abstraction + Privacy | 3 | `principle` node type. Auto-generalization from multiple related nodes. Privacy gradient (raw → contextual → principle → universal). Schema-detection agent. |
 
 ### Dependencies
 
 ```
-8c: Contradiction Detection (flag conflicts)
+8e-1: Query Knowledge (search tool)
  ↓
-8d: Confidence from Topology (proves the thesis)
+8e-2: Schema System (type definitions)
  ↓
-8e: Schema System + Types (convenience, query tool)
+8e-3: Effort Migration (efforts = graph nodes)
  ↓
 8f: Abstraction + Privacy (highest-level knowledge)
 ```

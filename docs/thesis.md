@@ -414,7 +414,20 @@ No separate training phase. No weight matrices. The graph structure itself encod
 - How confident we are (topology-derived scores)
 - How knowledge evolved (history links)
 
-### The Vision
+### The Auditable Counterpart
+
+A neural network already "knows" that JWT tokens should be validated before database queries — it absorbed that from millions of Stack Overflow posts and security guides during training. But this knowledge is opaque:
+
+- It can't explain **why** it knows (no provenance)
+- It can't show **what evidence** supports the conclusion (no audit trail)
+- It can't **update** when proven wrong without retraining (no targeted correction)
+- It can't distinguish **"widely repeated"** from **"actually true"** (popularity ≠ truth)
+
+The knowledge graph encodes the same epistemological process — independent convergence builds confidence, contradictions trigger refinement — but makes it **transparent**. Every conclusion has provenance. Every confidence score is derived from auditable evidence. Every contradiction is resolved explicitly, not silently overwritten.
+
+This means the knowledge graph isn't duplicating what the neural network already knows. It's adding a *different kind of knowing*: the same conclusions, but with truth value that can be inspected, debated, referenced, and corrected by both humans and AI.
+
+### The Hybrid Endgame
 
 Current LLMs are the **bootstrap layer**. They can:
 1. Process natural language conversations
@@ -422,9 +435,17 @@ Current LLMs are the **bootstrap layer**. They can:
 3. Extract generalizations
 4. Detect conflicts
 
-But they don't accumulate knowledge across sessions. This framework uses LLMs as the **reasoning engine** while the knowledge network provides **persistent, growing, shared memory**.
+But they don't accumulate knowledge across sessions. This framework uses LLMs as the **reasoning engine** while the knowledge network provides **persistent, growing, auditable memory**.
 
-Eventually: The knowledge network itself could become a new form of distributed intelligence—not replacing neural networks, but complementing them with explicit, auditable, community-built knowledge.
+The progression:
+
+1. **Now**: LLM reasons, knowledge graph remembers. The graph is personal — one user's accumulated experience, growing as a side effect of work.
+
+2. **Near-term**: A mature knowledge graph becomes structured training data. Unlike raw text that a neural network must rediscover structure from, graph-structured knowledge is *already organized* — nodes, edges, confidence levels, provenance chains. Fine-tuning on graph data could be vastly more efficient than training on unstructured text.
+
+3. **Long-term**: Distributed knowledge graphs across users and domains, with shared high-abstraction principles and private low-level details (Thesis 3). The network becomes a collective intelligence layer — not replacing neural networks, but complementing them. The neural network handles fluid reasoning and language. The graph handles truth, provenance, and accountability.
+
+4. **Endgame**: A hybrid architecture where the knowledge graph IS the dynamic neural network. The graph provides the explicit, auditable structure that weights encode implicitly. Training and inference merge — every conversation both uses and extends the model. The black box of weights and the transparent graph of knowledge converge into something that has the fluency of neural networks and the auditability of structured knowledge.
 
 ---
 
