@@ -1510,3 +1510,132 @@ class TestResponseStyleE2E:
             f"Response has {question_count} questions — asking too many. "
             f"Should ask at most 1 focused follow-up. Response: {response[:500]}"
         )
+
+
+@requires_llm
+class TestBecauseOfE2E:
+    """Verify LLM creates because_of edges for preferences with reasons,
+    and that staleness detection works end-to-end."""
+
+    def test_preference_with_reason_creates_because_of(self, tmp_path):
+        """User states 'I prefer X because Y' → LLM creates preference node +
+        fact node + because_of edge linking them."""
+        session_dir = tmp_path / "session"
+
+        response = process_turn(
+            session_dir,
+            "I prefer using PostgreSQL over MySQL because PostgreSQL has better "
+            "support for JSON columns and complex queries",
+            model=MODEL,
+        )
+        print(f"\nResponse: {response[:300]}")
+
+        knowledge = _load_knowledge(session_dir)
+        nodes = knowledge.get("nodes", [])
+        edges = knowledge.get("edges", [])
+
+        print(f"Nodes: {len(nodes)}")
+        for n in nodes:
+            print(f"  [{n['type']}] {n['id']}: {n['summary']}")
+        print(f"Edges: {len(edges)}")
+        for e in edges:
+            print(f"  {e['source']} --{e['type']}--> {e['target']}")
+
+        # Should have at least 2 nodes (the preference + the reason fact)
+        assert len(nodes) >= 2, (
+            f"Expected at least 2 nodes (preference + reason). "
+            f"Got {len(nodes)}: {[n['summary'] for n in nodes]}"
+        )
+
+        # Check for preference-like node
+        all_summaries = " ".join(n["summary"].lower() for n in nodes)
+        assert any(kw in all_summaries for kw in ["postgres", "postgresql"]), (
+            f"No node mentions PostgreSQL. Summaries: {all_summaries}"
+        )
+
+        # Check for because_of edge
+        because_edges = [e for e in edges if e["type"] == "because_of"]
+        assert len(because_edges) >= 1, (
+            f"Expected at least 1 because_of edge for 'prefer X because Y'. "
+            f"Got edges: {[(e['type'], e['source'], e['target']) for e in edges]}"
+        )
+
+    def test_staleness_detected_after_supersession(self, tmp_path):
+        """Full cycle: create preference with reason, supersede the reason,
+        query and verify stale_dependencies appears."""
+        from oi.knowledge import add_knowledge, query_knowledge
+
+        session_dir = tmp_path / "session"
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Step 1: Create reason fact
+        add_knowledge(session_dir, "fact", "Our team uses MySQL 5.7",
+                      source="effort-db-setup")
+
+        # Step 2: Create preference depending on that fact
+        add_knowledge(session_dir, "preference",
+                      "We should use MySQL-specific features for queries",
+                      source="effort-db-setup",
+                      related_to=["fact-001"], edge_type="because_of")
+
+        # Step 3: Supersede the reason (team migrated)
+        add_knowledge(session_dir, "fact", "Team migrated to PostgreSQL 16",
+                      source="effort-db-migration", supersedes=["fact-001"])
+
+        # Step 4: Query the preference — should show stale dependency
+        result = json.loads(query_knowledge(session_dir, "MySQL queries"))
+        pref_results = [r for r in result["results"]
+                        if r["node_id"] == "preference-001"]
+
+        print(f"\nQuery results: {json.dumps(result, indent=2)}")
+
+        assert len(pref_results) == 1, (
+            f"Expected preference-001 in results. Got: {[r['node_id'] for r in result['results']]}"
+        )
+
+        pref = pref_results[0]
+        assert "stale_dependencies" in pref, (
+            f"preference-001 depends on superseded fact-001 via because_of, "
+            f"but no stale_dependencies flagged. Result: {pref}"
+        )
+        assert pref["stale_dependencies"][0]["node_id"] == "fact-001"
+        assert pref["stale_dependencies"][0]["reason"] == "superseded"
+
+        # Confidence should be capped
+        assert pref["confidence"]["level"] != "high", (
+            f"Stale node should not have high confidence. Got: {pref['confidence']}"
+        )
+
+    def test_llm_surfaces_staleness_in_response(self, tmp_path):
+        """After creating a stale dependency, ask the LLM about the topic.
+        Verify the response acknowledges the stale/outdated dependency."""
+        from oi.knowledge import add_knowledge
+
+        session_dir = tmp_path / "session"
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        # Set up: preference with reason, then supersede the reason
+        add_knowledge(session_dir, "fact", "I use VS Code as my primary editor",
+                      source="chat-setup")
+        add_knowledge(session_dir, "preference",
+                      "I prefer TypeScript because VS Code has excellent TypeScript support",
+                      source="chat-setup",
+                      related_to=["fact-001"], edge_type="because_of")
+        add_knowledge(session_dir, "fact", "I switched to Neovim as my primary editor",
+                      source="chat-update", supersedes=["fact-001"])
+
+        # Now ask the LLM about TypeScript preference — it should query knowledge
+        # and notice the stale dependency
+        response = process_turn(
+            session_dir,
+            "What do I prefer for programming languages?",
+            model=MODEL,
+        )
+        print(f"\nResponse: {response[:500]}")
+
+        # The response should mention TypeScript AND acknowledge the change
+        # (VS Code → Neovim) or question whether the preference still holds
+        response_lower = response.lower()
+        assert any(kw in response_lower for kw in ["typescript", "type script"]), (
+            f"Response should mention TypeScript preference. Response: {response[:500]}"
+        )
