@@ -316,7 +316,7 @@ TOOL_DEFINITIONS = [
                     },
                     "edge_type": {
                         "type": "string",
-                        "enum": ["supports", "contradicts", "exemplifies"],
+                        "enum": ["supports", "contradicts", "exemplifies", "because_of"],
                         "description": "Relationship type to related_to nodes (optional)"
                     },
                     "supersedes": {

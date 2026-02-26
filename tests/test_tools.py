@@ -1506,3 +1506,21 @@ class TestCloseEffortPatternDetection:
         assert result["status"] == "concluded"
         assert "patterns_detected" not in result
         mock_detect.assert_not_called()
+
+
+# === because_of edge type in tool definitions ===
+
+class TestBecauseOfToolDefinition:
+    def test_because_of_in_edge_type_enum(self):
+        """Verify because_of is in the add_knowledge tool definition enum."""
+        from oi.tools import TOOL_DEFINITIONS
+
+        add_knowledge_def = None
+        for tool in TOOL_DEFINITIONS:
+            if tool["function"]["name"] == "add_knowledge":
+                add_knowledge_def = tool
+                break
+
+        assert add_knowledge_def is not None
+        edge_type_enum = add_knowledge_def["function"]["parameters"]["properties"]["edge_type"]["enum"]
+        assert "because_of" in edge_type_enum

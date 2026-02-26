@@ -1,4 +1,4 @@
-"""Unit tests for knowledge graph query and supersedes operations."""
+"""Unit tests for knowledge graph query, supersedes, and staleness operations."""
 
 import json
 import pytest
@@ -385,3 +385,200 @@ class TestPrincipleNodes:
         result = json.loads(query_knowledge(session_dir, "test", node_type="principle"))
         assert len(result["results"]) == 1
         assert result["results"][0]["type"] == "principle"
+
+
+# === because_of edges ===
+
+class TestBecauseOfEdges:
+    def test_because_of_edge_created(self, session_dir):
+        """add_knowledge with edge_type='because_of' stores the edge."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _add_node(session_dir, "fact", "TypeScript has better IDE support")
+        result = json.loads(add_knowledge(
+            session_dir, "preference", "I prefer TypeScript",
+            related_to=["fact-001"], edge_type="because_of",
+        ))
+        assert result["status"] == "added"
+
+        knowledge = _load_knowledge(session_dir)
+        because_edges = [e for e in knowledge["edges"] if e["type"] == "because_of"]
+        assert len(because_edges) == 1
+        assert because_edges[0]["source"] == "preference-001"
+        assert because_edges[0]["target"] == "fact-001"
+
+    def test_because_of_no_effect_on_confidence(self, session_dir):
+        """because_of edges don't count as supports in confidence computation."""
+        from oi.confidence import compute_confidence
+
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _add_node(session_dir, "fact", "TypeScript has better IDE support")
+        add_knowledge(
+            session_dir, "preference", "I prefer TypeScript",
+            related_to=["fact-001"], edge_type="because_of",
+        )
+
+        knowledge = _load_knowledge(session_dir)
+        # fact-001 has an inbound because_of from preference-001 — should NOT count as support
+        conf = compute_confidence("fact-001", knowledge)
+        assert conf["inbound_supports"] == 0
+
+
+# === Staleness detection ===
+
+class TestStalenessDetection:
+    def test_stale_when_target_superseded(self, session_dir):
+        """Query node whose because_of target is superseded -> stale_dependencies."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        # fact-001: the reason
+        _add_node(session_dir, "fact", "I use VS Code", source="chat-1")
+        # preference-001: depends on fact-001
+        add_knowledge(
+            session_dir, "preference", "I prefer TypeScript",
+            related_to=["fact-001"], edge_type="because_of",
+        )
+        # fact-002: supersedes fact-001
+        add_knowledge(
+            session_dir, "fact", "I switched to Neovim",
+            source="chat-2", supersedes=["fact-001"],
+        )
+
+        result = json.loads(query_knowledge(session_dir, "TypeScript"))
+        pref_results = [r for r in result["results"] if r["node_id"] == "preference-001"]
+        assert len(pref_results) == 1
+        assert "stale_dependencies" in pref_results[0]
+        stale = pref_results[0]["stale_dependencies"]
+        assert len(stale) == 1
+        assert stale[0]["node_id"] == "fact-001"
+        assert stale[0]["reason"] == "superseded"
+
+    def test_no_stale_when_target_active(self, session_dir):
+        """Query node whose because_of target is active -> no stale_dependencies."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _add_node(session_dir, "fact", "I use VS Code", source="chat-1")
+        add_knowledge(
+            session_dir, "preference", "I prefer TypeScript",
+            related_to=["fact-001"], edge_type="because_of",
+        )
+
+        result = json.loads(query_knowledge(session_dir, "TypeScript"))
+        pref_results = [r for r in result["results"] if r["node_id"] == "preference-001"]
+        assert len(pref_results) == 1
+        assert "stale_dependencies" not in pref_results[0]
+
+    def test_stale_when_target_contested(self, session_dir):
+        """Query node whose because_of target has has_contradiction -> stale."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _add_node(session_dir, "fact", "I use VS Code", source="chat-1")
+        add_knowledge(
+            session_dir, "preference", "I prefer TypeScript",
+            related_to=["fact-001"], edge_type="because_of",
+        )
+
+        # Manually mark fact-001 as contested
+        knowledge = _load_knowledge(session_dir)
+        for n in knowledge["nodes"]:
+            if n["id"] == "fact-001":
+                n["has_contradiction"] = True
+        _save_knowledge(session_dir, knowledge)
+
+        result = json.loads(query_knowledge(session_dir, "TypeScript"))
+        pref_results = [r for r in result["results"] if r["node_id"] == "preference-001"]
+        assert len(pref_results) == 1
+        assert "stale_dependencies" in pref_results[0]
+        assert pref_results[0]["stale_dependencies"][0]["reason"] == "contested"
+
+    def test_confidence_capped_at_medium(self, session_dir):
+        """Node with stale deps + enough support for 'high' -> capped at 'medium'."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        # Create the reason node and preference
+        _add_node(session_dir, "fact", "I use VS Code", source="src-1")
+        add_knowledge(
+            session_dir, "preference", "I prefer TypeScript",
+            source="src-2", related_to=["fact-001"], edge_type="because_of",
+        )
+
+        # Add enough support for high confidence (3+ sources, 2+ supports)
+        knowledge = _load_knowledge(session_dir)
+        now = "2026-01-01T00:00:00"
+        for i, src in enumerate(["src-3", "src-4", "src-5"]):
+            supporter_id = f"fact-{i+10:03d}"
+            knowledge["nodes"].append({
+                "id": supporter_id, "type": "fact",
+                "summary": f"TypeScript support {i}", "status": "active",
+                "source": src, "created": now, "updated": now,
+            })
+            knowledge["edges"].append({
+                "source": supporter_id, "target": "preference-001",
+                "type": "supports", "created": now,
+            })
+        _save_knowledge(session_dir, knowledge)
+
+        # Supersede fact-001 to create staleness
+        add_knowledge(
+            session_dir, "fact", "I switched to Neovim",
+            source="src-6", supersedes=["fact-001"],
+        )
+
+        result = json.loads(query_knowledge(session_dir, "TypeScript"))
+        pref_results = [r for r in result["results"] if r["node_id"] == "preference-001"]
+        assert len(pref_results) == 1
+        assert pref_results[0]["stale_dependencies"]
+        # Would be "high" without staleness, capped to "medium"
+        assert pref_results[0]["confidence"]["level"] == "medium"
+
+    def test_contested_overrides_stale_cap(self, session_dir):
+        """Node with stale deps + own contradiction -> 'contested' (not 'medium')."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _add_node(session_dir, "fact", "I use VS Code", source="chat-1")
+        add_knowledge(
+            session_dir, "preference", "I prefer TypeScript",
+            related_to=["fact-001"], edge_type="because_of",
+        )
+
+        # Supersede fact-001 to create staleness
+        add_knowledge(
+            session_dir, "fact", "I switched to Neovim",
+            source="chat-2", supersedes=["fact-001"],
+        )
+
+        # Add a contradiction to preference-001 itself
+        knowledge = _load_knowledge(session_dir)
+        now = "2026-01-01T00:00:00"
+        knowledge["nodes"].append({
+            "id": "preference-099", "type": "preference",
+            "summary": "I actually prefer Python", "status": "active",
+            "source": "chat-3", "created": now, "updated": now,
+        })
+        knowledge["edges"].append({
+            "source": "preference-099", "target": "preference-001",
+            "type": "contradicts", "created": now,
+        })
+        _save_knowledge(session_dir, knowledge)
+
+        result = json.loads(query_knowledge(session_dir, "TypeScript"))
+        pref_results = [r for r in result["results"] if r["node_id"] == "preference-001"]
+        assert len(pref_results) == 1
+        # Contested overrides the stale cap
+        assert pref_results[0]["confidence"]["level"] == "contested"
+
+    def test_multiple_stale_deps(self, session_dir):
+        """Node with two because_of targets, both superseded -> both listed."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _add_node(session_dir, "fact", "I use VS Code", source="chat-1")
+        _add_node(session_dir, "fact", "VS Code has great extensions", source="chat-1")
+        add_knowledge(
+            session_dir, "preference", "I prefer TypeScript",
+            related_to=["fact-001", "fact-002"], edge_type="because_of",
+        )
+
+        # Supersede both
+        add_knowledge(session_dir, "fact", "I switched to Neovim", source="chat-2", supersedes=["fact-001"])
+        add_knowledge(session_dir, "fact", "Neovim plugins are better", source="chat-2", supersedes=["fact-002"])
+
+        result = json.loads(query_knowledge(session_dir, "TypeScript"))
+        pref_results = [r for r in result["results"] if r["node_id"] == "preference-001"]
+        assert len(pref_results) == 1
+        stale = pref_results[0]["stale_dependencies"]
+        assert len(stale) == 2
+        stale_ids = {s["node_id"] for s in stale}
+        assert stale_ids == {"fact-001", "fact-002"}

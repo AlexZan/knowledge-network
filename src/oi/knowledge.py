@@ -50,9 +50,26 @@ def query_knowledge(
     matches.sort(key=lambda m: m[1], reverse=True)
 
     # Build results with confidence and edges
+    nodes_by_id = {n["id"]: n for n in knowledge.get("nodes", [])}
     results = []
     for node, score in matches:
         conf = compute_confidence(node["id"], knowledge)
+
+        # Check because_of targets for staleness (1-hop)
+        stale_deps = []
+        for edge in knowledge.get("edges", []):
+            if edge["source"] == node["id"] and edge["type"] == "because_of":
+                target = nodes_by_id.get(edge["target"])
+                if target:
+                    if target.get("status") == "superseded":
+                        stale_deps.append({"node_id": target["id"], "reason": "superseded"})
+                    elif target.get("has_contradiction"):
+                        stale_deps.append({"node_id": target["id"], "reason": "contested"})
+
+        # Cap confidence at medium if stale deps exist (contested overrides)
+        if stale_deps and conf.get("level") not in ("contested",):
+            if conf.get("level") == "high":
+                conf["level"] = "medium"
 
         # Apply filters
         if node_type and node.get("type") != node_type:
@@ -74,14 +91,18 @@ def query_knowledge(
                     "type": edge["type"],
                 })
 
-        results.append({
+        entry = {
             "node_id": node["id"],
             "type": node.get("type"),
             "summary": node.get("summary"),
             "source": node.get("source"),
             "confidence": conf,
             "edges": node_edges,
-        })
+        }
+        if stale_deps:
+            entry["stale_dependencies"] = stale_deps
+
+        results.append(entry)
 
     total_active = len(active_nodes)
     return json.dumps({"results": results, "total_active": total_active})

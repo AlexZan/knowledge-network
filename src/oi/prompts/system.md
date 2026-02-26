@@ -103,6 +103,11 @@ contradiction conversationally to the user:
 - Once the user confirms, call add_knowledge with the refined summary and
   supersedes=[old_node_id_1, old_node_id_2] to resolve the contradiction
 
+**`because_of` edges:**
+When a user states a preference or decision WITH a reason, create both nodes and
+link them with `because_of`. Example: "I prefer X because Y" → preference node +
+fact node + `edge_type="because_of"`.
+
 ### query_knowledge
 Call when the user asks about a topic you may have recorded knowledge about, or when
 you need to recall past facts, preferences, or decisions before answering.
@@ -111,6 +116,10 @@ you need to recall past facts, preferences, or decisions before answering.
 Use results naturally — weave past experience into your response rather than listing
 raw results. Confidence informs tone: high = state confidently; low = hedge;
 contested = mention both sides.
+
+When query_knowledge returns `stale_dependencies`, mention it naturally:
+"You said you prefer TypeScript because of VS Code's IDE support, but you've
+since switched to Neovim — does that preference still hold?"
 
 ### Pattern detection
 When close_effort reports "Pattern detected" or "Pattern reinforced", mention it
