@@ -1363,3 +1363,150 @@ class TestProactiveKnowledgeCaptureE2E:
         )
 
         print(f"\nFinal: {len(all_nodes)} nodes, types={types}")
+
+    def test_mid_effort_knowledge_capture(self, tmp_path):
+        """User shares project details mid-effort. Knowledge should still be captured.
+
+        Based on real bug: user described "dynamic neural network" concept during
+        an active effort but no add_knowledge calls were made.
+        """
+        session_dir = tmp_path / "session"
+
+        # Turn 1: open an effort
+        process_turn(
+            session_dir,
+            "Let's work on developing the OI system, I'm building an AI platform",
+            model=MODEL,
+        )
+        assert get_active_effort(session_dir) is not None
+
+        knowledge = _load_knowledge(session_dir)
+        nodes_before = len(knowledge.get("nodes", []))
+        print(f"\nNodes after effort open: {nodes_before}")
+
+        # Turn 2: share project details mid-effort
+        response = process_turn(
+            session_dir,
+            "We are going to dev some experimental features for a dynamic neural "
+            "network, I'm calling it that now, that self-evolves out of the mature "
+            "knowledge network",
+            model=MODEL,
+        )
+        print(f"Turn 2 response: {response[:200]}")
+
+        knowledge = _load_knowledge(session_dir)
+        all_nodes = knowledge.get("nodes", [])
+        print(f"Nodes after mid-effort message: {len(all_nodes)}")
+        for n in all_nodes:
+            print(f"  [{n['type']}] {n['summary']}")
+
+        # Should have captured new knowledge mid-effort
+        assert len(all_nodes) > nodes_before, (
+            f"User shared project details mid-effort but no new knowledge captured. "
+            f"Before: {nodes_before}, after: {len(all_nodes)}. "
+            f"Nodes: {[n['summary'] for n in all_nodes]}"
+        )
+
+        # Check for key concepts
+        all_summaries = " ".join(n["summary"].lower() for n in all_nodes)
+        has_neural = "neural" in all_summaries or "dynamic" in all_summaries
+        has_evolve = "evolv" in all_summaries or "knowledge network" in all_summaries
+        assert has_neural or has_evolve, (
+            f"Expected knowledge about 'dynamic neural network' or 'self-evolves'. "
+            f"Summaries: {[n['summary'] for n in all_nodes]}"
+        )
+        print(f"Mid-effort capture verified: neural={has_neural}, evolve={has_evolve}")
+
+
+@requires_llm
+class TestResponseStyleE2E:
+    """Verify LLM responses are concise and conversational, not walls of text."""
+
+    def test_effort_status_response_is_concise(self, tmp_path):
+        """User asks about current efforts. Response should be short and direct,
+        not a wall of bullet points and follow-up questions.
+
+        Based on real bug: user asked 'whats the effort we got' and got a verbose
+        response with bullet point recap and multiple follow-up questions.
+        """
+        session_dir = tmp_path / "session"
+
+        # Set up: open an effort and do some work
+        process_turn(
+            session_dir,
+            "Let's work on the payment integration feature",
+            model=MODEL,
+        )
+        assert get_active_effort(session_dir) is not None
+
+        # Ask about effort status
+        response = process_turn(
+            session_dir,
+            "whats the effort we got",
+            model=MODEL,
+        )
+        print(f"\nEffort status response ({len(response)} chars): {response[:300]}")
+
+        # Response should be concise — under 500 chars for a simple status query
+        assert len(response) < 800, (
+            f"Effort status response is too verbose ({len(response)} chars). "
+            f"Should be a short, direct answer. Response: {response[:500]}"
+        )
+
+        # Should not have excessive question marks (too many follow-up questions)
+        question_count = response.count("?")
+        assert question_count <= 2, (
+            f"Response has {question_count} questions — too many follow-ups for a "
+            f"simple status query. Response: {response[:500]}"
+        )
+
+    def test_project_description_response_is_concise(self, tmp_path):
+        """User describes a project concept. Response should engage with their idea
+        concisely, not dump walls of speculative lists.
+
+        Based on real bug: user said they're building a 'dynamic neural network
+        that self-evolves' and got 3 paragraphs of generic AI concepts with
+        8 follow-up questions.
+        """
+        session_dir = tmp_path / "session"
+
+        # Set up: open an effort
+        process_turn(
+            session_dir,
+            "Let's work on the next phase of the AI system",
+            model=MODEL,
+        )
+
+        # Describe a concept
+        response = process_turn(
+            session_dir,
+            "We're going to build a dynamic neural network that self-evolves "
+            "out of the mature knowledge network. The knowledge graph becomes "
+            "the substrate for emergent neural capabilities.",
+            model=MODEL,
+        )
+        print(f"\nProject description response ({len(response)} chars):\n{response[:500]}")
+
+        # Response should be concise — engage with the idea, not dump lists
+        word_count = len(response.split())
+        assert word_count < 200, (
+            f"Response is too verbose ({word_count} words). Should engage concisely "
+            f"with the user's idea, not dump speculative lists. Response: {response[:500]}"
+        )
+
+        # Count bullet points / numbered items (signals wall-of-list response)
+        bullet_count = response.count("\n-") + response.count("\n*")
+        numbered_count = sum(1 for line in response.split("\n")
+                          if line.strip()[:2].rstrip(".").isdigit())
+        list_items = bullet_count + numbered_count
+        assert list_items <= 4, (
+            f"Response has {list_items} list items — too many speculative bullets. "
+            f"Should be conversational, not a brainstorm dump. Response: {response[:500]}"
+        )
+
+        # Should not have excessive questions
+        question_count = response.count("?")
+        assert question_count <= 2, (
+            f"Response has {question_count} questions — asking too many. "
+            f"Should ask at most 1 focused follow-up. Response: {response[:500]}"
+        )
