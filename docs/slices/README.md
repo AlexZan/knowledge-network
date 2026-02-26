@@ -68,14 +68,10 @@ When a preference or decision depends on a fact (`because_of` edge), and that fa
 
 **Origin**: [Decision 013](../decisions/013-unified-kg-architecture.md), Trace 6 (deep `because_of` chain).
 
-### Deferred: Unified Graph Store
-
-Effort migration (efforts as knowledge graph nodes) and schema system. Deferred until there's a concrete need to query efforts and knowledge together. Current dual storage (manifest.yaml + knowledge.yaml) works fine.
-
 ### Dependencies
 
 ```
-8e: The Agent Remembers (query, eviction, resolution, session logs)
+8e: The Agent Remembers (query, eviction, resolution, session logs) ✓
  ↓
 8f: Traceable Knowledge (session log linking, expand_knowledge) ✓
  ↓
@@ -84,19 +80,18 @@ Effort migration (efforts as knowledge graph nodes) and schema system. Deferred 
 8h: Reactive Knowledge (because_of edges, staleness detection)
 ```
 
-8e provides the query/eviction infrastructure that 8f's unified graph needs. 8f provides the "any node is expandable" architecture that makes 8g's principle nodes first-class citizens. 8g provides the pattern detection that 8h's reactive edges build on — principles depend on their exemplifying facts, so staleness detection matters most for high-abstraction nodes.
-
 ---
 
 ## Future
 
-### Slice 9: Workflow Integration
+| Slice | Name | What | Depends on |
+|-------|------|------|-----------|
+| Unified Graph Store | Effort migration into KG | Move efforts from `manifest.yaml` into `knowledge.yaml`. One store for all node types. | 8h (edge semantics proven) |
+| Schema System | JSON Schema for node types | `schemas/` directory as single source of truth. Python (jsonschema/Pydantic), eventually TypeScript/Rust. | Unified graph store (need stable shapes) |
+| Vault/Automerge Storage | CRDT storage layer | Replace YAML with Automerge. Concurrent sessions, P2P sync, full history. See [Decision 013](../decisions/013-unified-kg-architecture.md). | Schema system (stable shapes before CRDTs) |
+| Slice 9 | Workflow Integration | oi-pipe as a subsystem, workflow orchestration through tool calls. | Stable semantic layer |
 
-Workflows (like TDD pipeline) become tools the system can invoke.
-
-- oi-pipe as a subsystem, not a separate project
-- Workflow orchestration through tool calls
-- Reassess priority after Slice 8
+Multi-agent debate transport is developed independently (separate project using MCP). Sessions naturally develop perspectives ([Decision 014](../decisions/014-sessions-as-perspectives.md)) — no KG integration needed for that.
 
 ---
 
@@ -109,8 +104,9 @@ Capabilities that may be valuable but aren't blocking the core vision. Revisit a
 - **Codebase search tool** — Structured grep/find with semantic output
 - **Tool error recovery** — Retry logic, better error classification
 - **Model ladder** — Escalation from cheap → expensive models per task
-- **Dashboard** — Visual entry point to the knowledge graph (brainstorm: `docs/brainstorm/sessions-and-dashboard.md`)
-- **Schema-detection agent** — Auto-propose new node types from conversation patterns (could move earlier)
+- **Dashboard** — Visual entry point to the knowledge graph (developed separately)
+- **Schema-detection agent** — Auto-propose new node types from conversation patterns
+- **`because_of` multi-hop** — Deep chain staleness. Only if dogfooding shows 1-hop is insufficient
 
 ---
 
