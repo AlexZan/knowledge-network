@@ -23,8 +23,9 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 8d | Confidence from Topology | Confidence levels (low/medium/high/contested) computed from edge counts + independent sources. Annotations in system prompt. | — |
 | 8e | The Agent Remembers | `query_knowledge` tool, knowledge eviction (30-turn threshold), `supersedes` for contradiction resolution, session audit logs. | — |
 | 8f | Traceable Knowledge | `expand_knowledge`/`collapse_knowledge` tools. Any node expandable to source conversation. Session fragment extraction. Knowledge decay. `close_effort` forwards `session_id`. | — |
+| 8g | The Agent Generalizes | `principle` node type, `exemplifies` edges, pattern detection pipeline, convergence from ≥3 facts / ≥2 sources. | [08g-the-agent-generalizes.md](08g-the-agent-generalizes.md) |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization — the system detects patterns and distills principles.
 
 ---
 
@@ -33,6 +34,8 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 - [Decision 010: ONE CHAT](../decisions/010-one-chat-no-projects.md) — No projects, no sessions to manage. One global knowledge space.
 - [Decision 011: Efforts Are KG Nodes](../decisions/011-efforts-are-kg-nodes.md) — Everything is a node. Efforts are one node type with a rich lifecycle.
 - [Decision 012: Sessions as Audit Logs](../decisions/012-session-as-audit-log.md) — Sessions are chronological records of graph interactions + ambient conversation, not persistence boundaries.
+- [Decision 013: Unified KG Architecture](../decisions/013-unified-kg-architecture.md) — Mutability gradient, Automerge/Vault storage layer, reactive `because_of` edges. Validated via 7 architectural traces.
+- [Decision 014: Sessions as Perspectives](../decisions/014-sessions-as-perspectives.md) — Sessions develop distinct viewpoints. Enables multi-agent debate, roundtables, adversarial review.
 
 ---
 
@@ -46,21 +49,24 @@ Each remaining slice delivers a distinct, noticeable user experience. Scenarios 
 |-------|------|----------|--------------------------|
 | ~~8e~~ | ~~The Agent Remembers~~ | ~~2, 4~~ | ~~Done — see Completed table above~~ |
 | ~~8f~~ | ~~Traceable Knowledge~~ | ~~—~~ | ~~Done — see Completed table above~~ |
-| 8g | The Agent Generalizes | 3 | Patterns detected across efforts. Principles distilled automatically. Privacy gradient separates private details from shareable insights. |
+| ~~8g~~ | ~~The Agent Generalizes~~ | ~~3~~ | ~~Done — see Completed table above~~ |
+| 8h | Reactive Knowledge | — | `because_of` edges express dependency. Stale justifications detected at query time and surfaced conversationally. |
 
 Scenario 1 (First Nodes) is already delivered by 8a+8b. Scenario 5 (Accumulated Expertise) is the emergent result of 8e+8g working together over time — not a separate slice.
 
-### 8g: The Agent Generalizes
+### 8h: Reactive Knowledge
 
-The agent notices patterns across efforts and distills them into reusable principles, naturally separated by privacy level.
+When a preference or decision depends on a fact (`because_of` edge), and that fact is later superseded or contested, the system detects the stale justification and asks the user if the dependent knowledge still holds.
+
+**Spec**: [08h-because-of-staleness.md](08h-because-of-staleness.md)
 
 **What's built:**
-- `principle` node type — auto-generated when enough instances converge
-- Pattern detection — agent notices when multiple independent efforts resolve to the same underlying insight
-- Abstraction layers — Layer 0 (raw/private) → Layer 1 (contextual) → Layer 2 (general/shareable) → Layer 3 (universal). Higher layers strip identifying details automatically.
-- Privacy gradient — specific details stay private, generalized principles are shareable without manual privacy management
+- `because_of` edge type — "this node's validity depends on that node being true"
+- Staleness detection — `query_knowledge` checks 1-hop `because_of` targets for superseded/contested status
+- Confidence cap — nodes with stale deps never report higher than "medium" confidence
+- System prompt guidance — LLM surfaces staleness naturally in conversation
 
-**Scenario 3 UX**: "Found it. The credential is validated at batch start but not at record processing time..." → "I'm noticing a pattern: this is the third time I've seen auth state go stale between validation and use..." → generalization surfaces naturally.
+**Origin**: [Decision 013](../decisions/013-unified-kg-architecture.md), Trace 6 (deep `because_of` chain).
 
 ### Deferred: Unified Graph Store
 
@@ -73,10 +79,12 @@ Effort migration (efforts as knowledge graph nodes) and schema system. Deferred 
  ↓
 8f: Traceable Knowledge (session log linking, expand_knowledge) ✓
  ↓
-8g: The Agent Generalizes (principles, abstraction, privacy)
+8g: The Agent Generalizes (principles, abstraction, privacy) ✓
+ ↓
+8h: Reactive Knowledge (because_of edges, staleness detection)
 ```
 
-8e provides the query/eviction infrastructure that 8f's unified graph needs. 8f provides the "any node is expandable" architecture that makes 8g's principle nodes first-class citizens.
+8e provides the query/eviction infrastructure that 8f's unified graph needs. 8f provides the "any node is expandable" architecture that makes 8g's principle nodes first-class citizens. 8g provides the pattern detection that 8h's reactive edges build on — principles depend on their exemplifying facts, so staleness detection matters most for high-abstraction nodes.
 
 ---
 
