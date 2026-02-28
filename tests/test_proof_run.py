@@ -291,22 +291,25 @@ class TestExpansionCycle:
         perf_raw += json.dumps({"role": "assistant", "content": "Classic N+1. Batch the queries with a single JOIN. Should drop to under 200ms.", "ts": "t4"}) + "\n"
         (efforts_dir / "perf-fix.jsonl").write_text(perf_raw)
 
-        # Manifest with both concluded
-        manifest = {
-            "efforts": [
+        # Knowledge store with both concluded efforts
+        knowledge = {
+            "nodes": [
                 {
                     "id": "auth-bug",
+                    "type": "effort",
                     "status": "concluded",
                     "summary": "Fixed 401 errors: refresh tokens never auto-called. Added axios interceptor."
                 },
                 {
                     "id": "perf-fix",
+                    "type": "effort",
                     "status": "concluded",
                     "summary": "Fixed N+1 query in dashboard. Batched with JOIN, 5s to 200ms."
                 }
-            ]
+            ],
+            "edges": []
         }
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        (session_dir / "knowledge.yaml").write_text(yaml.dump(knowledge))
 
         # Ambient messages
         ambient = ""
@@ -410,21 +413,24 @@ class TestDecayCycle:
         perf_raw += json.dumps({"role": "assistant", "content": "Classic N+1. Batch the queries with a single JOIN.", "ts": "t2"}) + "\n"
         (efforts_dir / "perf-fix.jsonl").write_text(perf_raw)
 
-        manifest = {
-            "efforts": [
+        knowledge = {
+            "nodes": [
                 {
                     "id": "auth-bug",
+                    "type": "effort",
                     "status": "concluded",
                     "summary": "Fixed 401 errors: refresh tokens never auto-called. Added axios interceptor."
                 },
                 {
                     "id": "perf-fix",
+                    "type": "effort",
                     "status": "concluded",
                     "summary": "Fixed N+1 query in dashboard. Batched with JOIN, 5s to 200ms."
                 }
-            ]
+            ],
+            "edges": []
         }
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        (session_dir / "knowledge.yaml").write_text(yaml.dump(knowledge))
 
         ambient = ""
         ambient += json.dumps({"role": "user", "content": "Hey, how's it going?", "ts": "t0"}) + "\n"
@@ -604,10 +610,10 @@ class TestBoundedContext:
         # Bounded should be less than unbounded
         assert total_tokens_turn21 < total_tokens_unbound
 
-        # === Verify manifest is untouched ===
-        manifest = yaml.safe_load((session_dir / "manifest.yaml").read_text())
-        manifest_ids = {e["id"] for e in manifest["efforts"]}
-        assert manifest_ids == set(summaries.keys())
+        # === Verify knowledge store is untouched ===
+        knowledge = yaml.safe_load((session_dir / "knowledge.yaml").read_text())
+        effort_ids = {n["id"] for n in knowledge["nodes"] if n.get("type") == "effort"}
+        assert effort_ids == set(summaries.keys())
 
         # === Verify raw.jsonl is untouched ===
         raw_lines = (session_dir / "raw.jsonl").read_text().strip().split("\n")

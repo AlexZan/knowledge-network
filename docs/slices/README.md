@@ -24,8 +24,10 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 8e | The Agent Remembers | `query_knowledge` tool, knowledge eviction (30-turn threshold), `supersedes` for contradiction resolution, session audit logs. | — |
 | 8f | Traceable Knowledge | `expand_knowledge`/`collapse_knowledge` tools. Any node expandable to source conversation. Session fragment extraction. Knowledge decay. `close_effort` forwards `session_id`. | — |
 | 8g | The Agent Generalizes | `principle` node type, `exemplifies` edges, pattern detection pipeline, convergence from ≥3 facts / ≥2 sources. | [08g-the-agent-generalizes.md](08g-the-agent-generalizes.md) |
+| 8h | Reactive Knowledge | `because_of` edges, staleness detection, confidence cap for stale deps. | [08h-because-of-staleness.md](08h-because-of-staleness.md) |
+| 9 | Unified Graph Store | Efforts migrated into `knowledge.yaml` as `type: "effort"` nodes. One store for all node types. `manifest.yaml` eliminated. | [09-unified-graph-store.md](09-unified-graph-store.md) |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization — the system detects patterns and distills principles.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store.
 
 ---
 
@@ -39,36 +41,7 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 
 ---
 
-## Next
-
-Each remaining slice delivers a distinct, noticeable user experience. Scenarios map to slices — see [08-knowledge-graph-scenarios.md](08-knowledge-graph-scenarios.md) for the full narrative walkthroughs.
-
-### Slices
-
-| Slice | Name | Scenario | What the user experiences |
-|-------|------|----------|--------------------------|
-| ~~8e~~ | ~~The Agent Remembers~~ | ~~2, 4~~ | ~~Done — see Completed table above~~ |
-| ~~8f~~ | ~~Traceable Knowledge~~ | ~~—~~ | ~~Done — see Completed table above~~ |
-| ~~8g~~ | ~~The Agent Generalizes~~ | ~~3~~ | ~~Done — see Completed table above~~ |
-| 8h | Reactive Knowledge | — | `because_of` edges express dependency. Stale justifications detected at query time and surfaced conversationally. |
-
-Scenario 1 (First Nodes) is already delivered by 8a+8b. Scenario 5 (Accumulated Expertise) is the emergent result of 8e+8g working together over time — not a separate slice.
-
-### 8h: Reactive Knowledge
-
-When a preference or decision depends on a fact (`because_of` edge), and that fact is later superseded or contested, the system detects the stale justification and asks the user if the dependent knowledge still holds.
-
-**Spec**: [08h-because-of-staleness.md](08h-because-of-staleness.md)
-
-**What's built:**
-- `because_of` edge type — "this node's validity depends on that node being true"
-- Staleness detection — `query_knowledge` checks 1-hop `because_of` targets for superseded/contested status
-- Confidence cap — nodes with stale deps never report higher than "medium" confidence
-- System prompt guidance — LLM surfaces staleness naturally in conversation
-
-**Origin**: [Decision 013](../decisions/013-unified-kg-architecture.md), Trace 6 (deep `because_of` chain).
-
-### Dependencies
+## Dependency Chain (Complete)
 
 ```
 8e: The Agent Remembers (query, eviction, resolution, session logs) ✓
@@ -77,7 +50,9 @@ When a preference or decision depends on a fact (`because_of` edge), and that fa
  ↓
 8g: The Agent Generalizes (principles, abstraction, privacy) ✓
  ↓
-8h: Reactive Knowledge (because_of edges, staleness detection)
+8h: Reactive Knowledge (because_of edges, staleness detection) ✓
+ ↓
+9: Unified Graph Store (efforts into knowledge.yaml) ✓
 ```
 
 ---
@@ -86,10 +61,9 @@ When a preference or decision depends on a fact (`because_of` edge), and that fa
 
 | Slice | Name | What | Depends on |
 |-------|------|------|-----------|
-| Unified Graph Store | Effort migration into KG | Move efforts from `manifest.yaml` into `knowledge.yaml`. One store for all node types. | 8h (edge semantics proven) |
-| Schema System | JSON Schema for node types | `schemas/` directory as single source of truth. Python (jsonschema/Pydantic), eventually TypeScript/Rust. | Unified graph store (need stable shapes) |
+| Schema System | JSON Schema for node types | `schemas/` directory as single source of truth. Python (jsonschema/Pydantic), eventually TypeScript/Rust. | Slice 9 (unified store, stable shapes) |
 | Vault/Automerge Storage | CRDT storage layer | Replace YAML with Automerge. Concurrent sessions, P2P sync, full history. See [Decision 013](../decisions/013-unified-kg-architecture.md). | Schema system (stable shapes before CRDTs) |
-| Slice 9 | Workflow Integration | oi-pipe as a subsystem, workflow orchestration through tool calls. | Stable semantic layer |
+| Workflow Integration | — | oi-pipe as a subsystem, workflow orchestration through tool calls. | Stable semantic layer |
 
 Multi-agent debate transport is developed independently (separate project using MCP). Sessions naturally develop perspectives ([Decision 014](../decisions/014-sessions-as-perspectives.md)) — no KG integration needed for that.
 

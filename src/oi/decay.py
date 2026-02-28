@@ -6,7 +6,7 @@ Keeps orchestrator clean by isolating decay logic here.
 from pathlib import Path
 
 from .state import (
-    _load_expanded_state, _load_manifest, _save_expanded,
+    _load_expanded_state, _load_efforts, _save_expanded,
     _load_summary_references, _save_summary_references,
     _load_knowledge_references, _save_knowledge_references,
     _load_expanded_knowledge, _save_expanded_knowledge,
@@ -92,14 +92,14 @@ def check_decay(session_dir: Path, current_turn: int, user_message: str, assista
     if not expanded_ids:
         return []
 
-    manifest = _load_manifest(session_dir)
+    efforts = _load_efforts(session_dir)
     lrt = expanded_state.get("last_referenced_turn", {})
     decayed = []
 
     for effort_id in list(expanded_ids):
         # Get summary for keyword extraction
         summary = ""
-        for e in manifest.get("efforts", []):
+        for e in efforts:
             if e["id"] == effort_id:
                 summary = e.get("summary", "") or ""
                 break
@@ -139,8 +139,8 @@ def update_summary_references(session_dir: Path, current_turn: int,
     2. Check if user_message or assistant_response references it
     3. If yes: set summary_last_referenced_turn[effort_id] = current_turn
     """
-    manifest = _load_manifest(session_dir)
-    concluded = [e for e in manifest.get("efforts", []) if e.get("status") == "concluded"]
+    efforts = _load_efforts(session_dir)
+    concluded = [e for e in efforts if e.get("status") == "concluded"]
 
     if not concluded:
         return

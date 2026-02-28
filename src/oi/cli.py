@@ -13,10 +13,9 @@ warnings.filterwarnings("ignore", message="Pydantic serializer warnings")
 load_dotenv()
 
 import click
-import yaml
 
 from .orchestrator import process_turn
-from .state import increment_session_count
+from .state import _load_efforts, increment_session_count
 from .session_log import create_session_log
 
 
@@ -38,15 +37,9 @@ def _append_session_marker(session_dir: Path):
 
 def _show_startup(session_dir: Path):
     """Show status on CLI launch."""
-    manifest_path = session_dir / "manifest.yaml"
-    open_efforts = []
-    concluded_count = 0
-
-    if manifest_path.exists():
-        manifest = yaml.safe_load(manifest_path.read_text()) or {}
-        efforts = manifest.get("efforts", [])
-        open_efforts = [e for e in efforts if e.get("status") == "open"]
-        concluded_count = sum(1 for e in efforts if e.get("status") == "concluded")
+    efforts = _load_efforts(session_dir)
+    open_efforts = [e for e in efforts if e.get("status") == "open"]
+    concluded_count = sum(1 for e in efforts if e.get("status") == "concluded")
 
     if open_efforts:
         click.echo(f"[{len(open_efforts)} open effort(s)]")

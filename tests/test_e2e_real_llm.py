@@ -42,7 +42,7 @@ class TestRealLLMToolCalling:
     """Verify LLM correctly calls tools via natural language."""
 
     def test_llm_opens_effort_via_tool_call(self, tmp_path):
-        """User says 'let's debug X' → LLM calls open_effort tool → manifest updated."""
+        """User says 'let's debug X' → LLM calls open_effort tool → knowledge store updated."""
         session_dir = tmp_path / "session"
         response = process_turn(
             session_dir,
@@ -87,8 +87,8 @@ class TestRealLLMToolCalling:
         )
 
         # Still only one effort
-        manifest = yaml.safe_load((session_dir / "manifest.yaml").read_text())
-        efforts = [e for e in manifest.get("efforts", []) if e["status"] == "open"]
+        knowledge = yaml.safe_load((session_dir / "knowledge.yaml").read_text())
+        efforts = [n for n in knowledge.get("nodes", []) if n.get("type") == "effort" and n["status"] == "open"]
         assert len(efforts) == 1, f"Expected 1 open effort, got {len(efforts)}"
 
     def test_llm_closes_effort_via_tool_call(self, tmp_path):
@@ -125,9 +125,9 @@ class TestRealLLMToolCalling:
 
         assert effort is None, f"LLM did not close the effort. Response: {response[:200]}"
 
-        # Verify summary in manifest
-        manifest = yaml.safe_load((session_dir / "manifest.yaml").read_text())
-        concluded = [e for e in manifest["efforts"] if e["status"] == "concluded"]
+        # Verify summary in knowledge store
+        knowledge = yaml.safe_load((session_dir / "knowledge.yaml").read_text())
+        concluded = [n for n in knowledge["nodes"] if n.get("type") == "effort" and n["status"] == "concluded"]
         assert len(concluded) == 1
         assert concluded[0]["summary"], "Summary should not be empty"
         print(f"\nSummary: {concluded[0]['summary']}")
@@ -674,8 +674,8 @@ class TestReopenE2E:
         assert effort is None, f"Effort should be concluded. Response: {response[:300]}"
 
         # Verify summary was updated (should mention new info)
-        manifest = yaml.safe_load((session_dir / "manifest.yaml").read_text())
-        concluded = [e for e in manifest["efforts"] if e["id"] == "db-pool"]
+        knowledge = yaml.safe_load((session_dir / "knowledge.yaml").read_text())
+        concluded = [n for n in knowledge["nodes"] if n.get("type") == "effort" and n["id"] == "db-pool"]
         assert len(concluded) == 1
         summary = concluded[0]["summary"]
         print(f"\nUpdated summary: {summary}")

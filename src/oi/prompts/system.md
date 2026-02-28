@@ -67,7 +67,7 @@ Call when the user wants to work on a different open effort.
 
 ### search_efforts
 Call when the user asks about a past topic that isn't shown in the concluded efforts list above.
-Returns matching effort summaries from the full manifest (including evicted ones).
+Returns matching effort summaries from the full knowledge store (including evicted ones).
 You can then use expand_effort(id) if the user needs full details.
 
 ### add_knowledge

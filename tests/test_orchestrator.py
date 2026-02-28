@@ -52,28 +52,32 @@ class TestBuildMessages:
 
     def test_concluded_effort_in_system_prompt(self, session_dir):
         session_dir.mkdir(parents=True)
-        manifest = {
-            "efforts": [{
+        knowledge = {
+            "nodes": [{
                 "id": "old-effort",
+                "type": "effort",
                 "status": "concluded",
                 "summary": "Fixed the auth bug"
-            }]
+            }],
+            "edges": []
         }
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        (session_dir / "knowledge.yaml").write_text(yaml.dump(knowledge))
         messages = _build_messages(session_dir)
         assert "old-effort" in messages[0]["content"]
         assert "Fixed the auth bug" in messages[0]["content"]
 
     def test_concluded_effort_raw_log_not_in_messages(self, session_dir):
         session_dir.mkdir(parents=True)
-        manifest = {
-            "efforts": [{
+        knowledge = {
+            "nodes": [{
                 "id": "old-effort",
+                "type": "effort",
                 "status": "concluded",
                 "summary": "Fixed the auth bug"
-            }]
+            }],
+            "edges": []
         }
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        (session_dir / "knowledge.yaml").write_text(yaml.dump(knowledge))
         # Create the raw log file — should NOT appear in messages
         efforts_dir = session_dir / "efforts"
         efforts_dir.mkdir()
@@ -87,14 +91,16 @@ class TestBuildMessages:
     def test_expanded_effort_raw_in_messages(self, session_dir):
         """Expanded effort's raw log appears in context."""
         session_dir.mkdir(parents=True)
-        manifest = {
-            "efforts": [{
+        knowledge = {
+            "nodes": [{
                 "id": "old-effort",
+                "type": "effort",
                 "status": "concluded",
                 "summary": "Fixed the auth bug"
-            }]
+            }],
+            "edges": []
         }
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        (session_dir / "knowledge.yaml").write_text(yaml.dump(knowledge))
         efforts_dir = session_dir / "efforts"
         efforts_dir.mkdir()
         (efforts_dir / "old-effort.jsonl").write_text(
@@ -111,14 +117,16 @@ class TestBuildMessages:
     def test_expanded_effort_summary_not_duplicated(self, session_dir):
         """When expanded, summary is excluded (raw replaces it)."""
         session_dir.mkdir(parents=True)
-        manifest = {
-            "efforts": [{
+        knowledge = {
+            "nodes": [{
                 "id": "old-effort",
+                "type": "effort",
                 "status": "concluded",
                 "summary": "UNIQUE_SUMMARY_TEXT"
-            }]
+            }],
+            "edges": []
         }
-        (session_dir / "manifest.yaml").write_text(yaml.dump(manifest))
+        (session_dir / "knowledge.yaml").write_text(yaml.dump(knowledge))
         efforts_dir = session_dir / "efforts"
         efforts_dir.mkdir()
         (efforts_dir / "old-effort.jsonl").write_text(
@@ -202,17 +210,17 @@ class TestBuildMessages:
         assert "old-effort" not in system_content
         assert "Fixed the old bug" not in system_content
 
-    def test_evicted_summary_still_in_manifest_on_disk(self, session_dir):
-        """Eviction is filtering only — manifest is untouched."""
+    def test_evicted_summary_still_in_store_on_disk(self, session_dir):
+        """Eviction is filtering only — knowledge store is untouched."""
         setup_concluded_effort(session_dir, "old-effort", "Fixed the old bug")
         _save_summary_references(session_dir, {"old-effort": 1})
 
         # Build messages with eviction
         _build_messages(session_dir, current_turn=1 + SUMMARY_EVICTION_THRESHOLD)
 
-        # Manifest should still have the effort
-        manifest = yaml.safe_load((session_dir / "manifest.yaml").read_text())
-        effort_ids = [e["id"] for e in manifest["efforts"]]
+        # Knowledge store should still have the effort node
+        knowledge = yaml.safe_load((session_dir / "knowledge.yaml").read_text())
+        effort_ids = [n["id"] for n in knowledge["nodes"] if n.get("type") == "effort"]
         assert "old-effort" in effort_ids
 
     def test_memory_section_in_system_prompt(self, session_dir):

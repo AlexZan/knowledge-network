@@ -17,7 +17,7 @@ from oi.knowledge import add_knowledge
 from oi.state import (
     _load_expanded, _save_expanded, _load_expanded_state,
     _load_session_state, _save_session_state, increment_turn,
-    increment_session_count, _load_manifest,
+    increment_session_count, _load_efforts,
     _load_knowledge, _save_knowledge,
     _load_expanded_knowledge, _save_expanded_knowledge,
 )
@@ -33,14 +33,14 @@ def session_dir(tmp_path):
 # === Slice 1 tests (updated for multi-effort) ===
 
 class TestOpenEffort:
-    def test_open_effort_creates_manifest(self, session_dir):
+    def test_open_effort_creates_knowledge_entry(self, session_dir):
         result = json.loads(open_effort(session_dir, "auth-bug"))
         assert result["status"] == "opened"
         assert result["effort_id"] == "auth-bug"
 
-        manifest = (session_dir / "manifest.yaml").read_text()
-        assert "auth-bug" in manifest
-        assert "open" in manifest
+        knowledge = (session_dir / "knowledge.yaml").read_text()
+        assert "auth-bug" in knowledge
+        assert "open" in knowledge
 
     def test_multi_open_efforts(self, session_dir):
         """Opening a second effort succeeds (no error)."""
@@ -184,7 +184,7 @@ class TestExpandEffort:
 
     def test_expand_nonexistent_fails(self, session_dir):
         session_dir.mkdir(parents=True, exist_ok=True)
-        (session_dir / "manifest.yaml").write_text("efforts: []\n")
+        (session_dir / "knowledge.yaml").write_text("nodes: []\nedges: []\n")
         result = json.loads(expand_effort(session_dir, "nope"))
         assert "error" in result
 
@@ -230,7 +230,7 @@ class TestSwitchEffort:
 
     def test_switch_nonexistent_fails(self, session_dir):
         session_dir.mkdir(parents=True, exist_ok=True)
-        (session_dir / "manifest.yaml").write_text("efforts: []\n")
+        (session_dir / "knowledge.yaml").write_text("nodes: []\nedges: []\n")
         result = json.loads(switch_effort(session_dir, "nope"))
         assert "error" in result
 
@@ -404,7 +404,7 @@ class TestReopenEffort:
     def test_reopen_nonexistent_fails(self, session_dir):
         """Can't reopen an effort that doesn't exist."""
         session_dir.mkdir(parents=True, exist_ok=True)
-        (session_dir / "manifest.yaml").write_text("efforts: []\n")
+        (session_dir / "knowledge.yaml").write_text("nodes: []\nedges: []\n")
         result = json.loads(reopen_effort(session_dir, "nope"))
         assert "error" in result
 
@@ -490,9 +490,9 @@ class TestCrossSessionPersistence:
         assert effort is not None
         assert effort["id"] == "my-task"
 
-        # Simulate restart: reload manifest from same dir
-        manifest = _load_manifest(session_dir)
-        open_efforts = [e for e in manifest.get("efforts", []) if e.get("status") == "open"]
+        # Simulate restart: reload efforts from same dir
+        efforts = _load_efforts(session_dir)
+        open_efforts = [e for e in efforts if e.get("status") == "open"]
         assert len(open_efforts) == 1
         assert open_efforts[0]["id"] == "my-task"
 
@@ -500,8 +500,8 @@ class TestCrossSessionPersistence:
         """Concluded efforts with summaries persist across sessions."""
         setup_concluded_effort(session_dir, "old-bug", "Fixed the old bug.")
 
-        manifest = _load_manifest(session_dir)
-        concluded = [e for e in manifest.get("efforts", []) if e.get("status") == "concluded"]
+        efforts = _load_efforts(session_dir)
+        concluded = [e for e in efforts if e.get("status") == "concluded"]
         assert len(concluded) == 1
         assert concluded[0]["summary"] == "Fixed the old bug."
 
@@ -977,10 +977,11 @@ class TestCloseEffortKnowledgeExtraction:
         assert result["knowledge_extracted"][0]["summary"] == "Use PostgreSQL for all persistent storage"
         assert "node_id" in result["knowledge_extracted"][0]
 
-        # Verify persisted to knowledge.yaml
+        # Verify persisted to knowledge.yaml (effort node + extracted decision node)
         knowledge = _load_knowledge(session_dir)
-        assert len(knowledge["nodes"]) == 1
-        assert knowledge["nodes"][0]["source"] == "db-design"
+        non_effort_nodes = [n for n in knowledge["nodes"] if n.get("type") != "effort"]
+        assert len(non_effort_nodes) == 1
+        assert non_effort_nodes[0]["source"] == "db-design"
 
     def test_close_effort_succeeds_when_extraction_returns_empty(self, session_dir):
         """Close succeeds when extract_knowledge returns []."""

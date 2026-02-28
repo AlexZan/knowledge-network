@@ -6,12 +6,12 @@ from pathlib import Path
 
 
 def setup_concluded_effort(session_dir, effort_id, summary, raw_content=None, raw_lines=None):
-    """Create a concluded effort with manifest entry and raw log.
+    """Create a concluded effort as a type='effort' node in knowledge.yaml.
 
     Args:
         session_dir: Session directory path (will be created if needed)
         effort_id: Effort ID string
-        summary: Summary text for the manifest entry
+        summary: Summary text for the effort node
         raw_content: Raw JSONL string (mutually exclusive with raw_lines)
         raw_lines: List of (role, content) tuples to convert to JSONL
     """
@@ -32,15 +32,17 @@ def setup_concluded_effort(session_dir, effort_id, summary, raw_content=None, ra
         )
     (efforts_dir / f"{effort_id}.jsonl").write_text(raw_content)
 
-    manifest_path = session_dir / "manifest.yaml"
-    if manifest_path.exists():
-        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {"efforts": []}
+    knowledge_path = session_dir / "knowledge.yaml"
+    if knowledge_path.exists():
+        knowledge = yaml.safe_load(knowledge_path.read_text(encoding="utf-8")) or {"nodes": [], "edges": []}
     else:
-        manifest = {"efforts": []}
+        knowledge = {"nodes": [], "edges": []}
 
-    manifest["efforts"].append({
+    knowledge["nodes"].append({
         "id": effort_id,
+        "type": "effort",
         "status": "concluded",
         "summary": summary,
+        "raw_file": f"efforts/{effort_id}.jsonl",
     })
-    manifest_path.write_text(yaml.dump(manifest))
+    knowledge_path.write_text(yaml.dump(knowledge))

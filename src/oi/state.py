@@ -1,4 +1,4 @@
-"""Session state persistence: manifest, expanded efforts, turn counter.
+"""Session state persistence: knowledge graph (unified store), expanded efforts, turn counter.
 
 All file I/O for session state is centralized here to keep tools.py
 focused on tool definitions/handlers and decay.py free of circular imports.
@@ -10,22 +10,106 @@ from pathlib import Path
 from datetime import datetime
 
 
-# === Manifest (efforts list with status/summary) ===
+# === Migration: manifest.yaml → knowledge.yaml ===
 
-def _load_manifest(session_dir: Path) -> dict:
-    """Load manifest.yaml, returning empty structure if missing."""
+def _migrate_manifest_to_knowledge(session_dir: Path):
+    """Migrate efforts from manifest.yaml into knowledge.yaml as type='effort' nodes.
+
+    Reads manifest.yaml, converts each effort to a knowledge node with type='effort',
+    merges into knowledge.yaml (skipping duplicates), and renames manifest to .bak.
+    Idempotent: does nothing if manifest.yaml doesn't exist.
+    """
+    manifest_path = session_dir / "manifest.yaml"
+    if not manifest_path.exists():
+        return
+
+    manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {"efforts": []}
+    efforts = manifest.get("efforts", [])
+    if not efforts:
+        manifest_path.rename(session_dir / "manifest.yaml.bak")
+        return
+
+    knowledge = _load_knowledge(session_dir)
+    existing_ids = {n["id"] for n in knowledge.get("nodes", [])}
+
+    for effort in efforts:
+        eid = effort["id"]
+        if eid in existing_ids:
+            continue  # Already migrated
+
+        node = {
+            "id": eid,
+            "type": "effort",
+            "status": effort.get("status", "open"),
+            "summary": effort.get("summary"),
+            "raw_file": effort.get("raw_file", f"efforts/{eid}.jsonl"),
+            "created": effort.get("created"),
+            "updated": effort.get("updated"),
+        }
+        # Preserve effort-specific fields
+        if effort.get("active") is not None:
+            node["active"] = effort["active"]
+
+        knowledge["nodes"].append(node)
+
+    _save_knowledge(session_dir, knowledge)
+    manifest_path.rename(session_dir / "manifest.yaml.bak")
+
+
+# === Effort helpers (unified store) ===
+
+def _load_efforts(session_dir: Path) -> list[dict]:
+    """Load effort nodes from knowledge.yaml, migrating manifest.yaml if needed.
+
+    Returns list of effort dicts in manifest-compatible format.
+    """
     manifest_path = session_dir / "manifest.yaml"
     if manifest_path.exists():
-        return yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {"efforts": []}
-    return {"efforts": []}
+        _migrate_manifest_to_knowledge(session_dir)
+
+    knowledge = _load_knowledge(session_dir)
+    efforts = []
+    for node in knowledge.get("nodes", []):
+        if node.get("type") == "effort":
+            effort = {
+                "id": node["id"],
+                "status": node.get("status", "open"),
+                "summary": node.get("summary"),
+                "raw_file": node.get("raw_file", f"efforts/{node['id']}.jsonl"),
+                "created": node.get("created"),
+                "updated": node.get("updated"),
+            }
+            if "active" in node:
+                effort["active"] = node["active"]
+            efforts.append(effort)
+    return efforts
 
 
-def _save_manifest(session_dir: Path, manifest: dict):
-    """Write manifest.yaml."""
-    manifest_path = session_dir / "manifest.yaml"
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(manifest_path, "w", encoding="utf-8") as f:
-        yaml.dump(manifest, f, default_flow_style=False)
+def _save_efforts(session_dir: Path, efforts: list[dict]):
+    """Save effort list back to knowledge.yaml, preserving non-effort nodes."""
+    knowledge = _load_knowledge(session_dir)
+
+    # Keep all non-effort nodes
+    non_effort_nodes = [n for n in knowledge.get("nodes", []) if n.get("type") != "effort"]
+
+    # Convert efforts to nodes
+    effort_nodes = []
+    for effort in efforts:
+        node = {
+            "id": effort["id"],
+            "type": "effort",
+            "status": effort.get("status", "open"),
+            "summary": effort.get("summary"),
+            "raw_file": effort.get("raw_file", f"efforts/{effort['id']}.jsonl"),
+            "created": effort.get("created"),
+            "updated": effort.get("updated"),
+        }
+        if "active" in effort:
+            node["active"] = effort["active"]
+        effort_nodes.append(node)
+
+    knowledge["nodes"] = non_effort_nodes + effort_nodes
+    _save_knowledge(session_dir, knowledge)
 
 
 # === Expanded state (which concluded efforts have raw logs loaded) ===

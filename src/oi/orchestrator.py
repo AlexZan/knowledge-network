@@ -1,7 +1,7 @@
 """Orchestrator: handles each conversation turn with tool-calling flow.
 
 Flow per turn:
-1. Build working context (system prompt + ambient + manifest summaries + expanded raw + open effort raw)
+1. Build working context (system prompt + ambient + effort summaries + expanded raw + open effort raw)
 2. Add user message
 3. Send to LLM with tool definitions
 4. If tool call: execute tool, send result back, get next response (loop)
@@ -10,7 +10,6 @@ Flow per turn:
 """
 
 import json
-import yaml
 from pathlib import Path
 from datetime import datetime
 from typing import Callable
@@ -19,7 +18,7 @@ from .llm import chat_with_tools, DEFAULT_MODEL
 from .prompts import load_prompt
 from .state import (
     _load_expanded, _load_knowledge, _load_expanded_knowledge,
-    _load_expanded_state, increment_turn,
+    _load_expanded_state, _load_efforts, increment_turn,
 )
 from .confidence import compute_confidence, confidence_annotation
 from .tools import (
@@ -79,7 +78,7 @@ def _read_jsonl_messages(filepath: Path, max_messages: int | None = None) -> lis
 def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[dict]:
     """Build the LLM message list from working context.
 
-    Working Context = system_prompt + ambient (windowed) + manifest_summaries (non-expanded, non-evicted)
+    Working Context = system_prompt + ambient (windowed) + effort_summaries (non-expanded, non-evicted)
                     + expanded_effort_raw + all_open_effort_raw (active last)
 
     If current_turn is provided, summary eviction is applied.
@@ -87,16 +86,15 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
     # System prompt
     system_prompt = load_prompt("system")
 
-    # Read manifest for concluded effort summaries
-    manifest_section = ""
+    # Read efforts from unified knowledge store
+    effort_section = ""
     memory_section = ""
-    manifest_path = session_dir / "manifest.yaml"
+    efforts = _load_efforts(session_dir)
     expanded = _load_expanded(session_dir)
 
-    if manifest_path.exists():
-        manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8")) or {}
-        concluded = [e for e in manifest.get("efforts", []) if e.get("status") == "concluded"]
+    concluded = [e for e in efforts if e.get("status") == "concluded"]
 
+    if concluded:
         # Filter out expanded and evicted summaries
         evicted = get_evicted_summary_ids(session_dir, current_turn) if current_turn is not None else set()
         summary_efforts = [e for e in concluded if e["id"] not in expanded and e["id"] not in evicted]
@@ -105,21 +103,21 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
             parts = ["\nConcluded efforts (summaries only):"]
             for e in summary_efforts:
                 parts.append(f"- {e['id']}: {e.get('summary', '(no summary)')}")
-            manifest_section = "\n".join(parts)
+            effort_section = "\n".join(parts)
 
         # Add memory section if there are any concluded efforts (evicted or not)
-        if concluded:
-            memory_section = (
-                "\n\n## Memory\n"
-                "Concluded effort summaries shown above are only the recently-referenced ones.\n"
-                "Older summaries are still stored — use search_efforts(query) to find past efforts\n"
-                "not shown in working memory. You can then expand_effort(id) for full details."
-            )
+        memory_section = (
+            "\n\n## Memory\n"
+            "Concluded effort summaries shown above are only the recently-referenced ones.\n"
+            "Older summaries are still stored — use search_efforts(query) to find past efforts\n"
+            "not shown in working memory. You can then expand_effort(id) for full details."
+        )
 
     # Knowledge graph nodes with confidence annotations (filtered by eviction)
+    # Only show non-effort active nodes in the knowledge section
     knowledge_section = ""
     knowledge = _load_knowledge(session_dir)
-    active_nodes = [n for n in knowledge.get("nodes", []) if n.get("status") == "active"]
+    active_nodes = [n for n in knowledge.get("nodes", []) if n.get("status") == "active" and n.get("type") != "effort"]
     evicted_knowledge = get_evicted_knowledge_ids(session_dir, current_turn) if current_turn is not None else set()
     visible_nodes = [n for n in active_nodes if n["id"] not in evicted_knowledge]
     evicted_count = len(active_nodes) - len(visible_nodes)
@@ -142,8 +140,8 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
         knowledge_section = f"\nKnowledge graph:\n({evicted_count} older knowledge node(s) not shown — use query_knowledge to find them)"
 
     full_system = system_prompt
-    if manifest_section:
-        full_system += "\n" + manifest_section
+    if effort_section:
+        full_system += "\n" + effort_section
     if knowledge_section:
         full_system += "\n" + knowledge_section
     if memory_section:
@@ -263,9 +261,10 @@ def _build_tool_banners(tools_fired: list[tuple[str, dict, str]]) -> str:
         elif tool_name == "add_knowledge":
             node_id = result.get("node_id", "")
             node_type = result.get("node_type", "")
+            summary = result.get("summary", "")
             conf = result.get("confidence", {})
             conf_level = conf.get("level", "low")
-            banner_lines = [f"--- Knowledge added: [{node_type}] {node_id} (confidence: {conf_level}) ---"]
+            banner_lines = [f"--- Knowledge added: [{node_type}] {summary} (confidence: {conf_level}) ---"]
             for edge in result.get("edges_created", []):
                 if edge["edge_type"] == "contradicts":
                     banner_lines.append(f"  !! Contradicts: {edge['target_id']}")

@@ -223,7 +223,7 @@ def add_knowledge(
 
     _save_knowledge(session_dir, knowledge)
 
-    result = {"status": "added", "node_id": node_id, "node_type": node_type}
+    result = {"status": "added", "node_id": node_id, "node_type": node_type, "summary": summary}
     if auto_edges:
         result["edges_created"] = auto_edges
 

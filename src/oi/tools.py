@@ -26,10 +26,10 @@ from datetime import datetime
 from typing import Callable
 
 from .state import (
-    _load_manifest, _save_manifest,
+    _load_efforts, _save_efforts,
     _load_expanded, _load_expanded_state, _save_expanded,
     _load_session_state, _save_session_state, increment_turn,
-    _load_knowledge, _load_expanded_knowledge, _save_expanded_knowledge,
+    _load_knowledge, _save_knowledge, _load_expanded_knowledge, _save_expanded_knowledge,
 )
 from .knowledge import add_knowledge, query_knowledge
 
@@ -42,7 +42,7 @@ TOOL_DEFINITIONS = [
             "name": "open_effort",
             "description": (
                 "Start tracking focused work on a topic. Creates an effort log "
-                "and manifest entry. The new effort becomes the active effort."
+                "and knowledge graph entry. The new effort becomes the active effort."
             ),
             "parameters": {
                 "type": "object",
@@ -180,7 +180,7 @@ TOOL_DEFINITIONS = [
             "description": (
                 "Search past efforts by topic. Use when the user asks about something "
                 "not shown in the concluded efforts list. Returns matching effort summaries "
-                "from the full manifest."
+                "from the full knowledge store."
             ),
             "parameters": {
                 "type": "object",
@@ -425,13 +425,13 @@ RUN_COMMAND_MAX_CHARS = 10_000
 
 
 def get_open_effort(session_dir: Path) -> dict | None:
-    """Get the currently open effort from manifest, or None.
+    """Get the currently open effort, or None.
 
     For backwards compatibility, returns the first open effort found.
     Prefer get_active_effort() for multi-effort scenarios.
     """
-    manifest = _load_manifest(session_dir)
-    for effort in manifest.get("efforts", []):
+    efforts = _load_efforts(session_dir)
+    for effort in efforts:
         if effort.get("status") == "open":
             return effort
     return None
@@ -439,34 +439,34 @@ def get_open_effort(session_dir: Path) -> dict | None:
 
 def get_active_effort(session_dir: Path) -> dict | None:
     """Get the active effort (open + active: true), or None."""
-    manifest = _load_manifest(session_dir)
-    for effort in manifest.get("efforts", []):
+    efforts = _load_efforts(session_dir)
+    for effort in efforts:
         if effort.get("status") == "open" and effort.get("active"):
             return effort
     # Fallback: if exactly one open effort exists without active flag, treat it as active
-    open_efforts = [e for e in manifest.get("efforts", []) if e.get("status") == "open"]
+    open_efforts = [e for e in efforts if e.get("status") == "open"]
     if len(open_efforts) == 1:
         return open_efforts[0]
     return None
 
 
 def get_all_open_efforts(session_dir: Path) -> list[dict]:
-    """Get all open efforts from manifest."""
-    manifest = _load_manifest(session_dir)
-    return [e for e in manifest.get("efforts", []) if e.get("status") == "open"]
+    """Get all open efforts."""
+    efforts = _load_efforts(session_dir)
+    return [e for e in efforts if e.get("status") == "open"]
 
 
 def open_effort(session_dir: Path, name: str) -> str:
     """Open a new effort. Sets it as active, deactivates others. Returns JSON result."""
-    manifest = _load_manifest(session_dir)
+    efforts = _load_efforts(session_dir)
     now = datetime.now().isoformat()
 
     # Deactivate all currently open efforts
-    for effort in manifest.get("efforts", []):
+    for effort in efforts:
         if effort.get("status") == "open":
             effort["active"] = False
 
-    manifest["efforts"].append({
+    efforts.append({
         "id": name,
         "status": "open",
         "active": True,
@@ -476,7 +476,7 @@ def open_effort(session_dir: Path, name: str) -> str:
         "updated": now
     })
 
-    _save_manifest(session_dir, manifest)
+    _save_efforts(session_dir, efforts)
     return json.dumps({"status": "opened", "effort_id": name})
 
 
@@ -486,9 +486,9 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None, se
 
     if effort_id:
         # Close specific effort by ID
-        manifest = _load_manifest(session_dir)
+        efforts = _load_efforts(session_dir)
         target = None
-        for e in manifest.get("efforts", []):
+        for e in efforts:
             if e["id"] == effort_id and e.get("status") == "open":
                 target = e
                 break
@@ -528,11 +528,11 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None, se
                     "summary": node["summary"],
                 })
 
-    # Update manifest
-    manifest = _load_manifest(session_dir)
+    # Update efforts in unified store
+    efforts = _load_efforts(session_dir)
     now = datetime.now().isoformat()
     was_active = False
-    for e in manifest["efforts"]:
+    for e in efforts:
         if e["id"] == effort_id:
             was_active = e.get("active", False)
             e["status"] = "concluded"
@@ -543,11 +543,11 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None, se
 
     # If the closed effort was active and other efforts are still open, activate the next one
     if was_active:
-        open_efforts = [e for e in manifest["efforts"] if e.get("status") == "open"]
+        open_efforts = [e for e in efforts if e.get("status") == "open"]
         if open_efforts:
             open_efforts[0]["active"] = True
 
-    _save_manifest(session_dir, manifest)
+    _save_efforts(session_dir, efforts)
 
     # Pattern detection: look for convergence across extracted nodes
     pattern_results = []
@@ -575,9 +575,9 @@ def expand_effort(session_dir: Path, effort_id: str) -> str:
     """Expand a concluded effort — load its raw log into working context temporarily."""
     from .tokens import count_tokens
 
-    manifest = _load_manifest(session_dir)
+    efforts = _load_efforts(session_dir)
     target = None
-    for e in manifest.get("efforts", []):
+    for e in efforts:
         if e["id"] == effort_id:
             target = e
             break
@@ -662,8 +662,8 @@ def expand_knowledge(session_dir: Path, node_id: str) -> str:
     # Route 1: effort-sourced node — delegate to expand_effort
     source = node.get("source")
     if source:
-        manifest = _load_manifest(session_dir)
-        for e in manifest.get("efforts", []):
+        efforts = _load_efforts(session_dir)
+        for e in efforts:
             if e["id"] == source and e.get("status") == "concluded":
                 # Delegate to expand_effort
                 effort_result = json.loads(expand_effort(session_dir, source))
@@ -715,9 +715,9 @@ def collapse_knowledge(session_dir: Path, node_id: str) -> str:
 
 def switch_effort(session_dir: Path, effort_id: str) -> str:
     """Switch which open effort is active."""
-    manifest = _load_manifest(session_dir)
+    efforts = _load_efforts(session_dir)
     target = None
-    for e in manifest.get("efforts", []):
+    for e in efforts:
         if e["id"] == effort_id:
             target = e
             break
@@ -729,11 +729,11 @@ def switch_effort(session_dir: Path, effort_id: str) -> str:
         return json.dumps({"error": f"Cannot switch to '{effort_id}': status is '{target['status']}', must be 'open'."})
 
     # Deactivate all, activate target
-    for e in manifest["efforts"]:
+    for e in efforts:
         if e.get("status") == "open":
             e["active"] = (e["id"] == effort_id)
 
-    _save_manifest(session_dir, manifest)
+    _save_efforts(session_dir, efforts)
 
     return json.dumps({
         "status": "switched",
@@ -745,8 +745,7 @@ def effort_status(session_dir: Path) -> str:
     """Get status of all efforts. Returns JSON result."""
     from .tokens import count_tokens
 
-    manifest = _load_manifest(session_dir)
-    efforts = manifest.get("efforts", [])
+    efforts = _load_efforts(session_dir)
     expanded = _load_expanded(session_dir)
 
     if not efforts:
@@ -785,9 +784,9 @@ def reopen_effort(session_dir: Path, effort_id: str) -> str:
     Flips status back to open, sets as active, deactivates other open efforts,
     removes from expanded set if present, and appends a separator to the raw log.
     """
-    manifest = _load_manifest(session_dir)
+    efforts = _load_efforts(session_dir)
     target = None
-    for e in manifest.get("efforts", []):
+    for e in efforts:
         if e["id"] == effort_id:
             target = e
             break
@@ -801,7 +800,7 @@ def reopen_effort(session_dir: Path, effort_id: str) -> str:
     prior_summary = target.get("summary", "")
 
     # Deactivate all currently open efforts
-    for e in manifest["efforts"]:
+    for e in efforts:
         if e.get("status") == "open":
             e["active"] = False
 
@@ -812,7 +811,7 @@ def reopen_effort(session_dir: Path, effort_id: str) -> str:
     target["updated"] = now
     # Keep summary around for reference but it's no longer the "current" representation
 
-    _save_manifest(session_dir, manifest)
+    _save_efforts(session_dir, efforts)
 
     # Remove from expanded set if it was expanded
     expanded = _load_expanded(session_dir)
@@ -838,8 +837,8 @@ def search_efforts(session_dir: Path, query: str) -> str:
     """Search all concluded efforts by keyword. Returns JSON with matches."""
     from .decay import extract_keywords, is_referenced
 
-    manifest = _load_manifest(session_dir)
-    concluded = [e for e in manifest.get("efforts", []) if e.get("status") == "concluded"]
+    efforts = _load_efforts(session_dir)
+    concluded = [e for e in efforts if e.get("status") == "concluded"]
 
     results = []
     for effort in concluded:
