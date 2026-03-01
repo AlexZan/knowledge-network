@@ -1,0 +1,67 @@
+# Node Type & Edge Type Definitions
+# Single source of truth for the knowledge graph schema.
+# User override: ~/.oi/schemas/node_types.yaml
+
+node_types:
+  fact:
+    extractable: true
+    tool_addable: true
+    show_in_display: true
+    has_raw_file: false
+    id_format: counter
+    valid_statuses: [active, superseded]
+    prompt_description: |
+      Objective information — "I'm at Miami Beach", "I use Claude Code", "OI stands for Open Intelligence"
+
+  preference:
+    extractable: true
+    tool_addable: true
+    show_in_display: true
+    has_raw_file: false
+    id_format: counter
+    valid_statuses: [active, superseded]
+    prompt_description: |
+      Likes, dislikes, preferences — "I like beach volleyball", "I prefer tabs over spaces"
+
+  decision:
+    extractable: true
+    tool_addable: true
+    show_in_display: true
+    has_raw_file: false
+    id_format: counter
+    valid_statuses: [active, superseded]
+    prompt_description: |
+      Choices made — "We're going with REST over GraphQL", "I'm calling it dynamic neural network"
+
+  principle:
+    extractable: false
+    tool_addable: false
+    show_in_display: true
+    has_raw_file: false
+    id_format: counter
+    valid_statuses: [active, superseded]
+    prompt_description: |
+      Generalized insight from recurring patterns across multiple efforts
+    display_with_instances: "[principle, {instance_count} instances]"
+
+  effort:
+    extractable: false
+    tool_addable: false
+    show_in_display: false
+    has_raw_file: true
+    id_format: name
+    valid_statuses: [open, concluded]
+    prompt_description: |
+      Goal-oriented work — user trying to accomplish something
+
+edge_types:
+  supports:
+    linkable: true
+  contradicts:
+    linkable: true
+  exemplifies:
+    linkable: false
+  because_of:
+    linkable: false
+  supersedes:
+    linkable: false

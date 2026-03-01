@@ -4,9 +4,11 @@ import json
 import os
 from litellm import completion
 
+from .schemas import get_extractable_types, build_extraction_type_list
 
-# Default to DeepSeek for free testing
-DEFAULT_MODEL = os.environ.get("OI_MODEL", "deepseek/deepseek-chat")
+
+# Default to Cerebras for fast testing (falls back to DeepSeek)
+DEFAULT_MODEL = os.environ.get("OI_MODEL", "cerebras/gpt-oss-120b")
 
 
 def chat(messages: list[dict], model: str = DEFAULT_MODEL) -> str:
@@ -55,7 +57,7 @@ def extract_knowledge(effort_content: str, effort_id: str, model: str = DEFAULT_
             "- Only extract facts, preferences, or decisions that are general and reusable\n"
             "- Skip transient details, in-progress discussion, and effort-specific mechanics\n"
             "- Each summary must be self-contained (no pronouns like 'it', 'this')\n"
-            "- node_type must be one of: fact, preference, decision\n\n"
+            f"- {build_extraction_type_list()}\n\n"
             "Respond with ONLY a JSON array:\n"
             '[{"node_type": "fact", "summary": "..."}, {"node_type": "decision", "summary": "..."}]\n'
             "If nothing is worth extracting, respond with: []\n\n"
@@ -75,7 +77,7 @@ def extract_knowledge(effort_content: str, effort_id: str, model: str = DEFAULT_
         valid = []
         for n in nodes:
             if (isinstance(n, dict)
-                    and n.get("node_type") in ("fact", "preference", "decision")
+                    and n.get("node_type") in get_extractable_types()
                     and isinstance(n.get("summary"), str)
                     and n["summary"].strip()):
                 valid.append({"node_type": n["node_type"], "summary": n["summary"].strip()})

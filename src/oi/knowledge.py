@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from datetime import datetime
 
+from .schemas import get_node_type_names
 from .state import _load_knowledge, _save_knowledge
 
 
@@ -121,9 +122,13 @@ def add_knowledge(
     abstraction_level: int = None,
     instance_count: int = None,
 ) -> str:
-    """Add a fact, preference, or decision to the knowledge graph. Returns JSON result."""
+    """Add a knowledge node to the knowledge graph. Returns JSON result."""
     from .llm import DEFAULT_MODEL
     from .confidence import compute_confidence
+
+    valid_types = get_node_type_names()
+    if node_type not in valid_types:
+        return json.dumps({"error": f"Invalid node_type '{node_type}'. Must be one of: {', '.join(valid_types)}"})
 
     knowledge = _load_knowledge(session_dir)
 

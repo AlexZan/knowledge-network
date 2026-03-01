@@ -81,6 +81,7 @@ Capabilities that may be valuable but aren't blocking the core vision. Revisit a
 - **Dashboard** — Visual entry point to the knowledge graph (developed separately)
 - **Schema-detection agent** — Auto-propose new node types from conversation patterns
 - **`because_of` multi-hop** — Deep chain staleness. Only if dogfooding shows 1-hop is insufficient
+- **MCP Server Interface** — Expose KG tools (add_knowledge, query_knowledge, efforts, etc.) as an MCP server. Lets Claude Code and other MCP clients use the knowledge graph as structured long-term memory. Wait until core graph mechanics stabilize.
 
 ---
 

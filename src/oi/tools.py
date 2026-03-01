@@ -25,6 +25,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Callable
 
+from .schemas import get_tool_addable_types, get_all_edge_type_names
 from .state import (
     _load_efforts, _save_efforts,
     _load_expanded, _load_expanded_state, _save_expanded,
@@ -298,7 +299,7 @@ TOOL_DEFINITIONS = [
                 "properties": {
                     "node_type": {
                         "type": "string",
-                        "enum": ["fact", "preference", "decision", "principle"],
+                        "enum": get_tool_addable_types(),
                         "description": "Type of knowledge node"
                     },
                     "summary": {
@@ -316,7 +317,7 @@ TOOL_DEFINITIONS = [
                     },
                     "edge_type": {
                         "type": "string",
-                        "enum": ["supports", "contradicts", "exemplifies", "because_of"],
+                        "enum": [e for e in get_all_edge_type_names() if e != "supersedes"],
                         "description": "Relationship type to related_to nodes (optional)"
                     },
                     "supersedes": {
@@ -349,7 +350,7 @@ TOOL_DEFINITIONS = [
                     },
                     "node_type": {
                         "type": "string",
-                        "enum": ["fact", "preference", "decision", "principle"],
+                        "enum": get_tool_addable_types(),
                         "description": "Filter results by node type (optional)"
                     },
                     "min_confidence": {
@@ -1032,11 +1033,17 @@ def execute_tool(session_dir: Path, tool_name: str, tool_args: dict, model: str 
             confirmation_callback=confirmation_callback,
         )
     elif tool_name == "add_knowledge":
+        # Auto-fill source from active effort if not provided
+        source = tool_args.get("source")
+        if not source:
+            active = get_active_effort(session_dir)
+            if active:
+                source = active["id"]
         return add_knowledge(
             session_dir,
             tool_args["node_type"],
             tool_args["summary"],
-            source=tool_args.get("source"),
+            source=source,
             related_to=tool_args.get("related_to"),
             edge_type=tool_args.get("edge_type", "supports"),
             model=model,

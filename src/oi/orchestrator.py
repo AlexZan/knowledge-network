@@ -16,6 +16,7 @@ from typing import Callable
 
 from .llm import chat_with_tools, DEFAULT_MODEL
 from .prompts import load_prompt
+from .schemas import get_display_visible_types, node_display_prefix
 from .state import (
     _load_expanded, _load_knowledge, _load_expanded_knowledge,
     _load_expanded_state, _load_efforts, increment_turn,
@@ -117,7 +118,8 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
     # Only show non-effort active nodes in the knowledge section
     knowledge_section = ""
     knowledge = _load_knowledge(session_dir)
-    active_nodes = [n for n in knowledge.get("nodes", []) if n.get("status") == "active" and n.get("type") != "effort"]
+    display_types = set(get_display_visible_types())
+    active_nodes = [n for n in knowledge.get("nodes", []) if n.get("status") == "active" and n.get("type") in display_types]
     evicted_knowledge = get_evicted_knowledge_ids(session_dir, current_turn) if current_turn is not None else set()
     visible_nodes = [n for n in active_nodes if n["id"] not in evicted_knowledge]
     evicted_count = len(active_nodes) - len(visible_nodes)
@@ -126,9 +128,7 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
         for n in visible_nodes:
             conf = compute_confidence(n["id"], knowledge)
             annotation = confidence_annotation(conf)
-            prefix = f"[{n['type']}]"
-            if n.get("type") == "principle" and n.get("instance_count"):
-                prefix = f"[principle, {n['instance_count']} instances]"
+            prefix = node_display_prefix(n)
             if annotation:
                 kg_parts.append(f"- {prefix} {n['summary']} {annotation}")
             else:
@@ -320,12 +320,30 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
 
         # Process tool calls
         messages.append(response_msg)
+        effort_opened_id = None  # Track effort opened in this batch
+        sourceless_node_ids = []  # Track knowledge nodes created without source
         for tool_call in response_msg.tool_calls:
             tool_name = tool_call.function.name
             tool_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
 
             tool_result = execute_tool(session_dir, tool_name, tool_args, model, confirmation_callback=confirmation_callback, session_id=session_id)
             tools_fired.append((tool_name, tool_args, tool_result))
+
+            # Track open_effort and sourceless add_knowledge in same batch
+            if tool_name == "open_effort":
+                try:
+                    r = json.loads(tool_result)
+                    if r.get("effort_id"):
+                        effort_opened_id = r["effort_id"]
+                except (json.JSONDecodeError, KeyError):
+                    pass
+            if tool_name == "add_knowledge" and not tool_args.get("source"):
+                try:
+                    r = json.loads(tool_result)
+                    if r.get("status") == "added":
+                        sourceless_node_ids.append(r["node_id"])
+                except (json.JSONDecodeError, KeyError):
+                    pass
 
             # Log tool call to session
             if session_id:
@@ -362,6 +380,16 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
                 "tool_call_id": tool_call.id,
                 "content": tool_result
             })
+
+        # Backfill source on knowledge nodes created without one in the same
+        # batch as an open_effort (LLM may emit add_knowledge before open_effort)
+        if effort_opened_id and sourceless_node_ids:
+            knowledge = _load_knowledge(session_dir)
+            for node in knowledge.get("nodes", []):
+                if node["id"] in sourceless_node_ids and not node.get("source"):
+                    node["source"] = effort_opened_id
+            _save_knowledge(session_dir, knowledge)
+
     else:
         # Max rounds exhausted — use whatever content we have
         assistant_content = response_msg.content or ""

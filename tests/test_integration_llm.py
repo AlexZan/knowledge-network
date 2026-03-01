@@ -1,8 +1,8 @@
 """Integration tests: real LLM calls to verify prompt behavior.
 
-These tests call the actual LLM (DeepSeek by default) to verify that
-the system prompt correctly guides tool-calling decisions.
-Requires DEEPSEEK_API_KEY in environment.
+These tests call the actual LLM to verify that the system prompt
+correctly guides tool-calling decisions.
+Requires API key for configured model (GROQ_API_KEY, DEEPSEEK_API_KEY, etc).
 
 Run: python -m pytest tests/test_integration_llm.py -v -s
 """

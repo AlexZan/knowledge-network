@@ -1,4 +1,4 @@
-"""End-to-end test with real LLM (deepseek-chat).
+"""End-to-end test with real LLM.
 
 Verifies:
 1. LLM correctly detects when to open/close efforts from natural language
@@ -6,7 +6,7 @@ Verifies:
 3. Tool-based flow works end-to-end
 
 Run with: pytest tests/test_e2e_real_llm.py -v -s
-Requires: DEEPSEEK_API_KEY environment variable
+Requires: GROQ_API_KEY or DEEPSEEK_API_KEY environment variable
 """
 
 import json
@@ -22,14 +22,30 @@ from oi.state import (
 )
 from oi.tokens import count_tokens
 from oi.decay import DECAY_THRESHOLD, SUMMARY_EVICTION_THRESHOLD
+from oi.llm import DEFAULT_MODEL
+
+
+def _has_llm_key():
+    """Check if we have an API key for the configured model."""
+    model = os.environ.get("OI_MODEL", DEFAULT_MODEL)
+    if model.startswith("cerebras/"):
+        return bool(os.environ.get("CEREBRAS_API_KEY"))
+    if model.startswith("groq/"):
+        return bool(os.environ.get("GROQ_API_KEY"))
+    if model.startswith("deepseek/"):
+        return bool(os.environ.get("DEEPSEEK_API_KEY"))
+    if model.startswith("openai/"):
+        return bool(os.environ.get("OPENAI_API_KEY"))
+    # For unknown providers, assume key is present (litellm will error if not)
+    return True
 
 
 requires_llm = pytest.mark.skipif(
-    not os.environ.get("DEEPSEEK_API_KEY"),
-    reason="DEEPSEEK_API_KEY not set — skipping real LLM test"
+    not _has_llm_key(),
+    reason="No API key for configured model — skipping real LLM test"
 )
 
-MODEL = "deepseek/deepseek-chat"
+MODEL = os.environ.get("OI_MODEL", DEFAULT_MODEL)
 
 
 def _context_tokens(session_dir):
@@ -1329,7 +1345,7 @@ class TestProactiveKnowledgeCaptureE2E:
         )
 
         # Keyword coverage: check key items are captured in any node
-        all_summaries = " ".join(n["summary"].lower() for n in all_nodes)
+        all_summaries = " ".join(n["summary"].lower() for n in all_nodes if n.get("summary"))
         checks = {
             "beach volleyball": ["volleyball", "beach volleyball"],
             "Miami Beach location": ["miami"],
@@ -1414,7 +1430,7 @@ class TestProactiveKnowledgeCaptureE2E:
         )
 
         # Check for key concepts
-        all_summaries = " ".join(n["summary"].lower() for n in all_nodes)
+        all_summaries = " ".join(n["summary"].lower() for n in all_nodes if n.get("summary"))
         has_neural = "neural" in all_summaries or "dynamic" in all_summaries
         has_evolve = "evolv" in all_summaries or "knowledge network" in all_summaries
         assert has_neural or has_evolve, (
