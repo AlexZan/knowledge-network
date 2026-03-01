@@ -1020,10 +1020,13 @@ class TestKnowledgeExtractionE2E:
             f"Effort should be concluded. Response: {response[:300]}"
         )
 
-        # Verify knowledge.yaml has extracted nodes
+        # Verify knowledge.yaml has extracted nodes (exclude effort nodes —
+        # efforts are stored in the same file since Slice 9, but we're testing
+        # that close_effort *extracts* fact/preference/decision knowledge)
         knowledge = _load_knowledge(session_dir)
-        nodes = knowledge.get("nodes", [])
-        print(f"\nExtracted {len(nodes)} knowledge nodes:")
+        all_nodes = knowledge.get("nodes", [])
+        nodes = [n for n in all_nodes if n.get("type") != "effort"]
+        print(f"\nExtracted {len(nodes)} knowledge nodes (+ {len(all_nodes) - len(nodes)} effort nodes):")
         for n in nodes:
             print(f"  [{n['type']}] {n['summary']} (source: {n.get('source')})")
 
@@ -1381,8 +1384,11 @@ class TestProactiveKnowledgeCaptureE2E:
         assert get_active_effort(session_dir) is not None
 
         knowledge = _load_knowledge(session_dir)
-        nodes_before = len(knowledge.get("nodes", []))
-        print(f"\nNodes after effort open: {nodes_before}")
+        # Exclude effort nodes — they live in knowledge.yaml since Slice 9,
+        # but this test is about mid-effort *knowledge* capture (facts, etc.)
+        knowledge_nodes_before = [n for n in knowledge.get("nodes", []) if n.get("type") != "effort"]
+        nodes_before = len(knowledge_nodes_before)
+        print(f"\nKnowledge nodes after effort open: {nodes_before}")
 
         # Turn 2: share project details mid-effort
         response = process_turn(
@@ -1395,8 +1401,8 @@ class TestProactiveKnowledgeCaptureE2E:
         print(f"Turn 2 response: {response[:200]}")
 
         knowledge = _load_knowledge(session_dir)
-        all_nodes = knowledge.get("nodes", [])
-        print(f"Nodes after mid-effort message: {len(all_nodes)}")
+        all_nodes = [n for n in knowledge.get("nodes", []) if n.get("type") != "effort"]
+        print(f"Knowledge nodes after mid-effort message: {len(all_nodes)}")
         for n in all_nodes:
             print(f"  [{n['type']}] {n['summary']}")
 
