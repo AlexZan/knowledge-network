@@ -33,7 +33,7 @@ from .decay import (
 from .session_log import log_event, extract_node_context
 
 
-MAX_TOOL_ROUNDS = 3
+MAX_TOOL_ROUNDS = 5
 
 
 def _log_message(session_dir: Path, effort_id: str | None, role: str, content: str):
@@ -365,6 +365,11 @@ def process_turn(session_dir: Path, user_message: str, model: str = DEFAULT_MODE
     else:
         # Max rounds exhausted — use whatever content we have
         assistant_content = response_msg.content or ""
+
+    # 5b. If we still have no text response, force one without tools
+    if not assistant_content.strip():
+        from .llm import chat
+        assistant_content = chat(messages, model)
 
     # 6. Build programmatic banners for tool actions
     banners = _build_tool_banners(tools_fired)
