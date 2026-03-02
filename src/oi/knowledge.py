@@ -18,6 +18,7 @@ def query_knowledge(
     query: str,
     node_type: str = None,
     min_confidence: str = None,
+    max_results: int = 10,
 ) -> str:
     """Search the knowledge graph by keyword. Returns JSON with matching nodes."""
     from .confidence import compute_confidence
@@ -127,6 +128,8 @@ def query_knowledge(
         results.append(entry)
 
     total_active = len(active_nodes)
+    if max_results and len(results) > max_results:
+        results = results[:max_results]
     return json.dumps({"results": results, "total_active": total_active})
 
 

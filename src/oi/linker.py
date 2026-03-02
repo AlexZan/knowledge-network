@@ -116,20 +116,86 @@ def link_nodes(new_node: dict, candidate: dict, model: str) -> dict:
         return {"edge_type": "none", "reasoning": "parse_error"}
 
 
-def run_linking(new_node: dict, graph: dict, model: str, max_candidates: int = 5) -> list[dict]:
-    """Run the full linking pipeline: find candidates then classify each pair.
+def batch_link_nodes(new_node: dict, candidates: list[dict], model: str) -> list[dict]:
+    """Classify relationships between new_node and all candidates in one LLM call.
+
+    Returns list of {target_id, edge_type, reasoning} for each candidate.
+    Falls back to per-pair link_nodes on parse failure.
+    """
+    if not candidates:
+        return []
+    if len(candidates) == 1:
+        result = link_nodes(new_node, candidates[0]["node"], model)
+        result["target_id"] = candidates[0]["node"]["id"]
+        return [result]
+
+    try:
+        candidate_lines = []
+        for i, c in enumerate(candidates):
+            node = c["node"]
+            candidate_lines.append(
+                f"  {i+1}. [{node.get('type', '')}] (id: {node['id']}) {node.get('summary', '')}"
+            )
+
+        prompt = (
+            "Classify the relationship between Node A and each candidate node.\n\n"
+            f"Node A (new): [{new_node.get('type', '')}] {new_node.get('summary', '')}\n\n"
+            "Candidates:\n"
+            + "\n".join(candidate_lines) + "\n\n"
+            "For each candidate, follow these steps:\n"
+            "1. Are they about the same topic, domain, or system? If NO → \"none\"\n"
+            "2. If related: does Node A reinforce, add detail to, provide evidence for, specify an aspect of, or elaborate on the candidate? If YES → \"supports\"\n"
+            "3. If related: does Node A disagree with, contradict, or replace the candidate? If YES → \"contradicts\"\n\n"
+            "Respond with ONLY a JSON array, one object per candidate in order:\n"
+            '[{"edge_type": "supports"|"contradicts"|"none", "reasoning": "one sentence"}, ...]'
+        )
+
+        messages = [
+            {"role": "system", "content": "You classify relationships between knowledge nodes. Respond ONLY with JSON."},
+            {"role": "user", "content": prompt},
+        ]
+
+        raw = chat(messages, model, temperature=0)
+        text = raw.strip()
+
+        # Strip markdown fences
+        if text.startswith("```"):
+            lines = text.split("\n")
+            text = "\n".join(lines[1:-1]) if len(lines) > 2 else text
+
+        results = json.loads(text)
+        if not isinstance(results, list) or len(results) != len(candidates):
+            raise ValueError("batch response length mismatch")
+
+        valid_responses = set(get_linkable_edge_types()) | {"none"}
+        parsed = []
+        for i, r in enumerate(results):
+            edge_type = r.get("edge_type", "none")
+            if edge_type not in valid_responses:
+                edge_type = "none"
+            parsed.append({
+                "target_id": candidates[i]["node"]["id"],
+                "edge_type": edge_type,
+                "reasoning": r.get("reasoning", ""),
+            })
+        return parsed
+
+    except Exception:
+        # Fallback: per-pair classification
+        results = []
+        for c in candidates:
+            result = link_nodes(new_node, c["node"], model)
+            result["target_id"] = c["node"]["id"]
+            results.append(result)
+        return results
+
+
+def run_linking(new_node: dict, graph: dict, model: str, max_candidates: int = 8) -> list[dict]:
+    """Run the full linking pipeline: find candidates then classify all at once.
 
     Returns list of edges (excluding "none"):
     [{"target_id": str, "edge_type": str, "reasoning": str}, ...]
     """
     candidates = find_candidates(new_node, graph, max_candidates)
-    edges = []
-    for c in candidates:
-        result = link_nodes(new_node, c["node"], model)
-        if result["edge_type"] != "none":
-            edges.append({
-                "target_id": c["node"]["id"],
-                "edge_type": result["edge_type"],
-                "reasoning": result["reasoning"],
-            })
-    return edges
+    results = batch_link_nodes(new_node, candidates, model)
+    return [r for r in results if r["edge_type"] != "none"]

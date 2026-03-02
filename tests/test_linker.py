@@ -4,7 +4,7 @@ import json
 import pytest
 from unittest.mock import patch
 
-from oi.linker import find_candidates, link_nodes, run_linking
+from oi.linker import find_candidates, link_nodes, batch_link_nodes, run_linking
 
 
 # === Test fixtures ===
@@ -197,6 +197,125 @@ class TestLinkNodes:
 
         assert result["edge_type"] == "none"
         assert result["reasoning"] == "parse_error"
+
+
+# === TestBatchLinkNodes ===
+
+class TestBatchLinkNodes:
+    def test_single_candidate_uses_link_nodes(self):
+        """1 candidate falls back to per-pair link_nodes."""
+        new = _node("fact-002", "JWT tokens expire after one hour")
+        candidates = [{"node": _node("fact-001", "API uses JWT tokens for auth"), "score": 0.5}]
+
+        mock_response = '{"edge_type": "supports", "reasoning": "Related"}'
+        with patch("oi.linker.chat", return_value=mock_response):
+            results = batch_link_nodes(new, candidates, "test-model")
+
+        assert len(results) == 1
+        assert results[0]["edge_type"] == "supports"
+        assert results[0]["target_id"] == "fact-001"
+
+    def test_batch_classifies_multiple_candidates(self):
+        """Multiple candidates classified in one LLM call."""
+        new = _node("fact-003", "JWT tokens must be refreshed before expiry")
+        candidates = [
+            {"node": _node("fact-001", "API uses JWT tokens for authentication"), "score": 0.5},
+            {"node": _node("decision-001", "Use session cookies instead of JWT"), "score": 0.3},
+        ]
+
+        mock_response = '[{"edge_type": "supports", "reasoning": "Both about JWT"}, {"edge_type": "contradicts", "reasoning": "JWT vs cookies"}]'
+        with patch("oi.linker.chat", return_value=mock_response):
+            results = batch_link_nodes(new, candidates, "test-model")
+
+        assert len(results) == 2
+        assert results[0]["target_id"] == "fact-001"
+        assert results[0]["edge_type"] == "supports"
+        assert results[1]["target_id"] == "decision-001"
+        assert results[1]["edge_type"] == "contradicts"
+
+    def test_batch_strips_markdown_fences(self):
+        """Batch response wrapped in markdown fences is parsed."""
+        new = _node("fact-002", "JWT tokens expire")
+        candidates = [
+            {"node": _node("fact-001", "API uses JWT tokens"), "score": 0.5},
+            {"node": _node("fact-003", "JWT uses RS256"), "score": 0.3},
+        ]
+
+        mock_response = '```json\n[{"edge_type": "supports", "reasoning": "r1"}, {"edge_type": "none", "reasoning": "r2"}]\n```'
+        with patch("oi.linker.chat", return_value=mock_response):
+            results = batch_link_nodes(new, candidates, "test-model")
+
+        assert len(results) == 2
+        assert results[0]["edge_type"] == "supports"
+        assert results[1]["edge_type"] == "none"
+
+    def test_batch_fallback_on_length_mismatch(self):
+        """Wrong number of results falls back to per-pair calls."""
+        new = _node("fact-002", "JWT tokens expire")
+        candidates = [
+            {"node": _node("fact-001", "API uses JWT tokens"), "score": 0.5},
+            {"node": _node("fact-003", "JWT uses RS256"), "score": 0.3},
+        ]
+
+        # First call returns wrong-length array (triggers fallback),
+        # subsequent calls return per-pair results
+        call_count = [0]
+        def mock_chat(messages, model, temperature=0):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                return '[{"edge_type": "supports", "reasoning": "only one"}]'
+            return '{"edge_type": "supports", "reasoning": "fallback"}'
+
+        with patch("oi.linker.chat", side_effect=mock_chat):
+            results = batch_link_nodes(new, candidates, "test-model")
+
+        assert len(results) == 2
+        # Fallback made 2 more per-pair calls (total 3)
+        assert call_count[0] == 3
+
+    def test_batch_fallback_on_exception(self):
+        """LLM exception falls back to per-pair calls."""
+        new = _node("fact-002", "JWT tokens expire")
+        candidates = [
+            {"node": _node("fact-001", "API uses JWT tokens"), "score": 0.5},
+            {"node": _node("fact-003", "JWT uses RS256"), "score": 0.3},
+        ]
+
+        call_count = [0]
+        def mock_chat(messages, model, temperature=0):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise RuntimeError("API error")
+            return '{"edge_type": "none", "reasoning": "unrelated"}'
+
+        with patch("oi.linker.chat", side_effect=mock_chat):
+            results = batch_link_nodes(new, candidates, "test-model")
+
+        assert len(results) == 2
+        assert call_count[0] == 3
+
+    def test_empty_candidates_returns_empty(self):
+        """0 candidates → empty results, no LLM call."""
+        new = _node("fact-001", "JWT tokens expire")
+        with patch("oi.linker.chat") as mock_chat:
+            results = batch_link_nodes(new, [], "test-model")
+        assert results == []
+        mock_chat.assert_not_called()
+
+    def test_batch_invalid_edge_type_becomes_none(self):
+        """Invalid edge_type in batch response is converted to none."""
+        new = _node("fact-002", "JWT tokens expire")
+        candidates = [
+            {"node": _node("fact-001", "API uses JWT tokens"), "score": 0.5},
+            {"node": _node("fact-003", "JWT uses RS256"), "score": 0.3},
+        ]
+
+        mock_response = '[{"edge_type": "related", "reasoning": "r1"}, {"edge_type": "supports", "reasoning": "r2"}]'
+        with patch("oi.linker.chat", return_value=mock_response):
+            results = batch_link_nodes(new, candidates, "test-model")
+
+        assert results[0]["edge_type"] == "none"  # invalid → none
+        assert results[1]["edge_type"] == "supports"
 
 
 # === TestRunLinking ===
