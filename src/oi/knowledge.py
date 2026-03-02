@@ -57,6 +57,23 @@ def query_knowledge(
 
         seeds.append({"node_id": node["id"], "score": score})
 
+    # Phase 1b: Semantic seed matching (if embeddings available)
+    try:
+        from .embed import semantic_search
+        sem_results = semantic_search(query, session_dir, knowledge)
+        # Merge: semantic seeds add to existing keyword scores
+        seed_scores = {s["node_id"]: s["score"] for s in seeds}
+        for sr in sem_results:
+            nid = sr["node_id"]
+            if nid in seed_scores:
+                # Boost keyword seed with semantic signal
+                seed_scores[nid] = max(seed_scores[nid], sr["score"])
+            else:
+                seed_scores[nid] = sr["score"]
+        seeds = [{"node_id": nid, "score": sc} for nid, sc in seed_scores.items()]
+    except Exception:
+        pass  # Embedding unavailable — keyword seeds only
+
     # Phase 2: Graph walk expansion
     walked = graph_walk(seeds, knowledge)
 
@@ -257,6 +274,20 @@ def add_knowledge(
         pass  # Best-effort: linking failure doesn't block knowledge addition
 
     _save_knowledge(session_dir, knowledge)
+
+    # Embed the new node (best-effort)
+    try:
+        from .embed import embed_node, load_embeddings, save_embeddings, DEFAULT_EMBED_MODEL
+        vec = embed_node(node, DEFAULT_EMBED_MODEL)
+        if vec:
+            emb_data = load_embeddings(session_dir)
+            if emb_data["model"] and emb_data["model"] != DEFAULT_EMBED_MODEL:
+                emb_data = {"model": DEFAULT_EMBED_MODEL, "vectors": {}}
+            emb_data["model"] = DEFAULT_EMBED_MODEL
+            emb_data["vectors"][node_id] = vec
+            save_embeddings(session_dir, emb_data)
+    except Exception:
+        pass  # Embedding failure doesn't block node addition
 
     result = {"status": "added", "node_id": node_id, "node_type": node_type, "summary": summary}
     if reasoning:
