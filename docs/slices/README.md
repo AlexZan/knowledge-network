@@ -30,9 +30,10 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 11 | MCP Server Interface | Expose KG tools as MCP server for Claude Code. 8 tools (add/query knowledge, effort CRUD). Human-readable output formatting. Stdio transport. | — |
 | 11b | Provenance Linking | `reasoning` field, `chatlog://` URIs auto-stamped from Claude Code logs, MCP tool call log. Schema descriptor for Claude Code log format. | [11b-provenance-linking.md](11b-provenance-linking.md) |
 | 12a | Graph Walk Search | Graph walk layer between keyword seeds and result ranking. Expands candidates 1-2 hops with decay scoring (0.7x/0.4x). Convergence boosts. Plugs into `query_knowledge()` and `find_candidates()`. | [12a-graph-walk.md](12a-graph-walk.md) |
+| 12b | Embedding Search | Semantic seed matching via configurable embeddings (OI_EMBED_MODEL). Cosine similarity finds vocabulary gaps (e.g. "SOA" ↔ "microservices"). Graceful fallback to keyword-only. | — |
 | 12c | Batch LLM Classification | One prompt classifies all candidates instead of N per-pair calls. Fallback to per-pair on parse failure. Also: containment ratio for short queries, result cap (max_results=10). | — |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs. Slices 12a/12c add graph-aware search and batch classification for efficient linking.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs. Slices 12a-c add graph-aware search (graph walk, embeddings, batch classification).
 
 ---
 
@@ -67,6 +68,8 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
  ↓
 12a: Graph Walk Search (expand candidates via edge traversal with decay scoring) ✓
  ↓
+12b: Embedding Search (semantic seeds via configurable OI_EMBED_MODEL) ✓
+ ↓
 12c: Batch LLM Classification (1 prompt for N candidates, containment ratio, result cap) ✓
 ```
 
@@ -82,7 +85,6 @@ Graph-aware retrieval replacing flat keyword scan. See [Decision 015](../decisio
 
 | Slice | What |
 |-------|------|
-| 12b | **Embeddings** — Vector layer for semantic seed matching. Catches terminology drift (e.g. "SOA" ↔ "microservices"). Embedding model + storage TBD. |
 | 12d | **Hybrid Retrieval** — Wire 12a-c into three-layer pipeline: seed match → graph walk → LLM classify top-15. |
 
 ### Bulk Document Ingestion
