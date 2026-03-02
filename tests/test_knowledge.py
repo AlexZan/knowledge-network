@@ -2,9 +2,16 @@
 
 import json
 import pytest
+from unittest.mock import patch
 
 from oi.knowledge import add_knowledge, query_knowledge
 from oi.state import _load_knowledge, _save_knowledge
+
+# Disable embeddings in keyword/walk tests (Ollama may be running)
+@pytest.fixture(autouse=True)
+def _no_embed():
+    with patch("oi.embed.get_embedding", return_value=None):
+        yield
 
 
 @pytest.fixture

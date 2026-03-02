@@ -26,16 +26,12 @@ def _node(node_id, summary="test", node_type="fact", status="active"):
     }
 
 
-def _mock_embedding(text, model=None):
-    """Deterministic mock: hash text to a fake vector."""
-    h = hash(text) % 1000
-    return [h / 1000, (h + 100) / 1000, (h + 200) / 1000]
-
-
-def _mock_embedding_response(input_texts):
-    """Build a mock litellm embedding response."""
+def _mock_ollama_response(embedding_vec):
+    """Build a mock requests.Response for Ollama embedding API."""
     resp = MagicMock()
-    resp.data = [{"embedding": _mock_embedding(t)} for t in input_texts]
+    resp.status_code = 200
+    resp.json.return_value = {"embedding": embedding_vec}
+    resp.raise_for_status = MagicMock()
     return resp
 
 
@@ -68,24 +64,34 @@ class TestCosineSimilarity:
 # === TestGetEmbedding ===
 
 class TestGetEmbedding:
-    def test_returns_vector(self):
-        mock_resp = MagicMock()
-        mock_resp.data = [{"embedding": [0.1, 0.2, 0.3]}]
-        with patch("oi.embed.embedding", return_value=mock_resp):
+    def test_ollama_returns_vector(self):
+        mock_resp = _mock_ollama_response([0.1, 0.2, 0.3])
+        with patch("oi.embed.requests.post", return_value=mock_resp):
             vec = get_embedding("test text")
         assert vec == [0.1, 0.2, 0.3]
 
     def test_returns_none_on_error(self):
-        with patch("oi.embed.embedding", side_effect=RuntimeError("no key")):
+        with patch("oi.embed.requests.post", side_effect=RuntimeError("connection refused")):
             vec = get_embedding("test text")
         assert vec is None
 
-    def test_uses_configured_model(self):
+    def test_ollama_uses_configured_model(self):
+        mock_resp = _mock_ollama_response([0.1])
+        with patch("oi.embed.requests.post", return_value=mock_resp) as mock_post:
+            get_embedding("test", model="mxbai-embed-large")
+        mock_post.assert_called_once()
+        call_json = mock_post.call_args[1]["json"]
+        assert call_json["model"] == "mxbai-embed-large"
+        assert call_json["prompt"] == "test"
+
+    def test_litellm_backend_with_prefix(self):
+        """Model prefixed with 'litellm/' routes to litellm backend."""
         mock_resp = MagicMock()
-        mock_resp.data = [{"embedding": [0.1]}]
-        with patch("oi.embed.embedding", return_value=mock_resp) as mock_emb:
-            get_embedding("test", model="custom/model-v2")
-        mock_emb.assert_called_once_with(model="custom/model-v2", input=["test"])
+        mock_resp.data = [{"embedding": [0.5, 0.6]}]
+        with patch("oi.embed._embed_litellm", return_value=[0.5, 0.6]) as mock_ll:
+            vec = get_embedding("test", model="litellm/text-embedding-3-small")
+        assert vec == [0.5, 0.6]
+        mock_ll.assert_called_once_with("test", "text-embedding-3-small")
 
 
 # === TestStorage ===
@@ -113,9 +119,8 @@ class TestStorage:
 class TestEmbedNode:
     def test_embeds_summary(self):
         node = _node("fact-001", "JWT tokens expire after one hour")
-        mock_resp = MagicMock()
-        mock_resp.data = [{"embedding": [0.5, 0.6]}]
-        with patch("oi.embed.embedding", return_value=mock_resp):
+        mock_resp = _mock_ollama_response([0.5, 0.6])
+        with patch("oi.embed.requests.post", return_value=mock_resp):
             vec = embed_node(node)
         assert vec == [0.5, 0.6]
 
@@ -130,9 +135,8 @@ class TestEmbedNode:
 class TestEnsureEmbeddings:
     def test_embeds_missing_nodes(self, tmp_path):
         knowledge = {"nodes": [_node("fact-001", "test summary")], "edges": []}
-        mock_resp = MagicMock()
-        mock_resp.data = [{"embedding": [0.1, 0.2]}]
-        with patch("oi.embed.embedding", return_value=mock_resp):
+        mock_resp = _mock_ollama_response([0.1, 0.2])
+        with patch("oi.embed.requests.post", return_value=mock_resp):
             data = ensure_embeddings(tmp_path, knowledge, model="test-model")
         assert "fact-001" in data["vectors"]
         assert data["model"] == "test-model"
@@ -141,18 +145,17 @@ class TestEnsureEmbeddings:
         existing = {"model": "test-model", "vectors": {"fact-001": [0.1, 0.2]}}
         save_embeddings(tmp_path, existing)
         knowledge = {"nodes": [_node("fact-001", "test")], "edges": []}
-        with patch("oi.embed.embedding") as mock_emb:
+        with patch("oi.embed.requests.post") as mock_post:
             data = ensure_embeddings(tmp_path, knowledge, model="test-model")
-        mock_emb.assert_not_called()
+        mock_post.assert_not_called()
         assert data["vectors"]["fact-001"] == [0.1, 0.2]
 
     def test_reembeds_on_model_change(self, tmp_path):
         existing = {"model": "old-model", "vectors": {"fact-001": [0.1, 0.2]}}
         save_embeddings(tmp_path, existing)
         knowledge = {"nodes": [_node("fact-001", "test")], "edges": []}
-        mock_resp = MagicMock()
-        mock_resp.data = [{"embedding": [0.9, 0.8]}]
-        with patch("oi.embed.embedding", return_value=mock_resp):
+        mock_resp = _mock_ollama_response([0.9, 0.8])
+        with patch("oi.embed.requests.post", return_value=mock_resp):
             data = ensure_embeddings(tmp_path, knowledge, model="new-model")
         assert data["model"] == "new-model"
         assert data["vectors"]["fact-001"] == [0.9, 0.8]
@@ -164,7 +167,7 @@ class TestEnsureEmbeddings:
         }
         save_embeddings(tmp_path, existing)
         knowledge = {"nodes": [_node("fact-001", "test")], "edges": []}
-        with patch("oi.embed.embedding"):
+        with patch("oi.embed.requests.post"):
             data = ensure_embeddings(tmp_path, knowledge, model="test-model")
         assert "deleted-node" not in data["vectors"]
 
@@ -176,9 +179,8 @@ class TestEnsureEmbeddings:
             ],
             "edges": [],
         }
-        mock_resp = MagicMock()
-        mock_resp.data = [{"embedding": [0.5]}]
-        with patch("oi.embed.embedding", return_value=mock_resp):
+        mock_resp = _mock_ollama_response([0.5])
+        with patch("oi.embed.requests.post", return_value=mock_resp):
             data = ensure_embeddings(tmp_path, knowledge, model="test-model")
         assert "fact-001" not in data["vectors"]
         assert "fact-002" in data["vectors"]

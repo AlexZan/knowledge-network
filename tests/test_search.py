@@ -2,6 +2,7 @@
 
 import json
 import pytest
+from unittest.mock import patch
 
 from oi.search import graph_walk, _build_adjacency
 
@@ -268,8 +269,9 @@ class TestGraphWalk:
 
 # === Integration: query_knowledge with graph walk ===
 
+@patch("oi.embed.get_embedding", return_value=None)
 class TestQueryKnowledgeWithWalk:
-    def test_walk_discovers_neighborhood_matches(self, tmp_path):
+    def test_walk_discovers_neighborhood_matches(self, _mock_embed, tmp_path):
         """query_knowledge finds nodes connected by edges, not just keyword matches."""
         from oi.knowledge import query_knowledge
         from oi.state import _save_knowledge

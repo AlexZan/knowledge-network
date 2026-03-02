@@ -1,11 +1,14 @@
 """Embedding layer: configurable vector embeddings for semantic search.
 
-Uses litellm's embedding API so any supported provider works.
-Configure via OI_EMBED_MODEL env var (default: text-embedding-3-small).
+Supports two backends:
+- Ollama (default): local models via HTTP API. Free, GPU-accelerated.
+  Set OI_EMBED_MODEL to any Ollama model name (default: nomic-embed-text).
+  Set OI_OLLAMA_URL to override Ollama endpoint (default: http://127.0.0.1:11434).
+- litellm: any cloud provider (OpenAI, Cohere, etc).
+  Prefix model with "litellm/" to use, e.g. OI_EMBED_MODEL=litellm/text-embedding-3-small.
 
 Storage: embeddings.json alongside knowledge.yaml.
-Graceful degradation: if embedding fails (no API key, network error),
-search falls back to keyword-only matching.
+Graceful degradation: if embedding fails, search falls back to keyword-only.
 """
 
 import json
@@ -13,25 +16,46 @@ import math
 import os
 from pathlib import Path
 
-from litellm import embedding
+import requests
 
-DEFAULT_EMBED_MODEL = os.environ.get("OI_EMBED_MODEL", "text-embedding-3-small")
+DEFAULT_EMBED_MODEL = os.environ.get("OI_EMBED_MODEL", "nomic-embed-text")
+OLLAMA_URL = os.environ.get("OI_OLLAMA_URL", "http://127.0.0.1:11434")
 
 # Cache file name
 EMBEDDINGS_FILE = "embeddings.json"
 
 
 def get_embedding(text: str, model: str = None) -> list[float] | None:
-    """Get embedding vector for text via litellm.
+    """Get embedding vector for text.
 
-    Returns None on any failure (missing key, network error, etc).
+    Routes to Ollama (default) or litellm (if model starts with "litellm/").
+    Returns None on any failure.
     """
     model = model or DEFAULT_EMBED_MODEL
     try:
-        response = embedding(model=model, input=[text])
-        return response.data[0]["embedding"]
+        if model.startswith("litellm/"):
+            return _embed_litellm(text, model[len("litellm/"):])
+        return _embed_ollama(text, model)
     except Exception:
         return None
+
+
+def _embed_ollama(text: str, model: str) -> list[float] | None:
+    """Get embedding via Ollama HTTP API."""
+    response = requests.post(
+        f"{OLLAMA_URL}/api/embeddings",
+        json={"model": model, "prompt": text},
+        timeout=30,
+    )
+    response.raise_for_status()
+    return response.json()["embedding"]
+
+
+def _embed_litellm(text: str, model: str) -> list[float] | None:
+    """Get embedding via litellm (cloud providers)."""
+    from litellm import embedding
+    response = embedding(model=model, input=[text])
+    return response.data[0]["embedding"]
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
