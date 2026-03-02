@@ -5,7 +5,7 @@ Verifies:
 2. Token measurements match predictions
 3. Tool-based flow works end-to-end
 
-Run with: pytest tests/test_e2e_real_llm.py -v -s
+Run with: pytest -m llm tests/test_e2e_real_llm.py -v -s
 Requires: GROQ_API_KEY or DEEPSEEK_API_KEY environment variable
 """
 
@@ -13,6 +13,8 @@ import json
 import os
 import yaml
 import pytest
+
+pytestmark = pytest.mark.llm
 
 from oi.orchestrator import process_turn, _build_messages
 from oi.tools import get_open_effort, get_active_effort, get_all_open_efforts

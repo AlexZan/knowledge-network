@@ -1,7 +1,7 @@
 """Adversarial integration tests: edge cases designed to break effort detection.
 
 Real LLM calls. These test ambiguous inputs where the model might make wrong decisions.
-Run: python -m pytest tests/test_integration_adversarial.py -v -s
+Run: python -m pytest -m llm tests/test_integration_adversarial.py -v -s
 """
 
 import json
@@ -11,6 +11,8 @@ from unittest.mock import patch, MagicMock
 
 from oi.orchestrator import process_turn
 from oi.tools import get_active_effort, get_all_open_efforts
+
+pytestmark = pytest.mark.llm
 
 
 @pytest.fixture

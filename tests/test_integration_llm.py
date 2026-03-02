@@ -4,7 +4,7 @@ These tests call the actual LLM to verify that the system prompt
 correctly guides tool-calling decisions.
 Requires API key for configured model (GROQ_API_KEY, DEEPSEEK_API_KEY, etc).
 
-Run: python -m pytest tests/test_integration_llm.py -v -s
+Run: python -m pytest -m llm tests/test_integration_llm.py -v -s
 """
 
 import json
@@ -13,6 +13,8 @@ from pathlib import Path
 
 from oi.orchestrator import process_turn
 from oi.tools import get_active_effort, get_all_open_efforts
+
+pytestmark = pytest.mark.llm
 
 
 @pytest.fixture

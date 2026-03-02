@@ -31,3 +31,5 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
+markers = ["llm: tests that make real LLM API calls (cost money, need API keys)"]
+addopts = "-m 'not llm'"
