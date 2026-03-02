@@ -1,7 +1,8 @@
-passed: 385
+passed: 377
 failed: 0
 skipped: 1
-date: 2026-03-01
-commit: 9a1f4c2+slice10+fixes (uncommitted)
-notes: 1 skip is test_full_scenario_token_savings (deliberate — scaling strategy needed). Full suite 3m27s on cerebras/gpt-oss-120b.
-command: LD_LIBRARY_PATH=/nix/store/ld973bya5s9qdznqxp4ki5fpqkilx1va-system-path/lib /tmp/oi-venv/bin/python -m pytest
+date: 2026-03-02
+commit: 7caff64 (dirty)
+duration: 38.1s
+e2e: excluded
+command: /tmp/oi-venv/bin/python -m pytest --ignore=tests/test_e2e_real_llm.py -q --tb=short

@@ -1,0 +1,3 @@
+#\!/usr/bin/env bash
+export LD_LIBRARY_PATH=/nix/store/ld973bya5s9qdznqxp4ki5fpqkilx1va-system-path/lib
+exec /tmp/oi-venv/bin/oi-mcp "$@"

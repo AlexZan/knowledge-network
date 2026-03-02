@@ -6,6 +6,8 @@ Knowledge Network: A framework for persistent AI memory through **conclusion-tri
 
 For details: `docs/thesis.md` (vision & 5 theses), `docs/PROJECT.md` (architecture)
 
+**Persistent memory is available via the `knowledge-network` MCP server.** Use it to remember facts, preferences, and decisions across sessions, and to track focused work efforts.
+
 ## Documentation Rules
 
 ### No Duplicate Sources of Truth

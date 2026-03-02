@@ -11,9 +11,12 @@ from .schemas import get_extractable_types, build_extraction_type_list
 DEFAULT_MODEL = os.environ.get("OI_MODEL", "cerebras/gpt-oss-120b")
 
 
-def chat(messages: list[dict], model: str = DEFAULT_MODEL) -> str:
+def chat(messages: list[dict], model: str = DEFAULT_MODEL, temperature: float = None) -> str:
     """Send messages to LLM and get response text."""
-    response = completion(model=model, messages=messages)
+    kwargs = {"model": model, "messages": messages}
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    response = completion(**kwargs)
     return response.choices[0].message.content
 
 

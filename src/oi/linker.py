@@ -58,9 +58,9 @@ def link_nodes(new_node: dict, candidate: dict, model: str) -> dict:
             "Follow these steps:\n"
             "1. Identify the core claim in Node A\n"
             "2. Identify the core claim in Node B\n"
-            "3. Are they about the same topic or domain? If NO → output \"none\"\n"
-            "4. If same topic: does Node A reinforce, add detail to, provide evidence for, or elaborate on Node B? If YES → output \"supports\"\n"
-            "5. If same topic: does Node A disagree with, contradict, or replace Node B? If YES → output \"contradicts\"\n\n"
+            "3. Are they about the same topic, domain, or system? (e.g. two facts about the same API, library, architecture, or concept count as related) If NO → output \"none\"\n"
+            "4. If related: does Node A reinforce, add detail to, provide evidence for, specify an aspect of, or elaborate on Node B? If YES → output \"supports\"\n"
+            "5. If related: does Node A disagree with, contradict, or replace Node B? If YES → output \"contradicts\"\n\n"
             "Respond with ONLY a JSON object:\n"
             '{"edge_type": "supports"|"contradicts"|"none", "reasoning": "one sentence"}'
         )
@@ -70,7 +70,7 @@ def link_nodes(new_node: dict, candidate: dict, model: str) -> dict:
             {"role": "user", "content": prompt},
         ]
 
-        raw = chat(messages, model)
+        raw = chat(messages, model, temperature=0)
         text = raw.strip()
 
         # Strip markdown fences

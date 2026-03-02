@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "knowledge-network": {
+      "command": "/mnt/storage/Dev/knowledge-network/bin/oi-mcp"
+    }
+  }
+}

@@ -15,9 +15,11 @@ dev = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
 ]
+mcp = ["mcp>=1.0.0"]
 
 [project.scripts]
 oi = "oi.cli:main"
+oi-mcp = "oi.mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
