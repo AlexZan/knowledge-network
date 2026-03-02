@@ -100,6 +100,10 @@ def query_knowledge(
             "confidence": conf,
             "edges": node_edges,
         }
+        if node.get("reasoning"):
+            entry["reasoning"] = node["reasoning"]
+        if node.get("provenance_uri"):
+            entry["provenance_uri"] = node["provenance_uri"]
         if stale_deps:
             entry["stale_dependencies"] = stale_deps
 
@@ -121,6 +125,8 @@ def add_knowledge(
     session_id: str = None,
     abstraction_level: int = None,
     instance_count: int = None,
+    reasoning: str = None,
+    provenance_uri: str = None,
 ) -> str:
     """Add a knowledge node to the knowledge graph. Returns JSON result."""
     from .llm import DEFAULT_MODEL
@@ -154,6 +160,10 @@ def add_knowledge(
         node["abstraction_level"] = abstraction_level
     if instance_count is not None:
         node["instance_count"] = instance_count
+    if reasoning:
+        node["reasoning"] = reasoning
+    if provenance_uri:
+        node["provenance_uri"] = provenance_uri
     knowledge["nodes"].append(node)
 
     # Handle supersession: mark old nodes and transfer edges
@@ -229,6 +239,10 @@ def add_knowledge(
     _save_knowledge(session_dir, knowledge)
 
     result = {"status": "added", "node_id": node_id, "node_type": node_type, "summary": summary}
+    if reasoning:
+        result["reasoning"] = reasoning
+    if provenance_uri:
+        result["provenance_uri"] = provenance_uri
     if auto_edges:
         result["edges_created"] = auto_edges
 

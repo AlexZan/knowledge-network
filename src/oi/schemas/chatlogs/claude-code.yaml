@@ -1,0 +1,73 @@
+# Schema descriptor for Claude Code conversation logs
+# Used by provenance system to resolve chatlog:// URIs
+
+client: claude-code
+version: "2.1.x"
+
+storage:
+  base: "~/.claude/projects/{project-hash}/"
+  pattern: "{session-id}.jsonl"
+  format: jsonl-append-only  # lines are stable, never rewritten
+
+message_types:
+  user:
+    type_field: type       # = "user"
+    id: uuid               # unique message identifier
+    parent: parentUuid     # tree structure (branching conversations)
+    content: message.content  # list of {type: text/tool_result} blocks
+    timestamp: timestamp   # ISO-8601
+    session: sessionId     # conversation session ID
+
+  assistant:
+    type_field: type       # = "assistant"
+    id: uuid
+    parent: parentUuid
+    content: message.content  # list of {type: thinking/text/tool_use} blocks
+    model: message.model   # e.g. "claude-opus-4-6"
+    usage: message.usage   # token counts
+    timestamp: timestamp
+
+  progress:
+    type_field: type       # = "progress"
+    subtypes:
+      - bash_progress
+      - mcp_progress
+      - agent_progress
+      - hook_progress
+    tool_ref: toolUseID    # links to assistant's tool_use block
+    parent: parentToolUseID
+
+  system:
+    type_field: type       # = "system"
+    subtypes:
+      - api_error
+      - turn_duration
+      - local_command
+      - compact_boundary
+
+  file-history-snapshot:
+    type_field: type
+    purpose: "File state checkpoint for undo/redo"
+
+compaction:
+  marker:
+    type: system
+    subtype: compact_boundary
+  preserves_raw: true           # pre-compaction messages stay in file
+  logical_link: logicalParentUuid  # bridges compaction boundary
+  summary_injected: true        # next user message contains summary
+
+subagents:
+  path: "{session-id}/subagents/{agent-id}.jsonl"
+  shared_session_id: true       # same sessionId as parent
+  format: same                  # same JSONL schema
+
+addressing:
+  by_uuid: "#{uuid}"            # most stable, unique per message
+  by_line: ":L{n}"              # stable because append-only
+  uri_scheme: "chatlog://claude-code/{session-id}:L{n}"
+
+tree_structure:
+  field: parentUuid
+  branching: true               # isSidechain flag marks non-main branches
+  enables: "back-trace from tool call to triggering user message"

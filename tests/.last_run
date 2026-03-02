@@ -1,8 +1,8 @@
-passed: 377
+passed: 388
 failed: 0
 skipped: 1
 date: 2026-03-02
-commit: 7caff64 (dirty)
-duration: 38.1s
+commit: 2d71072 (dirty)
+duration: 36.3s
 e2e: excluded
 command: /tmp/oi-venv/bin/python -m pytest --ignore=tests/test_e2e_real_llm.py -q --tb=short

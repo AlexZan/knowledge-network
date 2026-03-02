@@ -3,7 +3,7 @@
 import json
 import os
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, ANY
 
 import pytest
 
@@ -148,6 +148,7 @@ class TestToolDelegation:
         with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
              patch("oi.mcp_server._get_model", return_value="test-model"), \
              patch("oi.mcp_server._get_session_id", return_value="test-session"), \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value=None), \
              patch("oi.mcp_server.add_knowledge", return_value=fake_json) as mock:
             result = mcp_add_knowledge(
                 node_type="fact",
@@ -164,6 +165,8 @@ class TestToolDelegation:
                 model="test-model",
                 supersedes=None,
                 session_id="test-session",
+                reasoning=None,
+                provenance_uri=None,
             )
             assert "fact-001" in result
 
@@ -174,6 +177,7 @@ class TestToolDelegation:
         with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
              patch("oi.mcp_server._get_model", return_value="test-model"), \
              patch("oi.mcp_server._get_session_id", return_value="test-session"), \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value=None), \
              patch("oi.mcp_server.add_knowledge", return_value=fake_json) as mock:
             mcp_add_knowledge(
                 node_type="fact",
@@ -192,12 +196,14 @@ class TestToolDelegation:
         with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
              patch("oi.mcp_server._get_model", return_value="test-model"), \
              patch("oi.mcp_server._get_session_id", return_value="test-session"), \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value=None), \
              patch("oi.mcp_server.add_knowledge", return_value=fake_json) as mock:
             mcp_add_knowledge(node_type="fact", summary="test")
             call_kwargs = mock.call_args[1]
             assert call_kwargs["source"] is None
             assert call_kwargs["related_to"] is None
             assert call_kwargs["supersedes"] is None
+            assert call_kwargs["reasoning"] is None
 
     def test_query_knowledge_calls_correctly(self, tmp_path):
         from oi.mcp_server import mcp_query_knowledge
@@ -318,6 +324,7 @@ class TestIntegration:
         with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
              patch("oi.mcp_server._get_model", return_value="test-model"), \
              patch("oi.mcp_server._get_session_id", return_value="test-session"), \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value=None), \
              patch("oi.linker.run_linking", return_value=[]):
             add_result = mcp_add_knowledge(
                 node_type="fact",
@@ -330,3 +337,168 @@ class TestIntegration:
             query_result = mcp_query_knowledge(query="Python indentation")
             assert "fact-001" in query_result
             assert "Python uses indentation" in query_result
+
+
+class TestProvenance:
+    """Provenance linking: reasoning field, chatlog URI, tool call log."""
+
+    def test_discover_claude_code_chatlog_no_dir(self, tmp_path):
+        """Returns None when ~/.claude/projects/ doesn't exist."""
+        from oi.provenance import discover_claude_code_chatlog
+
+        with patch("oi.provenance.Path.home", return_value=tmp_path):
+            assert discover_claude_code_chatlog() is None
+
+    def test_discover_claude_code_chatlog_finds_most_recent(self, tmp_path):
+        """Finds the most recently modified .jsonl file."""
+        from oi.provenance import discover_claude_code_chatlog
+        import time
+
+        projects_dir = tmp_path / ".claude" / "projects"
+        project_dir = projects_dir / "test-project"
+        project_dir.mkdir(parents=True)
+
+        # Create two jsonl files with different mtimes
+        old_file = project_dir / "old-session.jsonl"
+        old_file.write_text('{"type":"user"}\n')
+
+        time.sleep(0.05)  # ensure different mtime
+
+        new_file = project_dir / "new-session.jsonl"
+        new_file.write_text('{"type":"user"}\n{"type":"assistant"}\n{"type":"user"}\n')
+
+        with patch("oi.provenance.Path.home", return_value=tmp_path):
+            uri = discover_claude_code_chatlog()
+
+        assert uri is not None
+        assert "chatlog://claude-code/new-session" in uri
+        assert ":L3" in uri  # 3 lines in the newer file
+
+    def test_resolve_chatlog_uri_valid(self, tmp_path):
+        """Parses a valid chatlog:// URI into components."""
+        from oi.provenance import resolve_chatlog_uri
+
+        result = resolve_chatlog_uri("chatlog://claude-code/abc123:L42")
+        assert result["client"] == "claude-code"
+        assert result["session_id"] == "abc123"
+        assert result["line"] == 42
+
+    def test_resolve_chatlog_uri_no_line(self):
+        """Parses URI without line number."""
+        from oi.provenance import resolve_chatlog_uri
+
+        result = resolve_chatlog_uri("chatlog://claude-code/abc123")
+        assert result["client"] == "claude-code"
+        assert result["session_id"] == "abc123"
+        assert result["line"] is None
+
+    def test_resolve_chatlog_uri_invalid(self):
+        """Returns None for non-chatlog URIs."""
+        from oi.provenance import resolve_chatlog_uri
+
+        assert resolve_chatlog_uri("https://example.com") is None
+        assert resolve_chatlog_uri("") is None
+
+    def test_reasoning_field_stored_on_node(self, tmp_path):
+        """Reasoning is stored on the node and returned in queries."""
+        from oi.mcp_server import mcp_add_knowledge, mcp_query_knowledge
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server._get_model", return_value="test-model"), \
+             patch("oi.mcp_server._get_session_id", return_value="test-session"), \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value=None), \
+             patch("oi.linker.run_linking", return_value=[]):
+            add_result = mcp_add_knowledge(
+                node_type="fact",
+                summary="Temperature=0 gives deterministic results",
+                reasoning="Tested 5 times: 3/5 inconsistent without, 5/5 consistent with temp=0",
+            )
+            assert "Reasoning:" in add_result
+            assert "Tested 5 times" in add_result
+
+            query_result = mcp_query_knowledge(query="temperature deterministic")
+            assert "reasoning:" in query_result
+            assert "Tested 5 times" in query_result
+
+    def test_provenance_uri_auto_stamped(self, tmp_path):
+        """Chatlog URI is auto-discovered and stamped on the node."""
+        from oi.mcp_server import mcp_add_knowledge
+
+        fake_uri = "chatlog://claude-code/test-session:L100"
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server._get_model", return_value="test-model"), \
+             patch("oi.mcp_server._get_session_id", return_value="test-session"), \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value=fake_uri), \
+             patch("oi.linker.run_linking", return_value=[]):
+            add_result = mcp_add_knowledge(
+                node_type="fact",
+                summary="Test provenance",
+            )
+            assert "Provenance:" in add_result
+            assert "chatlog://claude-code/test-session:L100" in add_result
+
+    def test_tool_call_log_written(self, tmp_path):
+        """_log_tool_call writes JSONL to mcp_sessions/."""
+        from oi.mcp_server import _log_tool_call, _get_session_id
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+            _log_tool_call("mcp_add_knowledge", {"summary": "test"}, "fact-001")
+
+            log_dir = tmp_path / "mcp_sessions"
+            assert log_dir.exists()
+            log_files = list(log_dir.glob("*.jsonl"))
+            assert len(log_files) == 1
+
+            with open(log_files[0]) as f:
+                entry = json.loads(f.readline())
+            assert entry["tool"] == "mcp_add_knowledge"
+            assert entry["input"]["summary"] == "test"
+            assert entry["result"] == "fact-001"
+            assert "ts" in entry
+
+    def test_tool_call_log_appends(self, tmp_path):
+        """Multiple tool calls append to the same log file."""
+        from oi.mcp_server import _log_tool_call
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+            _log_tool_call("mcp_add_knowledge", {"summary": "first"})
+            _log_tool_call("mcp_query_knowledge", {"query": "test"})
+
+            log_dir = tmp_path / "mcp_sessions"
+            log_files = list(log_dir.glob("*.jsonl"))
+            assert len(log_files) == 1
+
+            with open(log_files[0]) as f:
+                lines = f.readlines()
+            assert len(lines) == 2
+
+    def test_fmt_add_shows_provenance(self):
+        """_fmt_add includes reasoning and provenance when present."""
+        from oi.mcp_server import _fmt_add
+
+        raw = json.dumps({
+            "status": "added", "node_id": "fact-001", "node_type": "fact",
+            "summary": "Test node", "confidence": {"level": "low"},
+            "reasoning": "Because I said so",
+            "provenance_uri": "chatlog://claude-code/abc:L42",
+        })
+        result = _fmt_add(raw)
+        assert "Reasoning: Because I said so" in result
+        assert "Provenance: chatlog://claude-code/abc:L42" in result
+
+    def test_fmt_query_shows_provenance(self):
+        """_fmt_query includes reasoning and provenance when present."""
+        from oi.mcp_server import _fmt_query
+
+        raw = json.dumps({
+            "results": [{
+                "node_id": "fact-001", "type": "fact", "summary": "Test",
+                "source": "test", "confidence": {"level": "low"}, "edges": [],
+                "reasoning": "Important because X",
+                "provenance_uri": "chatlog://claude-code/abc:L42",
+            }],
+            "total_active": 1,
+        })
+        result = _fmt_query(raw)
+        assert "reasoning: Important because X" in result
+        assert "provenance: chatlog://claude-code/abc:L42" in result
