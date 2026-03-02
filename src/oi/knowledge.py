@@ -251,3 +251,48 @@ def add_knowledge(
     result["confidence"] = conf
 
     return json.dumps(result)
+
+
+def remove_edge(
+    session_dir: Path,
+    source_id: str,
+    target_id: str,
+    edge_type: str = None,
+) -> str:
+    """Remove an edge from the knowledge graph. Returns JSON result."""
+    knowledge = _load_knowledge(session_dir)
+
+    original_count = len(knowledge["edges"])
+    remaining = []
+    removed = []
+    for edge in knowledge["edges"]:
+        if edge["source"] == source_id and edge["target"] == target_id:
+            if edge_type is None or edge["type"] == edge_type:
+                removed.append(edge)
+                continue
+        remaining.append(edge)
+
+    if not removed:
+        return json.dumps({"error": f"No edge found from {source_id} to {target_id}"
+                           + (f" of type '{edge_type}'" if edge_type else "")})
+
+    knowledge["edges"] = remaining
+
+    # Clear has_contradiction flags if no contradicts edges remain
+    for node in knowledge["nodes"]:
+        if node["id"] in (source_id, target_id) and node.get("has_contradiction"):
+            still_contested = any(
+                e["type"] == "contradicts" and
+                (e["source"] == node["id"] or e["target"] == node["id"])
+                for e in remaining
+            )
+            if not still_contested:
+                del node["has_contradiction"]
+
+    _save_knowledge(session_dir, knowledge)
+
+    return json.dumps({
+        "status": "removed",
+        "removed_count": len(removed),
+        "edges_removed": [{"source": e["source"], "target": e["target"], "type": e["type"]} for e in removed],
+    })

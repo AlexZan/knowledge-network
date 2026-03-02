@@ -502,3 +502,71 @@ class TestProvenance:
         result = _fmt_query(raw)
         assert "reasoning: Important because X" in result
         assert "provenance: chatlog://claude-code/abc:L42" in result
+
+
+class TestRemoveEdge:
+    """Edge removal for correcting false positive links."""
+
+    def test_remove_edge_success(self, tmp_path):
+        """Remove a specific edge between two nodes."""
+        from oi.knowledge import add_knowledge, remove_edge
+        from unittest.mock import patch as _patch
+
+        with _patch("oi.linker.run_linking", return_value=[]):
+            add_knowledge(session_dir=tmp_path, node_type="fact", summary="Node A")
+            add_knowledge(
+                session_dir=tmp_path, node_type="fact", summary="Node B",
+                related_to=["fact-001"], edge_type="contradicts",
+            )
+            # Verify edge exists
+            result = json.loads(remove_edge(
+                session_dir=tmp_path, source_id="fact-002", target_id="fact-001",
+                edge_type="contradicts",
+            ))
+            assert result["status"] == "removed"
+            assert result["removed_count"] == 1
+            assert result["edges_removed"][0]["type"] == "contradicts"
+
+    def test_remove_edge_clears_has_contradiction(self, tmp_path):
+        """Removing the last contradicts edge clears has_contradiction flag."""
+        from oi.knowledge import add_knowledge, remove_edge
+        from oi.state import _load_knowledge
+        from unittest.mock import patch as _patch
+
+        with _patch("oi.linker.run_linking", return_value=[]):
+            add_knowledge(session_dir=tmp_path, node_type="fact", summary="Node A")
+            add_knowledge(
+                session_dir=tmp_path, node_type="fact", summary="Node B",
+                related_to=["fact-001"], edge_type="contradicts",
+            )
+            remove_edge(session_dir=tmp_path, source_id="fact-002", target_id="fact-001")
+
+            kg = _load_knowledge(tmp_path)
+            for node in kg["nodes"]:
+                assert "has_contradiction" not in node
+
+    def test_remove_edge_not_found(self, tmp_path):
+        """Returns error when edge doesn't exist."""
+        from oi.knowledge import add_knowledge, remove_edge
+        from unittest.mock import patch as _patch
+
+        with _patch("oi.linker.run_linking", return_value=[]):
+            add_knowledge(session_dir=tmp_path, node_type="fact", summary="Node A")
+            result = json.loads(remove_edge(
+                session_dir=tmp_path, source_id="fact-001", target_id="fact-999",
+            ))
+            assert "error" in result
+
+    def test_mcp_remove_edge_wrapper(self, tmp_path):
+        """MCP wrapper formats output correctly."""
+        from oi.mcp_server import mcp_remove_edge
+
+        fake_result = json.dumps({
+            "status": "removed", "removed_count": 1,
+            "edges_removed": [{"source": "d-012", "target": "d-007", "type": "contradicts"}],
+        })
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server.remove_edge", return_value=fake_result):
+            result = mcp_remove_edge(source_id="d-012", target_id="d-007", edge_type="contradicts")
+            assert "Removed 1 edge(s)" in result
+            assert "contradicts" in result

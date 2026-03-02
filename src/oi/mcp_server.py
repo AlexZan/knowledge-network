@@ -16,7 +16,7 @@ load_dotenv()
 
 from mcp.server.fastmcp import FastMCP
 
-from .knowledge import add_knowledge, query_knowledge
+from .knowledge import add_knowledge, query_knowledge, remove_edge
 from .provenance import discover_claude_code_chatlog
 from .tools import (
     open_effort,
@@ -246,6 +246,38 @@ def mcp_query_knowledge(
     _log_tool_call("mcp_query_knowledge", {"query": query},
                    f"{len(result_data.get('results', []))} matches")
     return _fmt_query(raw)
+
+
+@mcp.tool()
+def mcp_remove_edge(
+    source_id: str,
+    target_id: str,
+    edge_type: str = "",
+) -> str:
+    """Remove an edge from the knowledge graph (e.g. to correct a false positive link).
+
+    Args:
+        source_id: The source node ID of the edge to remove
+        target_id: The target node ID of the edge to remove
+        edge_type: Optional edge type filter (supports, contradicts, etc). If empty, removes all edges between the two nodes.
+    """
+    raw = remove_edge(
+        session_dir=_get_session_dir(),
+        source_id=source_id,
+        target_id=target_id,
+        edge_type=_or_none(edge_type),
+    )
+    result_data = json.loads(raw)
+    _log_tool_call("mcp_remove_edge", {
+        "source_id": source_id, "target_id": target_id, "edge_type": edge_type,
+    }, result_data.get("status", ""))
+
+    if "error" in result_data:
+        return f"Error: {result_data['error']}"
+    lines = [f"Removed {result_data['removed_count']} edge(s):"]
+    for e in result_data.get("edges_removed", []):
+        lines.append(f"  {e['source']} --{e['type']}--> {e['target']}")
+    return "\n".join(lines)
 
 
 @mcp.tool()
