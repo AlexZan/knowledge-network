@@ -10,19 +10,22 @@ import json
 from .decay import extract_keywords
 from .llm import chat
 from .schemas import get_linkable_edge_types
+from .search import graph_walk
 
 
-def find_candidates(new_node: dict, graph: dict, max_candidates: int = 5) -> list[dict]:
+def find_candidates(new_node: dict, graph: dict, max_candidates: int = 8) -> list[dict]:
     """Find existing nodes that might relate to the new node.
 
-    Uses keyword overlap (Jaccard similarity) between summaries.
+    Uses keyword overlap (Jaccard similarity) for seed matching,
+    then graph walk expansion to discover neighborhood candidates.
     Returns list of candidates sorted by score descending.
     """
     new_keywords = extract_keywords(new_node.get("summary", ""))
     if not new_keywords:
         return []
 
-    candidates = []
+    # Phase 1: Keyword seed matching
+    seeds = []
     for node in graph.get("nodes", []):
         if node["id"] == new_node["id"]:
             continue
@@ -38,9 +41,24 @@ def find_candidates(new_node: dict, graph: dict, max_candidates: int = 5) -> lis
         score = len(intersection) / len(union) if union else 0.0
 
         if score > 0.1:
-            candidates.append({"node": node, "score": score})
+            seeds.append({"node_id": node["id"], "score": score})
 
-    candidates.sort(key=lambda c: c["score"], reverse=True)
+    if not seeds:
+        return []
+
+    # Phase 2: Graph walk expansion
+    walked = graph_walk(seeds, graph)
+
+    # Build candidates from walk results
+    nodes_by_id = {n["id"]: n for n in graph.get("nodes", []) if n.get("status") == "active"}
+    candidates = []
+    for entry in walked:
+        if entry["node_id"] == new_node["id"]:
+            continue
+        node = nodes_by_id.get(entry["node_id"])
+        if node:
+            candidates.append({"node": node, "score": entry["score"]})
+
     return candidates[:max_candidates]
 
 

@@ -94,13 +94,14 @@ fact-002: "SOAP uses XML"
 
 Query: "JSON format"
 - **Keyword seed**: fact-001 (score 0.5), fact-004 (score 0.3)
-- **Walk from fact-001**: decision-003 (0.5 × 0.7 = 0.35), fact-004 (0.5 × 0.7 = 0.35)
-- **Walk from fact-004**: fact-001 (0.3 × 0.7 = 0.21), decision-003 (0.3 × 0.7 = 0.21)
-- **Walk 2-hop from fact-001 via decision-003**: fact-002 (0.5 × 0.4 = 0.20)
+- **Walk from fact-001 (1-hop)**: decision-003 (0.5 × 0.7 = 0.35), fact-004 (0.5 × 0.7 = 0.35)
+- **Walk from fact-004 (1-hop)**: fact-001 (0.3 × 0.7 = 0.21)
+- **Walk from fact-001 (2-hop via decision-003)**: fact-002 (0.5 × 0.4 = 0.20)
+- **Walk from fact-004 (2-hop via fact-001)**: decision-003 (0.3 × 0.4 = 0.12)
 - **Aggregated scores**:
   - fact-001: 0.5 (keyword) + 0.21 (walk from fact-004) = **0.71**
   - fact-004: 0.3 (keyword) + 0.35 (walk from fact-001) = **0.65**
-  - decision-003: 0.35 + 0.21 = **0.56** (not a keyword match, discovered via walk!)
+  - decision-003: 0.35 (1-hop from fact-001) + 0.12 (2-hop from fact-004) = **0.47** (not a keyword match, discovered via walk!)
   - fact-002: **0.20** (2-hop discovery, opposing cluster)
 
 Without graph walk, decision-003 and fact-002 would be invisible.

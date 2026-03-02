@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 
 from .schemas import get_node_type_names
+from .search import graph_walk
 from .state import _load_knowledge, _save_knowledge
 
 
@@ -28,7 +29,8 @@ def query_knowledge(
     query_kw = extract_keywords(query)
     query_lower = query.lower()
 
-    matches = []
+    # Phase 1: Keyword seed matching
+    seeds = []
     for node in active_nodes:
         node_kw = extract_keywords(node.get("summary", ""))
 
@@ -45,10 +47,18 @@ def query_knowledge(
             if score < 0.05:
                 continue
 
-        matches.append((node, score))
+        seeds.append({"node_id": node["id"], "score": score})
 
-    # Sort by score descending
-    matches.sort(key=lambda m: m[1], reverse=True)
+    # Phase 2: Graph walk expansion
+    walked = graph_walk(seeds, knowledge)
+
+    # Build matches list from walk results
+    nodes_by_id_lookup = {n["id"]: n for n in active_nodes}
+    matches = []
+    for entry in walked:
+        node = nodes_by_id_lookup.get(entry["node_id"])
+        if node:
+            matches.append((node, entry["score"]))
 
     # Build results with confidence and edges
     nodes_by_id = {n["id"]: n for n in knowledge.get("nodes", [])}
