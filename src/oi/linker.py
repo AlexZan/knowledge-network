@@ -37,8 +37,14 @@ def find_candidates(new_node: dict, graph: dict, max_candidates: int = 8) -> lis
             continue
 
         intersection = new_keywords & node_keywords
-        union = new_keywords | node_keywords
-        score = len(intersection) / len(union) if union else 0.0
+        if not intersection:
+            continue
+        # Short keyword sets: containment ratio avoids Jaccard penalty
+        if len(new_keywords) <= 2:
+            score = len(intersection) / len(new_keywords)
+        else:
+            union = new_keywords | node_keywords
+            score = len(intersection) / len(union) if union else 0.0
 
         if score > 0.1:
             seeds.append({"node_id": node["id"], "score": score})

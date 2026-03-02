@@ -40,10 +40,17 @@ def query_knowledge(
         elif not query_kw or not node_kw:
             continue
         else:
-            # Jaccard similarity
             intersection = query_kw & node_kw
-            union = query_kw | node_kw
-            score = len(intersection) / len(union) if union else 0.0
+            if not intersection:
+                continue
+            # Short queries (1-2 keywords): use containment ratio
+            # to avoid Jaccard penalizing asymmetric set sizes
+            if len(query_kw) <= 2:
+                score = len(intersection) / len(query_kw)
+            else:
+                # Jaccard similarity for longer queries
+                union = query_kw | node_kw
+                score = len(intersection) / len(union) if union else 0.0
             if score < 0.05:
                 continue
 
