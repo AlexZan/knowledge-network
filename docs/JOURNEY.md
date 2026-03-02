@@ -12,9 +12,11 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Slice 8g Complete, Architecture Validated
+## Current Status: Slice 11b Complete, Dogfooding MCP Server
 
-Slices 1-7 built the memory system. Slices 8a-8f built the knowledge graph (store, extraction, linking, confidence, querying, traceability). Slice 8g added automatic pattern detection — the system now generalizes across efforts. Dogfooding exposed and fixed two UX bugs in proactive knowledge capture and response verbosity.
+Slices 1-7 built the memory system. Slices 8a-8h built the knowledge graph. Slices 9-10 unified the store and schema. Slice 11 exposed the graph via MCP for Claude Code integration. Slice 11b added provenance linking so no node is an orphan.
+
+Now dogfooding: using the MCP server in real Claude Code sessions to build the graph organically. 27 active nodes, topology producing real confidence signals (decision-001 reached high confidence through convergent support).
 
 ### What's Built
 
@@ -28,36 +30,44 @@ Slices 1-7 built the memory system. Slices 8a-8f built the knowledge graph (stor
 | 8c+8d | Done | Auto-linking (keyword overlap + LLM classification), confidence from topology (low/medium/high/contested) |
 | 8e | Done | `query_knowledge` tool, knowledge eviction (30-turn threshold), `supersedes` for contradiction resolution, session audit logs |
 | 8f | Done | `expand_knowledge`/`collapse_knowledge` tools, session fragment extraction, knowledge decay, `close_effort` forwards `session_id` |
-| 8g | Done | `principle` node type, `exemplifies` edges, pattern detection pipeline (`detect_patterns`), convergence from ≥3 facts / ≥2 sources |
+| 8g | Done | `principle` node type, `exemplifies` edges, pattern detection pipeline, convergence from ≥3 facts / ≥2 sources |
+| 8h | Done | `because_of` edges, staleness detection, confidence cap for stale deps |
+| 9 | Done | Efforts migrated into `knowledge.yaml` as `type: "effort"` nodes. One store. `manifest.yaml` eliminated. |
+| 10 | Done | `node_types.yaml` as single source of truth. Behavioral flags. All consumers wired to schema helpers. |
+| 11 | Done | MCP server (FastMCP, stdio transport). 9 tools: add/query/remove_edge, effort CRUD. Human-readable output. |
+| 11b | Done | Provenance linking: `reasoning` field, `chatlog://` URIs auto-stamped, MCP tool call log, Claude Code schema descriptor. |
 
-**Test counts**: 314 unit/integration + 33 e2e tests passing. 16 tools total.
+**Test counts**: 377 free tests + 52 LLM tests (marker-separated). 1 skipped. 9 MCP tools.
 
-### Dogfooding Fixes (Post-8g)
+### Session: MCP Server + Provenance (2026-03-01 to 2026-03-02)
 
-Two rounds of manual testing exposed UX bugs invisible to the test suite:
+Built and dogfooded the MCP server across two sessions. Key events:
 
-1. **Proactive knowledge capture**: LLM stopped calling `add_knowledge` after first message. Root cause: system prompt had no procedural guidance + actively suppressed tool calls mid-effort. Fix: step-by-step procedure in system prompt ("read → extract → call BEFORE responding"), exempted `add_knowledge` from tool suppression.
+1. **Slice 11 implementation**: 8 MCP tools wrapping existing functions. Fixed a linker inconsistency (temperature=0 for deterministic classification). Caught ourselves dismissing a test failure as "flaky" — root cause was a real bug. Added formatting helpers after raw JSON output was unacceptable.
 
-2. **Response verbosity**: Walls of speculative bullet points, 5+ follow-up questions. Fix: added Response Style section to system prompt with explicit rules, bad/good examples, max 1 question.
+2. **Brainstorming session**: Designed graph-aware search (three-layer pipeline: seed match → graph walk → LLM classify), two-pass bulk ingestion, conflict resolution ("recency is not authority, topology is"). Documented in [Decision 015](decisions/015-graph-aware-search-and-ingestion.md). Reorganized roadmap.
 
-Both fixes validated with e2e tests based on real chat logs.
+3. **Slice 11b implementation**: Three provenance layers so nodes link back to source conversations. Auto-discovers Claude Code's conversation logs and stamps `chatlog://` URIs. Investigated Claude Code's native log format — append-only JSONL, compaction doesn't split files.
+
+4. **Dogfooding discoveries**:
+   - Linker produces false positive contradictions across abstraction levels (GitHub #4). Led to adding `remove_edge` MCP tool.
+   - Test suite was accidentally running paid LLM tests. Added `pytest.mark.llm` markers so default `pytest` is always free.
+   - decision-001 reached **high confidence** through convergent support from independent later decisions — first real topology signal.
 
 ### Architecture: Unified KG + Vault Convergence
 
-Traced the proposed unified architecture through 7 scenarios to validate the design. See [Decision 013](decisions/013-unified-kg-architecture.md) for full details. Key findings:
+See [Decision 013](decisions/013-unified-kg-architecture.md). Key points:
 
-- **Mutability gradient**: Layer 0 (raw, highly mutable) → Layer 3 (universal, nearly immutable). Maps to abstraction levels already on principle nodes.
-- **Vault as storage layer**: Automerge (CRDT) solves concurrent mutation. The KG is an Automerge document — structural conflicts resolved by CRDT math, semantic conflicts by our code.
-- **Reactive edges**: `because_of` chains need lazy query-time staleness checks when dependencies are superseded. Identified gap, not yet implemented.
-- **Implementation strategy**: Keep prototyping semantics on Python/YAML. Swap storage to Automerge when Vault is ready. Test suite provides safety net for the rewrite.
+- **Mutability gradient**: Layer 0 (raw) → Layer 3 (universal). Maps to abstraction levels on principle nodes.
+- **Vault as storage layer**: Automerge (CRDT) solves concurrent mutation. Deferred until after ingestion proves the graph at scale.
+- **Reactive edges**: `because_of` chains with lazy query-time staleness checks. Implemented in Slice 8h.
 
 ### What's Next
 
-Open questions from the architecture validation:
-- `because_of` staleness check implementation (small addition to `query_knowledge`)
-- Schema system as single source of truth (JSON Schema for Python/TypeScript/Rust)
-- Effort manifest → graph store migration (deferred from 8f, still deferred)
-- Privacy gradient interaction with Vault's E2E encryption
+See [roadmap](slices/README.md) for full details. Priority order:
+1. **Search Infrastructure (12a-d)**: Graph walk, embeddings, batch LLM classification, hybrid retrieval. Needed before ingestion can scale.
+2. **Bulk Document Ingestion (13a-e)**: Two-pass architecture, conflict resolution with user sign-off. Target: Open Systems document corpus.
+3. **Vault/Automerge**: After ingestion proves the graph at scale.
 
 ---
 
@@ -67,9 +77,13 @@ Open questions from the architecture validation:
 
 Removed redundant tool descriptions from system prompt — they're already in `TOOL_DEFINITIONS` (passed via API `tools` parameter). System prompt now only contains behavioral rules (when to call tools, when NOT to). Saves ~130 tokens/turn.
 
-### MCP Not Needed Pre-MVP
+### MCP Server for Claude Code Integration (Slice 11)
 
-MCP would add transport/process overhead for no benefit at current scale. Tool descriptions already load via `tools` parameter, not system prompt. MCP becomes valuable when: third-party tools, multiple LLM hosts, or hot-swappable tool servers.
+MCP became valuable once the KG needed to be used from Claude Code. FastMCP with stdio transport — Claude Code spawns the server as a subprocess. NixOS wrapper script (`bin/oi-mcp`) sets LD_LIBRARY_PATH. Human-readable formatted output, not raw JSON.
+
+### Provenance: Never Create Orphan Nodes (Slice 11b)
+
+Every node created via MCP gets three provenance layers: `reasoning` field (portable why), `chatlog://` URI (auto-discovered from Claude Code's native logs), MCP tool call log (audit trail). Schema descriptors define per-client log formats — Claude Code first, others when needed. See [Decision 015](decisions/015-graph-aware-search-and-ingestion.md).
 
 ### Linker Pipeline: Standalone Function
 
@@ -112,4 +126,4 @@ The knowledge graph and Vault project converge: Automerge (CRDT) as the storage 
 1. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
 2. **Read [slices/README.md](slices/README.md)** — see the roadmap
 3. **Read [PROJECT.md](PROJECT.md)** — current technical state
-4. **Current work**: Architecture validated through 8g. Next: `because_of` staleness, schema system, or Vault convergence — see [Decision 013](decisions/013-unified-kg-architecture.md)
+4. **Current work**: Dogfooding MCP server, building KG organically. Next: Search Infrastructure (12a-d). See [Decision 015](decisions/015-graph-aware-search-and-ingestion.md) for design.
