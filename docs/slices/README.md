@@ -28,8 +28,9 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 9 | Unified Graph Store | Efforts migrated into `knowledge.yaml` as `type: "effort"` nodes. One store for all node types. `manifest.yaml` eliminated. | [09-unified-graph-store.md](09-unified-graph-store.md) |
 | 10 | Schema System | `node_types.yaml` as single source of truth for node/edge types. Behavioral flags (`extractable`, `tool_addable`, `show_in_display`, `linkable`). All consumers wired to schema helpers. Backward compat preserved. | — |
 | 11 | MCP Server Interface | Expose KG tools as MCP server for Claude Code. 8 tools (add/query knowledge, effort CRUD). Human-readable output formatting. Stdio transport. | — |
+| 11b | Provenance Linking | `reasoning` field, `chatlog://` URIs auto-stamped from Claude Code logs, MCP tool call log. Schema descriptor for Claude Code log format. | [11b-provenance-linking.md](11b-provenance-linking.md) |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs.
 
 ---
 
@@ -60,20 +61,8 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
  ↓
 11: MCP Server Interface (Claude Code integration) ✓
  ↓
-11b: Provenance Linking (reasoning field, chatlog:// URIs, tool call log)
+11b: Provenance Linking (reasoning field, chatlog:// URIs, tool call log) ✓
 ```
-
----
-
-## Next
-
-### Provenance Linking
-
-Every KG node links back to the conversation that created it. Three layers: `reasoning` field (portable why), `chatlog://` URIs (deep link to raw conversation), MCP tool call log (automatic audit trail). Schema descriptors define per-client log formats (Claude Code first).
-
-| Slice | What | Spec |
-|-------|------|------|
-| 11b | **Provenance Linking** — `reasoning` param on `add_knowledge`. Auto-discover active Claude Code conversation, stamp `chatlog://` URI on every node. MCP tool call log to `mcp_sessions/`. Schema descriptor for Claude Code log format. | [11b-provenance-linking.md](11b-provenance-linking.md) |
 
 ---
 
