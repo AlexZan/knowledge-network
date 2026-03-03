@@ -34,3 +34,4 @@ __pycache__/
 # Test sessions / experiments
 .test-session-*/
 tests/experiments/
+.oi-test/

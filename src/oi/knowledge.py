@@ -164,6 +164,8 @@ def add_knowledge(
     instance_count: int = None,
     reasoning: str = None,
     provenance_uri: str = None,
+    skip_linking: bool = False,
+    skip_embed: bool = False,
 ) -> str:
     """Add a knowledge node to the knowledge graph. Returns JSON result."""
     from .llm import DEFAULT_MODEL
@@ -241,53 +243,55 @@ def add_knowledge(
 
     # Auto-linking: find candidates and classify relationships
     auto_edges = []
-    try:
-        from .linker import run_linking
-        link_results = run_linking(node, knowledge, model=model or DEFAULT_MODEL)
-        existing_targets = {e["target"] for e in knowledge["edges"] if e["source"] == node_id}
-        for lr in link_results:
-            # Skip linking against superseded nodes
-            if lr["target_id"] in superseded_ids:
-                continue
-            if lr["target_id"] not in existing_targets:
-                knowledge["edges"].append({
-                    "source": node_id,
-                    "target": lr["target_id"],
-                    "type": lr["edge_type"],
-                    "reasoning": lr.get("reasoning", ""),
-                    "created": now,
-                })
-                existing_targets.add(lr["target_id"])
-                # Include target_summary for contradictions
-                if lr["edge_type"] == "contradicts":
-                    for n in knowledge["nodes"]:
-                        if n["id"] == lr["target_id"]:
-                            lr["target_summary"] = n.get("summary", "")
-                            break
-                auto_edges.append(lr)
-                if lr["edge_type"] == "contradicts":
-                    node["has_contradiction"] = True
-                    for n in knowledge["nodes"]:
-                        if n["id"] == lr["target_id"]:
-                            n["has_contradiction"] = True
-    except Exception:
-        pass  # Best-effort: linking failure doesn't block knowledge addition
+    if not skip_linking:
+        try:
+            from .linker import run_linking
+            link_results = run_linking(node, knowledge, model=model or DEFAULT_MODEL)
+            existing_targets = {e["target"] for e in knowledge["edges"] if e["source"] == node_id}
+            for lr in link_results:
+                # Skip linking against superseded nodes
+                if lr["target_id"] in superseded_ids:
+                    continue
+                if lr["target_id"] not in existing_targets:
+                    knowledge["edges"].append({
+                        "source": node_id,
+                        "target": lr["target_id"],
+                        "type": lr["edge_type"],
+                        "reasoning": lr.get("reasoning", ""),
+                        "created": now,
+                    })
+                    existing_targets.add(lr["target_id"])
+                    # Include target_summary for contradictions
+                    if lr["edge_type"] == "contradicts":
+                        for n in knowledge["nodes"]:
+                            if n["id"] == lr["target_id"]:
+                                lr["target_summary"] = n.get("summary", "")
+                                break
+                    auto_edges.append(lr)
+                    if lr["edge_type"] == "contradicts":
+                        node["has_contradiction"] = True
+                        for n in knowledge["nodes"]:
+                            if n["id"] == lr["target_id"]:
+                                n["has_contradiction"] = True
+        except Exception:
+            pass  # Best-effort: linking failure doesn't block knowledge addition
 
     _save_knowledge(session_dir, knowledge)
 
     # Embed the new node (best-effort)
-    try:
-        from .embed import embed_node, load_embeddings, save_embeddings, DEFAULT_EMBED_MODEL
-        vec = embed_node(node, DEFAULT_EMBED_MODEL)
-        if vec:
-            emb_data = load_embeddings(session_dir)
-            if emb_data["model"] and emb_data["model"] != DEFAULT_EMBED_MODEL:
-                emb_data = {"model": DEFAULT_EMBED_MODEL, "vectors": {}}
-            emb_data["model"] = DEFAULT_EMBED_MODEL
-            emb_data["vectors"][node_id] = vec
-            save_embeddings(session_dir, emb_data)
-    except Exception:
-        pass  # Embedding failure doesn't block node addition
+    if not skip_embed:
+        try:
+            from .embed import embed_node, load_embeddings, save_embeddings, DEFAULT_EMBED_MODEL
+            vec = embed_node(node, DEFAULT_EMBED_MODEL)
+            if vec:
+                emb_data = load_embeddings(session_dir)
+                if emb_data["model"] and emb_data["model"] != DEFAULT_EMBED_MODEL:
+                    emb_data = {"model": DEFAULT_EMBED_MODEL, "vectors": {}}
+                emb_data["model"] = DEFAULT_EMBED_MODEL
+                emb_data["vectors"][node_id] = vec
+                save_embeddings(session_dir, emb_data)
+        except Exception:
+            pass  # Embedding failure doesn't block node addition
 
     result = {"status": "added", "node_id": node_id, "node_type": node_type, "summary": summary}
     if reasoning:

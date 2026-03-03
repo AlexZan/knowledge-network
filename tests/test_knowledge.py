@@ -589,3 +589,30 @@ class TestStalenessDetection:
         assert len(stale) == 2
         stale_ids = {s["node_id"] for s in stale}
         assert stale_ids == {"fact-001", "fact-002"}
+
+
+# === Slice 13b: skip_linking / skip_embed ===
+
+class TestSkipLinkingAndEmbed:
+    def test_skip_linking_prevents_auto_linking(self, session_dir):
+        """skip_linking=True prevents auto-linker from running."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        _add_node(session_dir, "fact", "JWT tokens expire hourly")
+
+        with patch("oi.linker.run_linking") as mock_linker:
+            add_knowledge(
+                session_dir, "fact", "JWT uses RS256 signing",
+                skip_linking=True,
+            )
+            mock_linker.assert_not_called()
+
+    def test_skip_embed_prevents_embedding(self, session_dir):
+        """skip_embed=True prevents embed_node from being called."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch("oi.embed.embed_node") as mock_embed:
+            add_knowledge(
+                session_dir, "fact", "Some fact",
+                skip_embed=True,
+            )
+            mock_embed.assert_not_called()

@@ -79,14 +79,6 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 
 Ordered top-down by dependency. Each item builds on the one above it.
 
-### Search Infrastructure
-
-Graph-aware retrieval replacing flat keyword scan. See [Decision 015](../decisions/015-graph-aware-search-and-ingestion.md).
-
-| Slice | What |
-|-------|------|
-| 12d | **Hybrid Retrieval** — Wire 12a-c into three-layer pipeline: seed match → graph walk → LLM classify top-15. |
-
 ### Bulk Document Ingestion
 
 Two-pass architecture: extract then link. See [Decision 015](../decisions/015-graph-aware-search-and-ingestion.md). Depends on Search Infrastructure.
@@ -118,6 +110,16 @@ Multi-agent debate transport is developed independently (separate project using 
 
 ---
 
+## Refactor Queue
+
+Technical debt items. Not urgent — trigger conditions listed. Review when the triggering slice lands.
+
+| Item | Current State | Trigger | What to Do |
+|------|--------------|---------|------------|
+| Parser registry | `parser.py` has hardcoded `if/elif` dispatch + static `_FORMAT_MAP` for 3 formats | 4th format added, or 13e needs pluggable parsers | Extract a `FormatParser` protocol, parser registry dict keyed by extension, `register_parser()` API |
+
+---
+
 ## Icebox
 
 Capabilities that may be valuable but aren't blocking the core vision. Revisit as needed.
@@ -129,6 +131,7 @@ Capabilities that may be valuable but aren't blocking the core vision. Revisit a
 - **Dashboard** — Visual entry point to the knowledge graph (developed separately)
 - **Schema-detection agent** — Auto-propose new node types from conversation patterns
 - **`because_of` multi-hop** — Deep chain staleness. Only if dogfooding shows 1-hop is insufficient
+- **12d: LLM Reranking** — LLM classify top-15 results in `query_knowledge`. Current keyword + embedding + graph walk scoring may be sufficient — revisit if search quality degrades at scale
 
 ---
 

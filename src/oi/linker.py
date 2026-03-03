@@ -3,14 +3,31 @@
 Two-stage pipeline:
 1. Candidate retrieval via keyword overlap (Jaccard similarity)
 2. LLM classification of each pair as supports/contradicts/none
+
+Also provides batch linking for ingested document nodes (Slice 13c).
 """
 
 import json
+from pathlib import Path
+from typing import Callable
+
+from pydantic import BaseModel
 
 from .decay import extract_keywords
 from .llm import chat
 from .schemas import get_linkable_edge_types
 from .search import graph_walk
+from .state import _load_knowledge, _save_knowledge
+
+
+class LinkingResult(BaseModel):
+    """Result of a batch linking operation."""
+
+    edges_created: int = 0
+    contradictions_found: int = 0
+    nodes_processed: int = 0
+    nodes_skipped: int = 0
+    errors: list[str] = []
 
 
 def find_candidates(new_node: dict, graph: dict, max_candidates: int = 8) -> list[dict]:
@@ -199,3 +216,100 @@ def run_linking(new_node: dict, graph: dict, model: str, max_candidates: int = 8
     candidates = find_candidates(new_node, graph, max_candidates)
     results = batch_link_nodes(new_node, candidates, model)
     return [r for r in results if r["edge_type"] != "none"]
+
+
+def link_new_nodes(
+    node_ids: list[str],
+    session_dir: Path,
+    model: str | None = None,
+    max_candidates: int = 8,
+    progress_fn: Callable[[int, int, str], None] | None = None,
+) -> LinkingResult:
+    """Link a batch of nodes with full graph visibility.
+
+    For each node_id, finds candidates among ALL graph nodes, classifies
+    relationships via LLM, creates edges, and flags contradictions.
+    Deduplicates symmetric pairs (A→B == B→A).
+
+    Args:
+        node_ids: IDs of nodes to link.
+        session_dir: Path to session directory containing knowledge.yaml.
+        model: LLM model name. Defaults to OI_MODEL env var.
+        max_candidates: Max candidates per node.
+        progress_fn: Optional callback(current, total, node_id).
+
+    Returns:
+        LinkingResult with counts and any errors.
+    """
+    if not node_ids:
+        return LinkingResult()
+
+    if model is None:
+        import os
+        model = os.environ.get("OI_MODEL", "cerebras/gpt-oss-120b")
+
+    graph = _load_knowledge(session_dir)
+    nodes_by_id = {n["id"]: n for n in graph.get("nodes", [])}
+    seen_pairs: set[frozenset] = set()
+
+    # Index existing edges to avoid duplicates
+    for edge in graph.get("edges", []):
+        seen_pairs.add(frozenset({edge["source"], edge["target"]}))
+
+    result = LinkingResult()
+    total = len(node_ids)
+
+    for i, node_id in enumerate(node_ids):
+        node = nodes_by_id.get(node_id)
+        if not node:
+            result.errors.append(f"Node not found: {node_id}")
+            continue
+
+        try:
+            candidates = find_candidates(node, graph, max_candidates)
+            if not candidates:
+                result.nodes_skipped += 1
+                result.nodes_processed += 1
+                if progress_fn:
+                    progress_fn(i + 1, total, node_id)
+                continue
+
+            classifications = batch_link_nodes(node, candidates, model)
+
+            for cls in classifications:
+                if cls["edge_type"] == "none":
+                    continue
+
+                pair = frozenset({node_id, cls["target_id"]})
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+
+                edge = {
+                    "source": node_id,
+                    "target": cls["target_id"],
+                    "type": cls["edge_type"],
+                    "reasoning": cls.get("reasoning", ""),
+                }
+                graph.setdefault("edges", []).append(edge)
+                result.edges_created += 1
+
+                if cls["edge_type"] == "contradicts":
+                    result.contradictions_found += 1
+                    # Flag both nodes
+                    for nid in (node_id, cls["target_id"]):
+                        n = nodes_by_id.get(nid)
+                        if n:
+                            n["has_contradiction"] = True
+
+            result.nodes_processed += 1
+
+        except Exception as e:
+            result.errors.append(f"{node_id}: {e}")
+            result.nodes_processed += 1
+
+        if progress_fn:
+            progress_fn(i + 1, total, node_id)
+
+    _save_knowledge(session_dir, graph)
+    return result

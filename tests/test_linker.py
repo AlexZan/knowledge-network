@@ -2,9 +2,17 @@
 
 import json
 import pytest
+import yaml
 from unittest.mock import patch
 
-from oi.linker import find_candidates, link_nodes, batch_link_nodes, run_linking
+from oi.linker import (
+    find_candidates,
+    link_nodes,
+    batch_link_nodes,
+    run_linking,
+    link_new_nodes,
+    LinkingResult,
+)
 
 
 # === Test fixtures ===
@@ -358,3 +366,156 @@ class TestRunLinking:
 
         assert edges == []
         mock_chat.assert_not_called()
+
+
+# === TestLinkNewNodes (Slice 13c) ===
+
+
+def _write_graph(session_dir, nodes, edges=None):
+    """Write a knowledge.yaml file with given nodes and edges."""
+    graph = {"nodes": nodes, "edges": edges or []}
+    path = session_dir / "knowledge.yaml"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        yaml.dump(graph, f, default_flow_style=False)
+
+
+def _read_graph(session_dir):
+    """Read knowledge.yaml back."""
+    path = session_dir / "knowledge.yaml"
+    return yaml.safe_load(path.read_text())
+
+
+class TestLinkNewNodes:
+    def test_links_two_related_nodes(self, tmp_path):
+        """Two related nodes get an edge created."""
+        n1 = _node("fact-001", "API uses JWT tokens for authentication")
+        n2 = _node("fact-002", "JWT tokens expire after one hour")
+        _write_graph(tmp_path, [n1, n2])
+
+        mock_response = '{"edge_type": "supports", "reasoning": "Related JWT facts"}'
+        with patch("oi.linker.chat", return_value=mock_response):
+            result = link_new_nodes(["fact-002"], tmp_path, model="test-model")
+
+        assert result.edges_created == 1
+        assert result.nodes_processed == 1
+        graph = _read_graph(tmp_path)
+        assert len(graph["edges"]) == 1
+        assert graph["edges"][0]["type"] == "supports"
+
+    def test_deduplicates_symmetric_pairs(self, tmp_path):
+        """A→B and B→A produce only 1 edge, not 2."""
+        n1 = _node("fact-001", "API uses JWT tokens for authentication")
+        n2 = _node("fact-002", "JWT tokens expire after one hour")
+        _write_graph(tmp_path, [n1, n2])
+
+        mock_response = '{"edge_type": "supports", "reasoning": "Related JWT facts"}'
+        with patch("oi.linker.chat", return_value=mock_response):
+            result = link_new_nodes(
+                ["fact-001", "fact-002"], tmp_path, model="test-model"
+            )
+
+        assert result.edges_created == 1
+        graph = _read_graph(tmp_path)
+        assert len(graph["edges"]) == 1
+
+    def test_contradictions_flag_both_nodes(self, tmp_path):
+        """Contradiction edges set has_contradiction on both nodes."""
+        n1 = _node("decision-001", "Use JWT tokens for auth")
+        n2 = _node("decision-002", "Use session cookies for auth instead of JWT")
+        _write_graph(tmp_path, [n1, n2])
+
+        mock_response = '{"edge_type": "contradicts", "reasoning": "Conflicting auth"}'
+        with patch("oi.linker.chat", return_value=mock_response):
+            result = link_new_nodes(["decision-002"], tmp_path, model="test-model")
+
+        assert result.contradictions_found == 1
+        graph = _read_graph(tmp_path)
+        nodes_by_id = {n["id"]: n for n in graph["nodes"]}
+        assert nodes_by_id["decision-001"].get("has_contradiction") is True
+        assert nodes_by_id["decision-002"].get("has_contradiction") is True
+
+    def test_skips_none_edges(self, tmp_path):
+        """'none' classifications don't create edges."""
+        n1 = _node("fact-001", "API uses JWT tokens for authentication")
+        n2 = _node("fact-002", "JWT tokens expire after one hour")
+        _write_graph(tmp_path, [n1, n2])
+
+        mock_response = '{"edge_type": "none", "reasoning": "Unrelated"}'
+        with patch("oi.linker.chat", return_value=mock_response):
+            result = link_new_nodes(["fact-002"], tmp_path, model="test-model")
+
+        assert result.edges_created == 0
+        graph = _read_graph(tmp_path)
+        assert len(graph["edges"]) == 0
+
+    def test_progress_callback(self, tmp_path):
+        """progress_fn is called for each node."""
+        n1 = _node("fact-001", "API uses JWT tokens for authentication")
+        n2 = _node("fact-002", "JWT tokens expire after one hour")
+        _write_graph(tmp_path, [n1, n2])
+
+        calls = []
+        def track(current, total, node_id):
+            calls.append((current, total, node_id))
+
+        mock_response = '{"edge_type": "none", "reasoning": "Unrelated"}'
+        with patch("oi.linker.chat", return_value=mock_response):
+            link_new_nodes(
+                ["fact-001", "fact-002"], tmp_path, model="test-model",
+                progress_fn=track,
+            )
+
+        assert len(calls) == 2
+        assert calls[0] == (1, 2, "fact-001")
+        assert calls[1] == (2, 2, "fact-002")
+
+    def test_per_node_errors_dont_stop_others(self, tmp_path):
+        """An error on one node doesn't prevent processing the next."""
+        n1 = _node("fact-001", "API uses JWT tokens for authentication")
+        n2 = _node("fact-002", "JWT tokens expire after one hour")
+        n3 = _node("fact-003", "JWT token refresh uses rotation pattern")
+        _write_graph(tmp_path, [n1, n2, n3])
+
+        call_count = [0]
+        original_find = find_candidates
+
+        def mock_find(node, graph, max_candidates=8):
+            call_count[0] += 1
+            if call_count[0] == 1:
+                raise RuntimeError("Simulated error")
+            return original_find(node, graph, max_candidates)
+
+        mock_response = '{"edge_type": "supports", "reasoning": "Related"}'
+        with patch("oi.linker.find_candidates", side_effect=mock_find), \
+             patch("oi.linker.chat", return_value=mock_response):
+            result = link_new_nodes(
+                ["fact-002", "fact-003"], tmp_path, model="test-model"
+            )
+
+        assert len(result.errors) == 1
+        assert "fact-002" in result.errors[0]
+        # fact-003 should still have been processed
+        assert result.nodes_processed == 2
+
+    def test_empty_node_ids_is_noop(self, tmp_path):
+        """Empty node list returns zero-value result, no file I/O."""
+        result = link_new_nodes([], tmp_path, model="test-model")
+        assert result == LinkingResult()
+        assert not (tmp_path / "knowledge.yaml").exists()
+
+    def test_result_structure(self, tmp_path):
+        """LinkingResult has all expected fields with correct types."""
+        n1 = _node("fact-001", "Weather is sunny today")
+        _write_graph(tmp_path, [n1])
+
+        # No candidates will be found (only 1 node, no keyword match)
+        result = link_new_nodes(["fact-001"], tmp_path, model="test-model")
+
+        assert isinstance(result, LinkingResult)
+        assert isinstance(result.edges_created, int)
+        assert isinstance(result.contradictions_found, int)
+        assert isinstance(result.nodes_processed, int)
+        assert isinstance(result.nodes_skipped, int)
+        assert isinstance(result.errors, list)
+        assert result.nodes_skipped == 1  # no candidates found
