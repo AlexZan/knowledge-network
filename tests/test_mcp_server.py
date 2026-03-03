@@ -570,3 +570,74 @@ class TestRemoveEdge:
             result = mcp_remove_edge(source_id="d-012", target_id="d-007", edge_type="contradicts")
             assert "Removed 1 edge(s)" in result
             assert "contradicts" in result
+
+
+class TestIngestDocument:
+    """MCP ingest document tool."""
+
+    def test_mcp_ingest_document_delegates(self, tmp_path):
+        """mcp_ingest_document delegates to ingest_pipeline and formats output."""
+        from oi.mcp_server import mcp_ingest_document
+        from oi.ingest import PipelineResult
+
+        fake_result = PipelineResult(
+            source_path="docs/test.md",
+            nodes_created=["fact-001", "fact-002"],
+            chunks_total=3,
+            chunks_processed=2,
+            chunks_failed=1,
+            claims_extracted=2,
+            edges_created=1,
+            contradictions_found=0,
+            conflicts={"total": 0, "auto_resolvable": 0, "strong_recommendations": 0, "ambiguous": 0},
+            errors=[],
+            dry_run=False,
+        )
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server._get_model", return_value="test-model"), \
+             patch("oi.ingest.ingest_pipeline", return_value=fake_result) as mock_pipeline:
+            result = mcp_ingest_document(file_path="/path/to/docs/test.md")
+            mock_pipeline.assert_called_once_with(
+                file_path="/path/to/docs/test.md",
+                session_dir=tmp_path,
+                model="test-model",
+                dry_run=False,
+                skip_linking=False,
+            )
+            assert "Nodes created: 2" in result
+            assert "docs/test.md" in result
+            assert "Claims extracted: 2" in result
+            assert "Chunks failed: 1" in result
+
+    def test_mcp_ingest_document_dry_run(self, tmp_path):
+        """Dry-run mode shows preview without writing."""
+        from oi.mcp_server import mcp_ingest_document
+        from oi.ingest import PipelineResult
+
+        fake_result = PipelineResult(
+            source_path="docs/paper.md",
+            chunks_total=5,
+            chunks_processed=4,
+            claims_extracted=10,
+            dry_run=True,
+        )
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server._get_model", return_value="test-model"), \
+             patch("oi.ingest.ingest_pipeline", return_value=fake_result):
+            result = mcp_ingest_document(file_path="/path/to/paper.md", dry_run=True)
+            assert "DRY RUN" in result
+            assert "10 would be extracted" in result
+
+    def test_fmt_ingest_with_errors(self):
+        """_fmt_ingest shows errors."""
+        from oi.mcp_server import _fmt_ingest
+        from oi.ingest import PipelineResult
+
+        result = PipelineResult(
+            source_path="bad.md",
+            errors=["Parse failed: bad format", "Extra error"],
+            dry_run=False,
+        )
+        formatted = _fmt_ingest(result)
+        assert "Errors (2)" in formatted
+        assert "Parse failed" in formatted

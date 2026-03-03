@@ -353,6 +353,85 @@ def mcp_switch_effort(id: str) -> str:
     return _fmt_simple(raw)
 
 
+def _fmt_ingest(result) -> str:
+    """Format a PipelineResult for human-readable output."""
+    lines = []
+
+    if result.dry_run:
+        lines.append("DRY RUN — no graph changes made")
+        lines.append(f"Source: {result.source_path}")
+        lines.append(f"Chunks: {result.chunks_processed}/{result.chunks_total} processed")
+        lines.append(f"Claims: {result.claims_extracted} would be extracted")
+    else:
+        lines.append(f"Ingested: {result.source_path}")
+        lines.append(f"Nodes created: {len(result.nodes_created)}")
+        lines.append(f"Chunks: {result.chunks_processed}/{result.chunks_total} processed")
+        lines.append(f"Claims extracted: {result.claims_extracted}")
+        if result.edges_created or result.contradictions_found:
+            lines.append(
+                f"Edges: {result.edges_created} created, "
+                f"{result.contradictions_found} contradictions"
+            )
+        if result.conflicts:
+            c = result.conflicts
+            lines.append(
+                f"Conflicts: {c.get('total', 0)} total "
+                f"({c.get('auto_resolvable', 0)} auto, "
+                f"{c.get('strong_recommendations', 0)} strong, "
+                f"{c.get('ambiguous', 0)} ambiguous)"
+            )
+
+    if result.chunks_failed:
+        lines.append(f"Chunks failed: {result.chunks_failed}")
+
+    if result.errors:
+        lines.append(f"Errors ({len(result.errors)}):")
+        for e in result.errors[:5]:
+            lines.append(f"  - {e}")
+        if len(result.errors) > 5:
+            lines.append(f"  ... and {len(result.errors) - 5} more")
+
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def mcp_ingest_document(
+    file_path: str,
+    dry_run: bool = False,
+    skip_linking: bool = False,
+) -> str:
+    """Ingest a document into the knowledge graph.
+
+    Parses the document, extracts knowledge claims via LLM, writes nodes,
+    links them with full graph visibility, and reports conflicts.
+
+    Args:
+        file_path: Absolute path to the document file (.md, .pdf, .txt)
+        dry_run: If true, parse and extract only — show what would happen without writing
+        skip_linking: If true, skip the linking pass (faster, cheaper, no contradiction detection)
+    """
+    from .ingest import ingest_pipeline
+
+    session_dir = _get_session_dir()
+    model = _get_model()
+
+    result = ingest_pipeline(
+        file_path=file_path,
+        session_dir=session_dir,
+        model=model,
+        dry_run=dry_run,
+        skip_linking=skip_linking,
+    )
+
+    _log_tool_call("mcp_ingest_document", {
+        "file_path": file_path,
+        "dry_run": dry_run,
+        "skip_linking": skip_linking,
+    }, f"{len(result.nodes_created)} nodes")
+
+    return _fmt_ingest(result)
+
+
 def main():
     """Entry point for oi-mcp command."""
     mcp.run(transport="stdio")

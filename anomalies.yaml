@@ -1,0 +1,27 @@
+# Anomaly Ledger
+#
+# Track recurring issues across sessions. Each entry has:
+#   category:    Short classification (llm-output, test-flake, perf, data, etc.)
+#   description: What happened
+#   count:       How many times observed
+#   first_seen:  Date first observed
+#   last_seen:   Date most recently observed
+#   context:     List of occurrence notes (keep recent — trim to last 5)
+#
+# If you see something that matches an existing entry, increment count +
+# update last_seen + append to context. Don't create duplicates.
+
+- id: llm-json-truncation
+  category: llm-output
+  description: >
+    LLM returns truncated/malformed JSON during chunk extraction, causing
+    a JSONDecodeError. The chunk content is valid and short — the LLM just
+    produces incomplete output. No retry mechanism exists yet.
+  count: 1
+  first_seen: 2026-03-03
+  last_seen: 2026-03-03
+  context:
+    - "2026-03-03: ingest_pipeline on conflict-resolution-findings.md — chunk
+      'Resolution 3: Explicit declaration vs. roundtable winner-picking'
+      (~7 lines) failed with JSON parse error at char 220. 1/19 chunks
+      affected (5% failure rate). Model: cerebras/gpt-oss-120b."

@@ -1,15 +1,15 @@
 """Document ingestion: extract knowledge claims from parsed document chunks.
 
 Takes ParsedDocument output from parser.py, uses LLM to extract claims per chunk,
-and writes them to the knowledge graph via add_knowledge(). No linking or embedding
-during ingestion — those are deferred to Slice 13c.
+and writes them to the knowledge graph via add_knowledge(). Includes a top-level
+ingest_pipeline() orchestrator that chains parse → extract → write → link → embed → report.
 """
 
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from pydantic import BaseModel
 
@@ -61,6 +61,22 @@ class IngestionResult(BaseModel):
     chunks_failed: int
     claims_extracted: int
     errors: list[str] = []
+
+
+class PipelineResult(BaseModel):
+    """Result of the full ingestion pipeline."""
+
+    source_path: str
+    nodes_created: list[str] = []
+    chunks_total: int = 0
+    chunks_processed: int = 0
+    chunks_failed: int = 0
+    claims_extracted: int = 0
+    edges_created: int = 0
+    contradictions_found: int = 0
+    conflicts: dict = {}  # {total, auto_resolvable, strong_recommendations, ambiguous}
+    errors: list[str] = []
+    dry_run: bool = False
 
 
 # === Extraction Prompt ===
@@ -290,4 +306,141 @@ def ingest_document(
         chunks_failed=extraction.chunks_failed,
         claims_extracted=len(extraction.claims),
         errors=errors,
+    )
+
+
+# === Top-level Pipeline ===
+
+
+def ingest_pipeline(
+    file_path: str | Path,
+    session_dir: Path,
+    model: str = None,
+    base_dir: str | Path = None,
+    dry_run: bool = False,
+    skip_linking: bool = False,
+    skip_embedding: bool = False,
+    progress_fn: Callable[[str, str], None] | None = None,
+) -> PipelineResult:
+    """Run the full ingestion pipeline: parse → extract → write → link → embed → report.
+
+    Args:
+        file_path: Path to the document file (.md, .pdf, .txt).
+        session_dir: Path to the session/knowledge directory.
+        model: LLM model for extraction and linking.
+        base_dir: Base directory for provenance URIs (defaults to file's parent).
+        dry_run: If True, parse + extract only — no graph writes.
+        skip_linking: Skip the linking pass (faster, cheaper).
+        skip_embedding: Skip the embedding pass.
+        progress_fn: Optional callback(stage, detail) for progress reporting.
+
+    Returns:
+        PipelineResult with counts and any errors.
+    """
+    from .parser import parse_file
+
+    errors: list[str] = []
+
+    def _progress(stage: str, detail: str = "") -> None:
+        if progress_fn:
+            progress_fn(stage, detail)
+
+    # Stage 1: Parse
+    _progress("parse", str(file_path))
+    try:
+        doc = parse_file(file_path, base_dir=base_dir)
+    except Exception as e:
+        return PipelineResult(
+            source_path=str(file_path),
+            errors=[f"Parse failed: {e}"],
+            dry_run=dry_run,
+        )
+
+    source_path = doc.metadata.source_path
+
+    # Propagate parse errors (e.g. unsupported format)
+    if hasattr(doc, "parse_errors") and doc.parse_errors:
+        errors.extend(doc.parse_errors)
+
+    # Stage 2: Extract
+    _progress("extract", f"{len(doc.chunks)} chunks")
+    extraction = extract_document(doc, model=model)
+    errors.extend(extraction.errors)
+
+    if dry_run:
+        _progress("done", "dry run complete")
+        return PipelineResult(
+            source_path=source_path,
+            chunks_total=extraction.chunks_total,
+            chunks_processed=extraction.chunks_processed,
+            chunks_failed=extraction.chunks_failed,
+            claims_extracted=len(extraction.claims),
+            errors=errors,
+            dry_run=True,
+        )
+
+    # Stage 3: Write to graph
+    _progress("write", f"{len(extraction.claims)} claims")
+    ingestion = ingest_document(doc, session_dir, model=model)
+    errors.extend(ingestion.errors)
+    node_ids = ingestion.nodes_created
+
+    # Stage 4: Link
+    edges_created = 0
+    contradictions_found = 0
+    if not skip_linking and node_ids:
+        _progress("link", f"{len(node_ids)} nodes")
+        try:
+            from .linker import link_new_nodes
+
+            link_result = link_new_nodes(node_ids, session_dir, model=model)
+            edges_created = link_result.edges_created
+            contradictions_found = link_result.contradictions_found
+            errors.extend(link_result.errors)
+        except Exception as e:
+            errors.append(f"Linking failed: {e}")
+
+    # Stage 5: Embed
+    if not skip_embedding and node_ids:
+        _progress("embed", f"{len(node_ids)} nodes")
+        try:
+            from .embed import ensure_embeddings
+            from .state import _load_knowledge
+
+            knowledge = _load_knowledge(session_dir)
+            ensure_embeddings(session_dir, knowledge)
+        except Exception as e:
+            errors.append(f"Embedding failed: {e}")
+
+    # Stage 6: Conflict report
+    conflicts: dict = {}
+    if not skip_linking and node_ids:
+        _progress("report", "generating conflict report")
+        try:
+            from .conflicts import generate_conflict_report
+
+            report = generate_conflict_report(session_dir, node_ids=node_ids)
+            conflicts = {
+                "total": report.total_contradictions,
+                "auto_resolvable": report.auto_resolvable,
+                "strong_recommendations": report.strong_recommendations,
+                "ambiguous": report.ambiguous,
+            }
+        except Exception as e:
+            errors.append(f"Conflict report failed: {e}")
+
+    _progress("done", f"{len(node_ids)} nodes created")
+
+    return PipelineResult(
+        source_path=source_path,
+        nodes_created=node_ids,
+        chunks_total=ingestion.chunks_total,
+        chunks_processed=ingestion.chunks_processed,
+        chunks_failed=ingestion.chunks_failed,
+        claims_extracted=ingestion.claims_extracted,
+        edges_created=edges_created,
+        contradictions_found=contradictions_found,
+        conflicts=conflicts,
+        errors=errors,
+        dry_run=False,
     )

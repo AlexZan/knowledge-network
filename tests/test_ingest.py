@@ -1,4 +1,4 @@
-"""Tests for document ingestion (Slice 13b)."""
+"""Tests for document ingestion (Slices 13b, 13e)."""
 
 import json
 import pytest
@@ -9,10 +9,12 @@ from oi.ingest import (
     ChunkExtractionResult,
     DocumentExtractionResult,
     IngestionResult,
+    PipelineResult,
     _build_extraction_prompt,
     extract_from_chunk,
     extract_document,
     ingest_document,
+    ingest_pipeline,
 )
 from oi.parser import DocumentChunk, DocumentMetadata, ParsedDocument
 
@@ -513,6 +515,114 @@ class TestIngestDocument:
         result = ingest_document(doc, session_dir)
         assert result.source_path == "docs/notes.md"
         assert result.chunks_total == 2
+
+
+# === Phase 6: ingest_pipeline ===
+
+
+class TestIngestPipeline:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    @pytest.fixture
+    def sample_md(self, tmp_path):
+        f = tmp_path / "sample.md"
+        f.write_text("# Title\n\nSome content about Python.\n")
+        return f
+
+    @patch("oi.ingest.chat")
+    def test_dry_run_extracts_without_writing(self, mock_chat, session_dir, sample_md):
+        """Dry-run returns claims but writes nothing to graph."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "Python is popular"},
+        ])
+        result = ingest_pipeline(sample_md, session_dir, dry_run=True)
+        assert result.dry_run is True
+        assert result.claims_extracted == 1
+        assert result.nodes_created == []
+        assert result.edges_created == 0
+        # No knowledge file should exist
+        assert not (session_dir / "knowledge.yaml").exists()
+
+    @patch("oi.ingest.chat")
+    def test_full_pipeline_creates_nodes_and_links(self, mock_chat, session_dir, sample_md):
+        """Full pipeline writes nodes, runs linking, and generates conflict report."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "Python is interpreted"},
+            {"node_type": "decision", "summary": "Use pytest for tests"},
+        ])
+        with patch("oi.linker.link_new_nodes") as mock_link, \
+             patch("oi.embed.ensure_embeddings") as mock_embed:
+            from oi.linker import LinkingResult
+            mock_link.return_value = LinkingResult(
+                edges_created=1, contradictions_found=0, nodes_processed=2,
+            )
+            result = ingest_pipeline(sample_md, session_dir, skip_embedding=True)
+
+        assert result.dry_run is False
+        assert len(result.nodes_created) == 2
+        assert result.claims_extracted == 2
+        assert result.edges_created == 1
+        assert result.errors == []
+        mock_embed.assert_not_called()
+
+    @patch("oi.ingest.chat")
+    def test_skip_linking_skips_edges(self, mock_chat, session_dir, sample_md):
+        """skip_linking=True skips linking pass and conflict report."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A fact"},
+        ])
+        with patch("oi.linker.link_new_nodes") as mock_link:
+            result = ingest_pipeline(
+                sample_md, session_dir, skip_linking=True, skip_embedding=True,
+            )
+        assert result.edges_created == 0
+        assert result.conflicts == {}
+        mock_link.assert_not_called()
+
+    def test_unsupported_format_returns_error(self, session_dir, tmp_path):
+        """Unsupported file extension returns graceful error."""
+        bad = tmp_path / "data.xyz"
+        bad.write_text("binary data")
+        result = ingest_pipeline(bad, session_dir, skip_embedding=True)
+        assert len(result.errors) >= 1
+        assert any("Unsupported" in e for e in result.errors)
+        assert result.nodes_created == []
+
+    @patch("oi.ingest.chat")
+    def test_empty_document_zero_claims(self, mock_chat, session_dir, tmp_path):
+        """Empty markdown file extracts zero claims."""
+        empty = tmp_path / "empty.md"
+        empty.write_text("")
+        result = ingest_pipeline(empty, session_dir, skip_embedding=True)
+        assert result.claims_extracted == 0
+        assert result.nodes_created == []
+        mock_chat.assert_not_called()
+
+    @patch("oi.ingest.chat")
+    def test_progress_callback_called(self, mock_chat, session_dir, sample_md):
+        """Progress callback receives stage notifications."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A claim"},
+        ])
+        stages = []
+        with patch("oi.linker.link_new_nodes") as mock_link:
+            from oi.linker import LinkingResult
+            mock_link.return_value = LinkingResult(
+                edges_created=0, contradictions_found=0, nodes_processed=1,
+            )
+            ingest_pipeline(
+                sample_md, session_dir,
+                skip_embedding=True,
+                progress_fn=lambda stage, detail: stages.append(stage),
+            )
+        assert "parse" in stages
+        assert "extract" in stages
+        assert "write" in stages
+        assert "done" in stages
 
 
 # === Phase 5: LLM integration tests ===
