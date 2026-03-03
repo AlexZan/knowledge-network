@@ -32,8 +32,12 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 12a | Graph Walk Search | Graph walk layer between keyword seeds and result ranking. Expands candidates 1-2 hops with decay scoring (0.7x/0.4x). Convergence boosts. Plugs into `query_knowledge()` and `find_candidates()`. | [12a-graph-walk.md](12a-graph-walk.md) |
 | 12b | Embedding Search | Semantic seed matching via configurable embeddings (OI_EMBED_MODEL). Cosine similarity finds vocabulary gaps (e.g. "SOA" ↔ "microservices"). Graceful fallback to keyword-only. | — |
 | 12c | Batch LLM Classification | One prompt classifies all candidates instead of N per-pair calls. Fallback to per-pair on parse failure. Also: containment ratio for short queries, result cap (max_results=10). | — |
+| 13a | Document Parser | Read mixed formats (markdown, PDF, plain text). Extract metadata. Chunk large docs into sections. | — |
+| 13b | Claim Extraction | LLM extracts discrete knowledge nodes from each chunk (Pass 1). `skip_linking`/`skip_embed` flags for batch. | — |
+| 13c | Graph-Aware Batch Linker | `link_new_nodes()` links all extracted nodes with full graph visibility (Pass 2). Symmetric pair dedup. Detect contradictions. | — |
+| 13d | Conflict Resolution Report | Topology-based classification: auto_resolvable/strong_recommendation/ambiguous. `resolve_conflict`, `auto_resolve`. First run: 6/37 auto-resolved, zero LLM. | — |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs. Slices 12a-c add graph-aware search (graph walk, embeddings, batch classification).
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs. Slices 12a-c add graph-aware search (graph walk, embeddings, batch classification). Slices 13a-d add bulk document ingestion with two-pass architecture and topology-based conflict resolution.
 
 ---
 
@@ -71,6 +75,16 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 12b: Embedding Search (semantic seeds via configurable OI_EMBED_MODEL) ✓
  ↓
 12c: Batch LLM Classification (1 prompt for N candidates, containment ratio, result cap) ✓
+ ↓
+13a: Document Parser (markdown/PDF/plain text, section chunking) ✓
+ ↓
+13b: Claim Extraction (LLM extracts nodes from chunks, batch flags) ✓
+ ↓
+13c: Graph-Aware Batch Linker (link_new_nodes, symmetric dedup) ✓
+ ↓
+13d: Conflict Resolution (topology classification, auto_resolve) ✓
+ ↓
+13e: Ingestion CLI / MCP Tool (progress, cost estimates, dry-run, resume)
 ```
 
 ---
@@ -79,16 +93,12 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 
 Ordered top-down by dependency. Each item builds on the one above it.
 
-### Bulk Document Ingestion
+### Ingestion Interface
 
-Two-pass architecture: extract then link. See [Decision 015](../decisions/015-graph-aware-search-and-ingestion.md). Depends on Search Infrastructure.
+Wraps the proven 13a-d pipeline into a usable CLI/MCP tool. See [Decision 015](../decisions/015-graph-aware-search-and-ingestion.md).
 
 | Slice | What |
 |-------|------|
-| 13a | **Document Parser** — Read mixed formats (markdown, PDF, plain text). Extract metadata (date, title, source path). Chunk large docs into sections. |
-| 13b | **Claim Extraction** — LLM extracts discrete knowledge nodes from each chunk (Pass 1). Temporal metadata preserved. Order-independent, parallelizable. |
-| 13c | **Graph-Aware Batch Linker** — Link all extracted nodes with full graph visibility (Pass 2). Detect contradictions across eras. |
-| 13d | **Conflict Resolution Report** — Interactive report: subjective conflicts need user sign-off (with provenance chain), factual conflicts auto-resolved. System prioritizes ambiguous vs obvious. |
 | 13e | **Ingestion CLI / MCP Tool** — `oi ingest <path>` or MCP tool. Progress reporting, cost estimates, dry-run mode, resume-on-failure. |
 
 **Rollout plan**: Small test batch (5-10 docs) → medium batch (50-100) → full Open Systems corpus (hundreds of docs, decades of history). Confidence in the pipeline must be high before scaling.

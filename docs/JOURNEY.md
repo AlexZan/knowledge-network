@@ -12,11 +12,13 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Slice 11b Complete, Dogfooding MCP Server
+## Current Status: Slice 13d Complete, Ingestion Pipeline Proven
 
-Slices 1-7 built the memory system. Slices 8a-8h built the knowledge graph. Slices 9-10 unified the store and schema. Slice 11 exposed the graph via MCP for Claude Code integration. Slice 11b added provenance linking so no node is an orphan.
+Slices 1-7 built the memory system. Slices 8a-8h built the knowledge graph. Slices 9-10 unified the store and schema. Slice 11 exposed the graph via MCP. Slices 12a-c added graph-aware search (graph walk, embeddings, batch classification). Slices 13a-d built the bulk document ingestion pipeline and conflict resolution.
 
-Now dogfooding: using the MCP server in real Claude Code sessions to build the graph organically. 27 active nodes, topology producing real confidence signals (decision-001 reached high confidence through convergent support).
+First real ingestion run: thesis.md → 236 nodes, 877 edges, 37 contradictions. Auto-resolved 6 conflicts with zero LLM calls — pure topology. The system demonstrated its own thesis (topology-as-confidence beat voting-as-confidence, 28:4 supports). See [conflict resolution findings](research/conflict-resolution-findings.md).
+
+Next: Slice 13e (Ingestion CLI / MCP tool) to wrap the pipeline into a usable interface.
 
 ### What's Built
 
@@ -36,8 +38,15 @@ Now dogfooding: using the MCP server in real Claude Code sessions to build the g
 | 10 | Done | `node_types.yaml` as single source of truth. Behavioral flags. All consumers wired to schema helpers. |
 | 11 | Done | MCP server (FastMCP, stdio transport). 9 tools: add/query/remove_edge, effort CRUD. Human-readable output. |
 | 11b | Done | Provenance linking: `reasoning` field, `chatlog://` URIs auto-stamped, MCP tool call log, Claude Code schema descriptor. |
+| 12a | Done | Graph walk layer: expand candidates 1-2 hops with decay scoring (0.7x/0.4x), convergence boosts. |
+| 12b | Done | Embedding search: semantic seeds via Ollama (nomic-embed-text, local GPU). Configurable via `OI_EMBED_MODEL`. |
+| 12c | Done | Batch LLM classification: 1 prompt for N candidates, containment ratio for short queries, result cap. |
+| 13a | Done | Document parser: markdown/PDF/plain text, section chunking, metadata extraction. |
+| 13b | Done | Claim extraction: LLM extracts discrete nodes from chunks, `skip_linking`/`skip_embed` flags for batch. |
+| 13c | Done | Graph-aware batch linker: `link_new_nodes()` with full graph visibility, symmetric pair dedup. |
+| 13d | Done | Conflict resolution: topology-based classification (`auto_resolvable`/`strong_recommendation`/`ambiguous`), `resolve_conflict`, `auto_resolve`. |
 
-**Test counts**: 377 free tests + 52 LLM tests (marker-separated). 1 skipped. 9 MCP tools.
+**Test counts**: 552 free tests + 55 LLM tests (marker-separated). 1 skipped.
 
 ### Session: MCP Server + Provenance (2026-03-01 to 2026-03-02)
 
@@ -62,12 +71,27 @@ See [Decision 013](decisions/013-unified-kg-architecture.md). Key points:
 - **Vault as storage layer**: Automerge (CRDT) solves concurrent mutation. Deferred until after ingestion proves the graph at scale.
 - **Reactive edges**: `because_of` chains with lazy query-time staleness checks. Implemented in Slice 8h.
 
+### Session: Search + Ingestion Pipeline (2026-03-02 to 2026-03-03)
+
+Built the complete search infrastructure and ingestion pipeline across multiple sessions:
+
+1. **Search Infrastructure (12a-c)**: Three-layer pipeline — keyword seeds, graph walk expansion (1-2 hops with decay), semantic embedding via Ollama (nomic-embed-text, local GPU). Batch LLM classification replaces N per-pair calls with one prompt. Switched from cloud embeddings to local Ollama for cost/speed.
+
+2. **Document Parser (13a)**: Markdown/PDF/plain text support. Section-aware chunking with metadata extraction. Handles frontmatter, heading hierarchy, code blocks.
+
+3. **Claim Extraction (13b)**: LLM extracts discrete knowledge nodes from document chunks. Added `skip_linking`/`skip_embed` flags to `add_knowledge()` for batch operations (link separately in Pass 2).
+
+4. **Batch Linker (13c)**: `link_new_nodes()` with full graph visibility. Symmetric pair deduplication. Progress callbacks. First run on thesis.md: 236 nodes, 877 edges, 37 contradictions found.
+
+5. **Conflict Resolution (13d)**: Topology-based classification. Three priority tiers: `auto_resolvable` (facts, ≥5x ratio), `strong_recommendation` (≥2-3x), `ambiguous` (equal/near-equal). Auto-resolved 6/37 with zero LLM calls. Key finding: the system validated its own thesis — topology-as-confidence (28 supports) beat voting-as-confidence (4 supports) in Resolution 6.
+
+6. **Emergent insight**: Topology-based conflict resolution constitutes a novel form of reasoning. Independent structural convergence as a mechanical analog of scientific replication. Paper in progress.
+
 ### What's Next
 
 See [roadmap](slices/README.md) for full details. Priority order:
-1. **Search Infrastructure (12a-d)**: Graph walk, embeddings, batch LLM classification, hybrid retrieval. Needed before ingestion can scale.
-2. **Bulk Document Ingestion (13a-e)**: Two-pass architecture, conflict resolution with user sign-off. Target: Open Systems document corpus.
-3. **Vault/Automerge**: After ingestion proves the graph at scale.
+1. **Ingestion CLI / MCP Tool (13e)**: `oi ingest <path>` with progress reporting, cost estimates, dry-run mode, resume-on-failure. Wraps the pipeline into a usable interface.
+2. **Vault/Automerge**: After ingestion proves the graph at scale.
 
 ---
 
@@ -126,4 +150,4 @@ The knowledge graph and Vault project converge: Automerge (CRDT) as the storage 
 1. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
 2. **Read [slices/README.md](slices/README.md)** — see the roadmap
 3. **Read [PROJECT.md](PROJECT.md)** — current technical state
-4. **Current work**: Dogfooding MCP server, building KG organically. Next: Search Infrastructure (12a-d). See [Decision 015](decisions/015-graph-aware-search-and-ingestion.md) for design.
+4. **Current work**: Ingestion pipeline proven (13a-d). Next: Slice 13e (Ingestion CLI/MCP tool). See [Decision 015](decisions/015-graph-aware-search-and-ingestion.md) for design.
