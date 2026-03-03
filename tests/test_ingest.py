@@ -656,26 +656,27 @@ class TestIngestPipeline:
         for node in nodes:
             assert node["provenance_uri"].startswith("doc://my-source/")
 
-    def test_source_id_conflict_adds_error(self, session_dir, tmp_path):
-        """ingest_pipeline with conflicting source_id adds error to result."""
+    def test_source_id_already_registered_uses_existing(self, session_dir, tmp_path):
+        """ingest_pipeline skips auto-registration if source already registered."""
         from unittest.mock import patch
-        from oi.sources import register_source
-        # Pre-register with different path
-        other = tmp_path / "other"; other.mkdir()
-        register_source(session_dir, id="my-source", type="doc_root", path=str(other))
+        from oi.sources import register_source, get_source
+        register_source(session_dir, id="my-source", type="doc_root", path=str(tmp_path))
 
         md = tmp_path / "notes.md"
         md.write_text("# Topic\n\nContent.\n")
 
-        with patch("oi.llm.chat", return_value='```json\n[]\n```'):
+        with patch("oi.ingest.chat", return_value='```json\n[]\n```'), \
+             patch("oi.linker.link_new_nodes") as mock_link, \
+             patch("oi.embed.ensure_embeddings"):
+            from oi.linker import LinkingResult
+            mock_link.return_value = LinkingResult(edges_created=0, contradictions_found=0, nodes_processed=0)
             result = ingest_pipeline(
-                file_path=md,
-                session_dir=session_dir,
-                model="test-model",
-                source_id="my-source",
+                file_path=md, session_dir=session_dir,
+                model="test-model", source_id="my-source", skip_embedding=True,
             )
 
-        assert any("conflict" in e.lower() for e in result.errors)
+        assert not any("conflict" in e.lower() for e in result.errors)
+        assert get_source(session_dir, "my-source")["path"] == str(tmp_path)
 
 
 # === Phase 5: LLM integration tests ===

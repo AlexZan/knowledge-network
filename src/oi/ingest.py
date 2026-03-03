@@ -346,17 +346,18 @@ def ingest_pipeline(
         if progress_fn:
             progress_fn(stage, detail)
 
-    # Register source if provided (before any writes, including dry_run)
+    # Register source if provided and not already registered
     if source_id:
-        from .sources import register_source
-        reg = register_source(
-            session_dir,
-            id=source_id,
-            type="doc_root",
-            path=str(Path(file_path).resolve().parent if base_dir is None else Path(base_dir).resolve()),
-        )
-        if reg.get("status") == "conflict":
-            errors.append(f"Source registration conflict: {reg['error']}")
+        from .sources import get_source, register_source
+        if not get_source(session_dir, source_id):
+            reg = register_source(
+                session_dir,
+                id=source_id,
+                type="doc_root",
+                path=str(Path(file_path).resolve().parent if base_dir is None else Path(base_dir).resolve()),
+            )
+            if reg.get("status") == "conflict":
+                errors.append(f"Source registration conflict: {reg['error']}")
 
     # Stage 1: Parse
     _progress("parse", str(file_path))
