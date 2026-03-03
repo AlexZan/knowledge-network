@@ -24,11 +24,38 @@ Never recreate content that already exists in another markdown file. Always use 
 
 | Doc | Source of Truth For |
 |-----|---------------------|
+| `docs/ROADMAP.md` | Big picture vision (5 phases, from KG to Open Systems) |
 | `docs/thesis.md` | Vision, the 5 theses |
-| `docs/slices/README.md` | Implementation roadmap |
+| `docs/slices/README.md` | Tactical implementation roadmap (per-slice) |
 | `docs/PROJECT.md` | Technical architecture |
 | `docs/JOURNEY.md` | Implementation progress, pivots, current status |
 | `docs/decisions/*.md` | Architectural decisions |
+| `docs/research/language-and-storage-decision.md` | Rust port + CRDT analysis (2026-03-03) |
+
+## Anomaly Tracking
+
+**File**: `anomalies.yaml` (project root)
+
+When you encounter an unexpected but non-fatal issue (LLM output glitch, flaky behavior, weird data, performance spike), check `anomalies.yaml` for a matching entry:
+
+- **Match found**: Increment `count`, update `last_seen`, append a note to `context` (trim to last 5 entries). If count is climbing, flag it to the user — it's no longer an anomaly, it's a pattern.
+- **No match**: Add a new entry with `count: 1`, `first_seen`, and a context note.
+
+**What qualifies as an anomaly:**
+- LLM returning malformed output (truncated JSON, wrong format)
+- Tests that pass/fail inconsistently without code changes
+- Unexpected performance degradation
+- Data integrity issues (missing fields, corrupt state)
+
+**What does NOT qualify:**
+- Known bugs (file an issue instead)
+- Expected errors (bad user input, missing files)
+- One-time setup issues
+
+**Thresholds** — flag to user when:
+- count >= 3 for the same anomaly
+- 2+ different anomalies in the same category
+- Any anomaly in `data` category (data integrity is never acceptable)
 
 ## Brainstorming vs. Implementing
 

@@ -4,21 +4,22 @@
 
 ## Source of Truth
 
+- **Big picture**: [ROADMAP.md](ROADMAP.md) - 5 phases from KG to Open Systems
 - **Thesis**: [thesis.md](thesis.md) - The 5 core theses and vision
-- **Slices**: [slices/README.md](slices/README.md) - Implementation roadmap
+- **Slices**: [slices/README.md](slices/README.md) - Tactical implementation roadmap
 - **Technical**: [PROJECT.md](PROJECT.md) - Current architecture and code structure
 
 Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Slice 13d Complete, Ingestion Pipeline Proven
+## Current Status: Phase 1 Complete, Rust Port Decided
 
-Slices 1-7 built the memory system. Slices 8a-8h built the knowledge graph. Slices 9-10 unified the store and schema. Slice 11 exposed the graph via MCP. Slices 12a-c added graph-aware search (graph walk, embeddings, batch classification). Slices 13a-d built the bulk document ingestion pipeline and conflict resolution.
+Slices 1-13e complete. The Python prototype is proven — 561 tests, bulk ingestion working, MCP server live.
 
-First real ingestion run: thesis.md → 236 nodes, 877 edges, 37 contradictions. Auto-resolved 6 conflicts with zero LLM calls — pure topology. The system demonstrated its own thesis (topology-as-confidence beat voting-as-confidence, 28:4 supports). See [conflict resolution findings](research/conflict-resolution-findings.md).
+**Major decision (2026-03-03)**: Port to Rust with WASM targets. See [Decision 016](decisions/016-rust-wasm-port.md) and [ROADMAP.md](ROADMAP.md). Motivated by: broken Python Automerge bindings, endgame requiring WASM smart contracts, and the discovery that the entire Rust AI ecosystem (MCP, LLM clients, CRDTs, PDF parsing) is production-ready.
 
-Next: Slice 13e (Ingestion CLI / MCP tool) to wrap the pipeline into a usable interface.
+Next: Phase 2 — Rust scaffold, `GraphStore` trait, core graph ops port.
 
 ### What's Built
 
@@ -87,11 +88,29 @@ Built the complete search infrastructure and ingestion pipeline across multiple 
 
 6. **Emergent insight**: Topology-based conflict resolution constitutes a novel form of reasoning. Independent structural convergence as a mechanical analog of scientific replication. Paper in progress.
 
+### Session: Slice 13e + Rust Port Decision (2026-03-03)
+
+1. **Slice 13e implementation**: Built `ingest_pipeline()` orchestrator (parse→extract→write→link→embed→report) and `mcp_ingest_document` MCP tool with dry-run and skip_linking modes. 561 tests passing (+9 new). Added anomaly tracking ledger (`anomalies.yaml`).
+
+2. **Batch ingestion test**: Ingested `conflict-resolution-findings.md` — 99 nodes, 221 edges, 18 contradictions. One chunk failed JSON parse (LLM truncation) — first anomaly logged. Dry-ran 5 more docs: 634 claims across 120 chunks.
+
+3. **Rust ecosystem research**: Discovered every assumed Rust blocker was wrong:
+   - MCP: `rmcp` v0.16 (official Anthropic SDK)
+   - LLM: `litellm-rs`, `rig` framework
+   - CRDTs: Native Automerge, Loro, y-crdt (all Rust-first)
+   - PDF: `pdf_oxide` (5x faster than pypdf)
+   - AI agents: Multiple production frameworks (rig, agentai, AutoAgents)
+
+4. **Big picture roadmap**: Documented 6-phase vision from current KG through decentralized AI on blockchain. Key insight: WASM is the convergence point — Rust compiles to both native and WASM smart contracts from the same codebase.
+
+5. **Decision 016**: Port to Rust with WASM targets. CRDT-backed `GraphStore` trait (backend-agnostic). Python prototype remains as reference. See [Decision 016](decisions/016-rust-wasm-port.md).
+
 ### What's Next
 
-See [roadmap](slices/README.md) for full details. Priority order:
-1. **Ingestion CLI / MCP Tool (13e)**: `oi ingest <path>` with progress reporting, cost estimates, dry-run mode, resume-on-failure. Wraps the pipeline into a usable interface.
-2. **Vault/Automerge**: After ingestion proves the graph at scale.
+See [ROADMAP.md](ROADMAP.md) for big picture. Immediate:
+1. **Phase 2A**: Rust scaffold + `GraphStore` trait + data models
+2. **Phase 2B**: Core graph ops port (add/query, graph walk, confidence, conflicts)
+3. **Phase 2C**: LLM integration + MCP server + parser
 
 ---
 
@@ -147,7 +166,7 @@ The knowledge graph and Vault project converge: Automerge (CRDT) as the storage 
 
 ## For Agents
 
-1. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
-2. **Read [slices/README.md](slices/README.md)** — see the roadmap
-3. **Read [PROJECT.md](PROJECT.md)** — current technical state
-4. **Current work**: Ingestion pipeline proven (13a-d). Next: Slice 13e (Ingestion CLI/MCP tool). See [Decision 015](decisions/015-graph-aware-search-and-ingestion.md) for design.
+1. **Read [ROADMAP.md](ROADMAP.md)** — big picture (6 phases, KG → blockchain)
+2. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
+3. **Read [Decision 016](decisions/016-rust-wasm-port.md)** — Rust port decision + migration sequence
+4. **Current work**: Phase 1 (Python) complete. Phase 2 (Rust port) starting. Python prototype is the reference implementation.

@@ -36,8 +36,9 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 13b | Claim Extraction | LLM extracts discrete knowledge nodes from each chunk (Pass 1). `skip_linking`/`skip_embed` flags for batch. | — |
 | 13c | Graph-Aware Batch Linker | `link_new_nodes()` links all extracted nodes with full graph visibility (Pass 2). Symmetric pair dedup. Detect contradictions. | — |
 | 13d | Conflict Resolution Report | Topology-based classification: auto_resolvable/strong_recommendation/ambiguous. `resolve_conflict`, `auto_resolve`. First run: 6/37 auto-resolved, zero LLM. | — |
+| 13e | Ingestion CLI / MCP Tool | `ingest_pipeline()` orchestrator (parse→extract→write→link→embed→report). MCP `mcp_ingest_document` tool with dry-run and skip_linking. Anomaly ledger (`anomalies.yaml`). | — |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs. Slices 12a-c add graph-aware search (graph walk, embeddings, batch classification). Slices 13a-d add bulk document ingestion with two-pass architecture and topology-based conflict resolution.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs. Slices 12a-c add graph-aware search (graph walk, embeddings, batch classification). Slices 13a-e add bulk document ingestion with two-pass architecture, topology-based conflict resolution, and a unified MCP tool.
 
 ---
 
@@ -84,7 +85,7 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
  ↓
 13d: Conflict Resolution (topology classification, auto_resolve) ✓
  ↓
-13e: Ingestion CLI / MCP Tool (progress, cost estimates, dry-run, resume)
+13e: Ingestion CLI / MCP Tool (ingest_pipeline, MCP tool, anomaly ledger) ✓
 ```
 
 ---
@@ -93,30 +94,11 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 
 Ordered top-down by dependency. Each item builds on the one above it.
 
-### Ingestion Interface
+### Phase Transition: Python → Rust
 
-Wraps the proven 13a-d pipeline into a usable CLI/MCP tool. See [Decision 015](../decisions/015-graph-aware-search-and-ingestion.md).
+Phase 1 (Python prototype) is complete. Phase 2 is a Rust port with CRDT storage and WASM targets. See [Decision 016](../decisions/016-rust-wasm-port.md) and [ROADMAP.md](../ROADMAP.md) for the full 6-phase plan.
 
-| Slice | What |
-|-------|------|
-| 13e | **Ingestion CLI / MCP Tool** — `oi ingest <path>` or MCP tool. Progress reporting, cost estimates, dry-run mode, resume-on-failure. |
-
-**Rollout plan**: Small test batch (5-10 docs) → medium batch (50-100) → full Open Systems corpus (hundreds of docs, decades of history). Confidence in the pipeline must be high before scaling.
-
-### Storage & Scale
-
-| Slice | What |
-|-------|------|
-| Vault/Automerge | CRDT storage layer. Replace YAML with Automerge. Concurrent sessions, P2P sync, full history. See [Decision 013](../decisions/013-unified-kg-architecture.md). Needed when concurrency/multi-agent demands it — after ingestion proves the graph at scale. |
-
-### Exploratory (needs brainstorming)
-
-| Slice | What |
-|-------|------|
-| Tool Nodes | Tool definitions as a KG node type. Agent capabilities become part of the graph — edges to motivating decisions, supersedes when replaced, confidence from usage. |
-| Workflow Integration | oi-pipe as a subsystem, workflow orchestration through tool calls. |
-
-Multi-agent debate transport is developed independently (separate project using MCP). Sessions naturally develop perspectives ([Decision 014](../decisions/014-sessions-as-perspectives.md)) — no KG integration needed for that.
+The Python codebase remains as the reference implementation during the port. No further Python slices are planned — new development happens in Rust.
 
 ---
 
