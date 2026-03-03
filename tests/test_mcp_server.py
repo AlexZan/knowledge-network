@@ -627,13 +627,13 @@ class TestIngestDocument:
              patch("oi.mcp_server._get_model", return_value="test-model"), \
              patch("oi.ingest.ingest_pipeline", return_value=fake_result) as mock_pipeline:
             result = mcp_ingest_document(file_path="/path/to/docs/test.md")
-            mock_pipeline.assert_called_once_with(
-                file_path="/path/to/docs/test.md",
-                session_dir=tmp_path,
-                model="test-model",
-                dry_run=False,
-                skip_linking=False,
-            )
+            call_kwargs = mock_pipeline.call_args[1]
+            assert call_kwargs["file_path"] == "/path/to/docs/test.md"
+            assert call_kwargs["session_dir"] == tmp_path
+            assert call_kwargs["model"] == "test-model"
+            assert call_kwargs["dry_run"] is False
+            assert call_kwargs["skip_linking"] is False
+            assert call_kwargs["source_id"] is None
             assert "Nodes created: 2" in result
             assert "docs/test.md" in result
             assert "Claims extracted: 2" in result
@@ -671,3 +671,67 @@ class TestIngestDocument:
         formatted = _fmt_ingest(result)
         assert "Errors (2)" in formatted
         assert "Parse failed" in formatted
+
+    def test_mcp_ingest_document_passes_source_id(self, tmp_path):
+        """source_id is forwarded to ingest_pipeline."""
+        from oi.mcp_server import mcp_ingest_document
+        from oi.ingest import PipelineResult
+
+        fake_result = PipelineResult(source_path="test.md", dry_run=False)
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server._get_model", return_value="test-model"), \
+             patch("oi.ingest.ingest_pipeline", return_value=fake_result) as mock_pipeline:
+            mcp_ingest_document(file_path="/path/to/test.md", source_id="my-source")
+            assert mock_pipeline.call_args[1]["source_id"] == "my-source"
+
+
+class TestSourceTools:
+    """mcp_add_source and mcp_list_sources."""
+
+    def test_add_source_registers(self, tmp_path):
+        from oi.mcp_server import mcp_add_source
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+            result = mcp_add_source(id="my-docs", type="doc_root", path=str(tmp_path))
+            assert "Registered source 'my-docs'" in result
+
+    def test_add_source_idempotent(self, tmp_path):
+        from oi.mcp_server import mcp_add_source
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+            mcp_add_source(id="my-docs", type="doc_root", path=str(tmp_path))
+            result = mcp_add_source(id="my-docs", type="doc_root", path=str(tmp_path))
+            assert "already registered" in result
+
+    def test_add_source_conflict(self, tmp_path):
+        from oi.mcp_server import mcp_add_source
+        other = tmp_path / "other"; other.mkdir()
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+            mcp_add_source(id="my-docs", type="doc_root", path=str(tmp_path))
+            result = mcp_add_source(id="my-docs", type="doc_root", path=str(other))
+            assert result.startswith("Error:")
+
+    def test_list_sources_empty(self, tmp_path):
+        from oi.mcp_server import mcp_list_sources
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+            result = mcp_list_sources()
+            assert "No sources registered" in result
+
+    def test_list_sources_shows_entries(self, tmp_path):
+        from oi.mcp_server import mcp_add_source, mcp_list_sources
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+            mcp_add_source(id="my-docs", type="doc_root", path=str(tmp_path), label="My Docs")
+            result = mcp_list_sources()
+            assert "my-docs" in result
+            assert "doc_root" in result
+
+    def test_list_sources_checks_path_existence(self, tmp_path):
+        from oi.mcp_server import mcp_add_source, mcp_list_sources
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+            mcp_add_source(id="gone", type="doc_root", path="/nonexistent/path/here")
+            result = mcp_list_sources()
+            assert "NOT FOUND" in result

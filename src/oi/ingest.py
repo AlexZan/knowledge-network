@@ -321,6 +321,7 @@ def ingest_pipeline(
     skip_linking: bool = False,
     skip_embedding: bool = False,
     progress_fn: Callable[[str, str], None] | None = None,
+    source_id: str | None = None,
 ) -> PipelineResult:
     """Run the full ingestion pipeline: parse → extract → write → link → embed → report.
 
@@ -345,10 +346,22 @@ def ingest_pipeline(
         if progress_fn:
             progress_fn(stage, detail)
 
+    # Register source if provided (before any writes, including dry_run)
+    if source_id:
+        from .sources import register_source
+        reg = register_source(
+            session_dir,
+            id=source_id,
+            type="doc_root",
+            path=str(Path(file_path).resolve().parent if base_dir is None else Path(base_dir).resolve()),
+        )
+        if reg.get("status") == "conflict":
+            errors.append(f"Source registration conflict: {reg['error']}")
+
     # Stage 1: Parse
     _progress("parse", str(file_path))
     try:
-        doc = parse_file(file_path, base_dir=base_dir)
+        doc = parse_file(file_path, base_dir=base_dir, source_id=source_id)
     except Exception as e:
         return PipelineResult(
             source_path=str(file_path),

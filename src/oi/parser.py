@@ -578,10 +578,22 @@ _FORMAT_MAP = {
 DEFAULT_EXTENSIONS = {".md", ".pdf", ".txt"}
 
 
+def _apply_source_id(doc: ParsedDocument, source_id: str | None) -> ParsedDocument:
+    """Rewrite doc:// provenance URIs to logical form if source_id is provided. Mutates in place."""
+    if not source_id:
+        return doc
+    from .sources import rewrite_doc_uri
+    doc.metadata.provenance_uri = rewrite_doc_uri(doc.metadata.provenance_uri, source_id)
+    for chunk in doc.chunks:
+        chunk.provenance_uri = rewrite_doc_uri(chunk.provenance_uri, source_id)
+    return doc
+
+
 def parse_file(
     path: str | Path,
     base_dir: str | Path | None = None,
     max_chunk_chars: int = 2000,
+    source_id: str | None = None,
 ) -> ParsedDocument:
     """Parse a single file into chunks.
 
@@ -612,7 +624,7 @@ def parse_file(
     fmt = _FORMAT_MAP.get(suffix)
 
     if fmt is None:
-        return ParsedDocument(
+        doc = ParsedDocument(
             metadata=DocumentMetadata(
                 source_path=rel_path,
                 format="unknown",
@@ -622,32 +634,34 @@ def parse_file(
             total_chars=0,
             parse_errors=[f"Unsupported format: {suffix}"],
         )
-
-    if fmt == "pdf":
-        return _parse_pdf(path, rel_path, max_chunk_chars)
-
-    # Text-based formats: read the file
-    try:
-        text = path.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        try:
-            text = path.read_text(encoding="latin-1")
-        except Exception as e:
-            return ParsedDocument(
-                metadata=DocumentMetadata(
-                    source_path=rel_path,
-                    format=fmt,
-                    provenance_uri=_build_provenance_uri(rel_path),
-                ),
-                chunks=[],
-                total_chars=0,
-                parse_errors=[f"Failed to read file: {e}"],
-            )
-
-    if fmt == "markdown":
-        return _parse_markdown(text, rel_path, max_chunk_chars)
+    elif fmt == "pdf":
+        doc = _parse_pdf(path, rel_path, max_chunk_chars)
     else:
-        return _parse_text(text, rel_path, max_chunk_chars)
+        # Text-based formats: read the file
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            try:
+                text = path.read_text(encoding="latin-1")
+            except Exception as e:
+                doc = ParsedDocument(
+                    metadata=DocumentMetadata(
+                        source_path=rel_path,
+                        format=fmt,
+                        provenance_uri=_build_provenance_uri(rel_path),
+                    ),
+                    chunks=[],
+                    total_chars=0,
+                    parse_errors=[f"Failed to read file: {e}"],
+                )
+                return _apply_source_id(doc, source_id)
+
+        if fmt == "markdown":
+            doc = _parse_markdown(text, rel_path, max_chunk_chars)
+        else:
+            doc = _parse_text(text, rel_path, max_chunk_chars)
+
+    return _apply_source_id(doc, source_id)
 
 
 def parse_directory(

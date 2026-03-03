@@ -625,6 +625,59 @@ class TestIngestPipeline:
         assert "done" in stages
 
 
+    @patch("oi.ingest.chat")
+    def test_source_id_produces_logical_uris(self, mock_chat, session_dir, tmp_path):
+        """ingest_pipeline with source_id rewrites doc:// URIs to logical form."""
+        md = tmp_path / "notes.md"
+        md.write_text("# Topic\n\nSome content.\n")
+        mock_chat.return_value = _llm_response([{"node_type": "fact", "summary": "Some content."}])
+
+        with patch("oi.linker.link_new_nodes") as mock_link, \
+             patch("oi.embed.ensure_embeddings"):
+            from oi.linker import LinkingResult
+            mock_link.return_value = LinkingResult(edges_created=0, contradictions_found=0, nodes_processed=1)
+            result = ingest_pipeline(
+                file_path=md,
+                session_dir=session_dir,
+                model="test-model",
+                source_id="my-source",
+                skip_embedding=True,
+            )
+
+        assert result.errors == []
+        # Verify source was registered
+        from oi.sources import get_source
+        assert get_source(session_dir, "my-source") is not None
+        # Verify nodes have logical URIs
+        from oi.state import _load_knowledge
+        knowledge = _load_knowledge(session_dir)
+        nodes = [n for n in knowledge["nodes"] if n.get("type") == "fact"]
+        assert len(nodes) > 0
+        for node in nodes:
+            assert node["provenance_uri"].startswith("doc://my-source/")
+
+    def test_source_id_conflict_adds_error(self, session_dir, tmp_path):
+        """ingest_pipeline with conflicting source_id adds error to result."""
+        from unittest.mock import patch
+        from oi.sources import register_source
+        # Pre-register with different path
+        other = tmp_path / "other"; other.mkdir()
+        register_source(session_dir, id="my-source", type="doc_root", path=str(other))
+
+        md = tmp_path / "notes.md"
+        md.write_text("# Topic\n\nContent.\n")
+
+        with patch("oi.llm.chat", return_value='```json\n[]\n```'):
+            result = ingest_pipeline(
+                file_path=md,
+                session_dir=session_dir,
+                model="test-model",
+                source_id="my-source",
+            )
+
+        assert any("conflict" in e.lower() for e in result.errors)
+
+
 # === Phase 5: LLM integration tests ===
 
 import os

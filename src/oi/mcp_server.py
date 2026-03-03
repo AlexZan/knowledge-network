@@ -412,6 +412,7 @@ def mcp_ingest_document(
     file_path: str,
     dry_run: bool = False,
     skip_linking: bool = False,
+    source_id: str = "",
 ) -> str:
     """Ingest a document into the knowledge graph.
 
@@ -422,6 +423,7 @@ def mcp_ingest_document(
         file_path: Absolute path to the document file (.md, .pdf, .txt)
         dry_run: If true, parse and extract only — show what would happen without writing
         skip_linking: If true, skip the linking pass (faster, cheaper, no contradiction detection)
+        source_id: Registered source name for logical provenance URIs (e.g. 'my-docs')
     """
     from .ingest import ingest_pipeline
 
@@ -434,15 +436,59 @@ def mcp_ingest_document(
         model=model,
         dry_run=dry_run,
         skip_linking=skip_linking,
+        source_id=_or_none(source_id),
     )
 
     _log_tool_call("mcp_ingest_document", {
         "file_path": file_path,
         "dry_run": dry_run,
         "skip_linking": skip_linking,
+        "source_id": source_id or None,
     }, f"{len(result.nodes_created)} nodes")
 
     return _fmt_ingest(result)
+
+
+@mcp.tool()
+def mcp_add_source(
+    id: str,
+    type: str,
+    path: str,
+    label: str = "",
+) -> str:
+    """Register a source for logical provenance URIs.
+
+    Args:
+        id: Short kebab-case identifier (e.g. 'physics-chatgpt', 'my-docs')
+        type: Source type: doc_root, chatgpt_export, pdf
+        path: Physical path to the source file or directory
+        label: Human-readable description (optional)
+    """
+    from .sources import register_source
+    result = register_source(_get_session_dir(), id=id, type=type, path=path, label=label)
+    if result.get("status") == "conflict":
+        return f"Error: {result['error']}"
+    if result.get("status") == "exists":
+        return f"Source '{id}' already registered (same path)."
+    return f"Registered source '{id}' ({type}) at {path}"
+
+
+@mcp.tool()
+def mcp_list_sources() -> str:
+    """List all registered sources with their physical locations and existence status."""
+    from .sources import load_sources
+    sources = load_sources(_get_session_dir())
+    if not sources:
+        return "No sources registered. Use mcp_add_source to register one."
+    lines = []
+    for s in sources:
+        p = Path(s["path"])
+        status = "✓" if p.exists() else "✗ NOT FOUND"
+        lines.append(f"  {s['id']} ({s['type']}) {status}")
+        lines.append(f"    path: {s['path']}")
+        if s.get("label") and s["label"] != s["id"]:
+            lines.append(f"    label: {s['label']}")
+    return "\n".join(lines)
 
 
 def main():
