@@ -457,7 +457,7 @@ def get_all_open_efforts(session_dir: Path) -> list[dict]:
     return [e for e in efforts if e.get("status") == "open"]
 
 
-def open_effort(session_dir: Path, name: str) -> str:
+def open_effort(session_dir: Path, name: str, description: str = None, provenance_uri: str = None) -> str:
     """Open a new effort. Sets it as active, deactivates others. Returns JSON result."""
     efforts = _load_efforts(session_dir)
     now = datetime.now().isoformat()
@@ -467,21 +467,27 @@ def open_effort(session_dir: Path, name: str) -> str:
         if effort.get("status") == "open":
             effort["active"] = False
 
-    efforts.append({
+    effort = {
         "id": name,
         "status": "open",
         "active": True,
         "summary": None,
         "raw_file": f"efforts/{name}.jsonl",
         "created": now,
-        "updated": now
-    })
+        "updated": now,
+    }
+    if description:
+        effort["description"] = description
+    if provenance_uri:
+        effort["provenance_uri"] = provenance_uri
+
+    efforts.append(effort)
 
     _save_efforts(session_dir, efforts)
     return json.dumps({"status": "opened", "effort_id": name})
 
 
-def close_effort(session_dir: Path, model: str = None, effort_id: str = None, session_id: str = None) -> str:
+def close_effort(session_dir: Path, model: str = None, effort_id: str = None, session_id: str = None, provenance_uri: str = None) -> str:
     """Close an effort. If effort_id is None, close the active effort. Returns JSON result."""
     from .llm import summarize_effort as llm_summarize, extract_knowledge as llm_extract_knowledge, DEFAULT_MODEL
 
@@ -521,6 +527,7 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None, se
             result = json.loads(add_knowledge(
                 session_dir, node["node_type"], node["summary"], source=effort_id,
                 model=model or DEFAULT_MODEL, session_id=session_id,
+                provenance_uri=provenance_uri,
             ))
             if result.get("status") == "added":
                 extracted_nodes.append({
@@ -760,6 +767,9 @@ def effort_status(session_dir: Path) -> str:
             "summary": effort.get("summary"),
         }
 
+        if effort.get("description"):
+            entry["description"] = effort["description"]
+
         if effort.get("status") == "open":
             entry["active"] = effort.get("active", False)
 
@@ -779,7 +789,7 @@ def effort_status(session_dir: Path) -> str:
     return json.dumps({"efforts": result})
 
 
-def reopen_effort(session_dir: Path, effort_id: str) -> str:
+def reopen_effort(session_dir: Path, effort_id: str, provenance_uri: str = None) -> str:
     """Reopen a concluded effort to continue working on it.
 
     Flips status back to open, sets as active, deactivates other open efforts,
@@ -810,6 +820,8 @@ def reopen_effort(session_dir: Path, effort_id: str) -> str:
     target["status"] = "open"
     target["active"] = True
     target["updated"] = now
+    if provenance_uri:
+        target["provenance_uri"] = provenance_uri
     # Keep summary around for reference but it's no longer the "current" representation
 
     _save_efforts(session_dir, efforts)

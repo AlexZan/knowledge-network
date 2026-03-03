@@ -81,6 +81,10 @@ def _load_efforts(session_dir: Path) -> list[dict]:
             }
             if "active" in node:
                 effort["active"] = node["active"]
+            if node.get("description"):
+                effort["description"] = node["description"]
+            if node.get("provenance_uri"):
+                effort["provenance_uri"] = node["provenance_uri"]
             efforts.append(effort)
     return efforts
 
@@ -106,6 +110,10 @@ def _save_efforts(session_dir: Path, efforts: list[dict]):
         }
         if "active" in effort:
             node["active"] = effort["active"]
+        if effort.get("description"):
+            node["description"] = effort["description"]
+        if effort.get("provenance_uri"):
+            node["provenance_uri"] = effort["provenance_uri"]
         effort_nodes.append(node)
 
     knowledge["nodes"] = non_effort_nodes + effort_nodes

@@ -134,6 +134,8 @@ def _fmt_effort_status(raw: str) -> str:
         if e.get("raw_tokens"):
             line += f" — {e['raw_tokens']} tokens"
         lines.append(line)
+        if e.get("description"):
+            lines.append(f"    Goal: {e['description'][:120]}")
         if e.get("summary"):
             lines.append(f"    {e['summary'][:120]}")
     return "\n".join(lines)
@@ -281,13 +283,20 @@ def mcp_remove_edge(
 
 
 @mcp.tool()
-def mcp_open_effort(name: str) -> str:
+def mcp_open_effort(name: str, description: str = "") -> str:
     """Start tracking focused work on a topic.
 
     Args:
         name: Short kebab-case name for the effort (e.g. 'auth-bug', 'guild-feature')
+        description: What this effort is about, its goal, and what conclusion looks like
     """
-    raw = open_effort(session_dir=_get_session_dir(), name=name)
+    provenance_uri = discover_claude_code_chatlog()
+    raw = open_effort(
+        session_dir=_get_session_dir(),
+        name=name,
+        description=_or_none(description),
+        provenance_uri=provenance_uri,
+    )
     _log_tool_call("mcp_open_effort", {"name": name})
     return _fmt_simple(raw)
 
@@ -299,11 +308,13 @@ def mcp_close_effort(id: str = "") -> str:
     Args:
         id: Effort ID to close. If omitted, closes the active effort.
     """
+    provenance_uri = discover_claude_code_chatlog()
     raw = close_effort(
         session_dir=_get_session_dir(),
         model=_get_model(),
         effort_id=_or_none(id),
         session_id=_get_session_id(),
+        provenance_uri=provenance_uri,
     )
     _log_tool_call("mcp_close_effort", {"id": id or "(active)"})
     return _fmt_simple(raw)
@@ -336,7 +347,9 @@ def mcp_reopen_effort(id: str) -> str:
     Args:
         id: The concluded effort ID to reopen
     """
-    raw = reopen_effort(session_dir=_get_session_dir(), effort_id=id)
+    # Stamp provenance so we know which conversation reopened this effort
+    provenance_uri = discover_claude_code_chatlog()
+    raw = reopen_effort(session_dir=_get_session_dir(), effort_id=id, provenance_uri=provenance_uri)
     _log_tool_call("mcp_reopen_effort", {"id": id})
     return _fmt_simple(raw)
 

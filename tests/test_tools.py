@@ -73,6 +73,26 @@ class TestOpenEffort:
         effort = get_open_effort(session_dir)
         assert effort["raw_file"] == "efforts/auth-bug.jsonl"
 
+    def test_open_effort_with_description(self, session_dir):
+        open_effort(session_dir, "typed-conflicts", description="Explore conflict subtypes beyond binary contradicts edges")
+        effort = get_active_effort(session_dir)
+        assert effort["description"] == "Explore conflict subtypes beyond binary contradicts edges"
+
+    def test_open_effort_with_provenance(self, session_dir):
+        open_effort(session_dir, "auth-bug", provenance_uri="chatlog://claude-code/abc:L42")
+        effort = get_active_effort(session_dir)
+        assert effort["provenance_uri"] == "chatlog://claude-code/abc:L42"
+
+    def test_open_effort_description_persists_through_save_load(self, session_dir):
+        """Description and provenance survive save/load cycle."""
+        open_effort(session_dir, "test-effort",
+                    description="Test persistence",
+                    provenance_uri="chatlog://claude-code/xyz:L10")
+        # Load again from disk
+        effort = get_active_effort(session_dir)
+        assert effort["description"] == "Test persistence"
+        assert effort["provenance_uri"] == "chatlog://claude-code/xyz:L10"
+
 
 class TestGetEffort:
     def test_get_open_effort_returns_none_when_empty(self, session_dir):
@@ -145,6 +165,11 @@ class TestEffortStatus:
         assert result["efforts"][0]["id"] == "my-effort"
         assert result["efforts"][0]["status"] == "open"
         assert result["efforts"][0]["active"] is True
+
+    def test_effort_status_shows_description(self, session_dir):
+        open_effort(session_dir, "my-effort", description="Investigate auth flow")
+        result = json.loads(effort_status(session_dir))
+        assert result["efforts"][0]["description"] == "Investigate auth flow"
 
     def test_effort_status_shows_expanded(self, session_dir):
         """Expanded efforts are marked in status."""
@@ -1426,6 +1451,34 @@ class TestCloseEffortSessionId:
         knowledge = _load_knowledge(session_dir)
         node = knowledge["nodes"][0]
         assert "created_in_session" not in node
+
+
+# === Provenance forwarding in close_effort ===
+
+class TestCloseEffortProvenance:
+    def test_close_effort_stamps_provenance_on_extracted_nodes(self, session_dir):
+        """close_effort passes provenance_uri to add_knowledge for auto-extracted nodes."""
+        from unittest.mock import patch
+        open_effort(session_dir, "test-effort")
+        effort_file = session_dir / "efforts" / "test-effort.jsonl"
+        effort_file.parent.mkdir(parents=True, exist_ok=True)
+        effort_file.write_text(
+            json.dumps({"role": "user", "content": "We decided to use Redis for caching.", "ts": "t1"}) + "\n"
+            + json.dumps({"role": "assistant", "content": "Redis is great for caching.", "ts": "t2"}) + "\n",
+            encoding="utf-8",
+        )
+
+        mock_nodes = [{"node_type": "decision", "summary": "Use Redis for caching"}]
+        prov_uri = "chatlog://claude-code/abc123:L42"
+        with patch("oi.llm.summarize_effort", return_value="Discussed caching."):
+            with patch("oi.llm.extract_knowledge", return_value=mock_nodes):
+                close_effort(session_dir, effort_id="test-effort", provenance_uri=prov_uri)
+
+        knowledge = _load_knowledge(session_dir)
+        # Find the extracted node (not the effort node)
+        extracted = [n for n in knowledge["nodes"] if n["type"] == "decision"]
+        assert len(extracted) == 1
+        assert extracted[0]["provenance_uri"] == prov_uri
 
 
 # === Slice 8g: Pattern detection in close_effort ===

@@ -115,6 +115,16 @@ class TestFormatting:
         result = _fmt_effort_status('{"efforts":[]}')
         assert "No efforts" in result
 
+    def test_fmt_effort_status_shows_description(self):
+        from oi.mcp_server import _fmt_effort_status
+        raw = json.dumps({"efforts": [
+            {"id": "typed-conflicts", "status": "open", "active": True,
+             "description": "Explore conflict subtypes"},
+        ]})
+        result = _fmt_effort_status(raw)
+        assert "Goal: Explore conflict subtypes" in result
+        assert "typed-conflicts" in result
+
     def test_fmt_effort_status_with_efforts(self):
         from oi.mcp_server import _fmt_effort_status
         raw = json.dumps({"efforts": [
@@ -233,9 +243,13 @@ class TestToolDelegation:
         from oi.mcp_server import mcp_open_effort
 
         with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
-             patch("oi.mcp_server.open_effort", return_value='{"status":"opened","effort_id":"test-effort"}') as mock:
+             patch("oi.mcp_server.open_effort", return_value='{"status":"opened","effort_id":"test-effort"}') as mock, \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value="chatlog://claude-code/abc:L10"):
             result = mcp_open_effort(name="test-effort")
-            mock.assert_called_once_with(session_dir=tmp_path, name="test-effort")
+            call_kwargs = mock.call_args[1]
+            assert call_kwargs["session_dir"] == tmp_path
+            assert call_kwargs["name"] == "test-effort"
+            assert call_kwargs["provenance_uri"] == "chatlog://claude-code/abc:L10"
             assert "opened" in result
 
     def test_close_effort_no_id(self, tmp_path):
@@ -244,14 +258,13 @@ class TestToolDelegation:
         with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
              patch("oi.mcp_server._get_model", return_value="test-model"), \
              patch("oi.mcp_server._get_session_id", return_value="test-session"), \
-             patch("oi.mcp_server.close_effort", return_value='{"status":"concluded","effort_id":"x","summary":"done"}') as mock:
+             patch("oi.mcp_server.close_effort", return_value='{"status":"concluded","effort_id":"x","summary":"done"}') as mock, \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value="chatlog://claude-code/abc:L50"):
             result = mcp_close_effort()
-            mock.assert_called_once_with(
-                session_dir=tmp_path,
-                model="test-model",
-                effort_id=None,
-                session_id="test-session",
-            )
+            call_kwargs = mock.call_args[1]
+            assert call_kwargs["session_dir"] == tmp_path
+            assert call_kwargs["effort_id"] is None
+            assert call_kwargs["provenance_uri"] == "chatlog://claude-code/abc:L50"
             assert "concluded" in result
 
     def test_close_effort_with_id(self, tmp_path):
@@ -260,10 +273,12 @@ class TestToolDelegation:
         with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
              patch("oi.mcp_server._get_model", return_value="test-model"), \
              patch("oi.mcp_server._get_session_id", return_value="test-session"), \
-             patch("oi.mcp_server.close_effort", return_value='{"status":"concluded","effort_id":"my-effort","summary":"done"}') as mock:
+             patch("oi.mcp_server.close_effort", return_value='{"status":"concluded","effort_id":"my-effort","summary":"done"}') as mock, \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value=None):
             mcp_close_effort(id="my-effort")
             call_kwargs = mock.call_args[1]
             assert call_kwargs["effort_id"] == "my-effort"
+            assert call_kwargs["provenance_uri"] is None
 
     def test_effort_status(self, tmp_path):
         from oi.mcp_server import mcp_effort_status
@@ -287,9 +302,12 @@ class TestToolDelegation:
         from oi.mcp_server import mcp_reopen_effort
 
         with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
-             patch("oi.mcp_server.reopen_effort", return_value='{"status":"reopened","effort_id":"old-effort","prior_summary":"did stuff"}') as mock:
+             patch("oi.mcp_server.reopen_effort", return_value='{"status":"reopened","effort_id":"old-effort","prior_summary":"did stuff"}') as mock, \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value="chatlog://claude-code/abc:L99"):
             result = mcp_reopen_effort(id="old-effort")
-            mock.assert_called_once_with(session_dir=tmp_path, effort_id="old-effort")
+            call_kwargs = mock.call_args[1]
+            assert call_kwargs["effort_id"] == "old-effort"
+            assert call_kwargs["provenance_uri"] == "chatlog://claude-code/abc:L99"
             assert "reopened" in result
 
     def test_switch_effort(self, tmp_path):
@@ -309,13 +327,25 @@ class TestIntegration:
         """Open an effort via MCP wrapper, verify with effort_status."""
         from oi.mcp_server import mcp_open_effort, mcp_effort_status
 
-        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path):
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value=None):
             result = mcp_open_effort(name="integration-test")
             assert "opened" in result
 
             status = mcp_effort_status()
             assert "integration-test" in status
             assert "active" in status
+
+    def test_open_effort_with_description_shows_in_status(self, tmp_path):
+        """Description flows from open_effort through to effort_status display."""
+        from oi.mcp_server import mcp_open_effort, mcp_effort_status
+
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server.discover_claude_code_chatlog", return_value="chatlog://claude-code/test:L5"):
+            mcp_open_effort(name="my-effort", description="Fix the login bug")
+            status = mcp_effort_status()
+            assert "Goal: Fix the login bug" in status
+            assert "my-effort" in status
 
     def test_add_and_query_knowledge(self, tmp_path):
         """Add knowledge via MCP wrapper, query it back."""
