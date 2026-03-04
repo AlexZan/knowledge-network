@@ -304,6 +304,73 @@ The boost ratio decreased from 4.4x to 3.4x as more nodes gained cross-source su
 
 4. **Topic clustering is structurally visible.** The cross-source edge matrix reveals which topics are close (collapse ↔ Schrödinger: 756 edges) and which are distant (Schrödinger ↔ gravity: 1 edge). This is emergent from the linking — no topic tags or categories were assigned. The graph *is* the topic model.
 
+### Contested Node Analysis (19 nodes)
+
+All 19 contested nodes were manually classified. A node is `contested` when `weighted_contradicts >= 1.0 AND weighted_contradicts >= weighted_supports`.
+
+**Classification summary:**
+
+| Category | Count | Description |
+|----------|:-----:|-------------|
+| Theory vs standard QM | 3 | Author's theory genuinely contradicts conventional physics |
+| Theory evolution | 9 | Author's thinking evolved across conversations; earlier and later positions contradict |
+| Within-theory tension | 4 | Different scopes, scenarios, or abstraction levels within the same theory |
+| Borderline | 2 | Reasonable classification, debatable whether truly contradictory |
+| False positive | **0** | — |
+
+**False positive rate: 0/19 (0%)**
+
+#### Theory vs Standard QM (3)
+
+| Node | Doc | Supports | Contradicts | Tension |
+|------|-----|:--------:|:-----------:|---------|
+| `fact-006` | doc1 (reported) | 60 | 199 | Standard QM "collapse upon detection at screen" vs the entire theory. 28 contradicting edges from 3 documents. The most-contradicted node in the graph — correct, this is the claim the theory is built to oppose. |
+| `fact-450` | doc4 (first_person) | 0 | 2.3 | Collapse-inversion predicts information NOT in Hawking radiation. Contradicted by reported standard holography claims. |
+| `fact-456` | doc4 (first_person) | 1.8 | 2.3 | Same Hawking radiation topic as fact-450, different phrasing. |
+
+#### Theory Evolution Across Conversations (9)
+
+These represent the author exploring, revising, and refining ideas across separate ChatGPT conversations. The graph correctly identifies where earlier and later positions are incompatible.
+
+| Node | Doc | Tension |
+|------|-----|---------|
+| `fact-241` | doc2 | **Injected vs emergent randomness.** Author explored both views across turns; the graph caught the deliberation. Contradicted by 3 nodes that endorse the emergent view. |
+| `fact-195` | doc2 | Same randomness debate, opposite side — "randomness emerges internally" contradicted by the injected-randomness framing. |
+| `fact-132` | doc2 | "Haven't modeled speed of light yet" contradicted by `fact-136` which models it as max collapse throughput. Theory progressed between conversation turns. |
+| `fact-133` | doc2 | "Speed of light = causal reach limit" contradicted by the "not yet modeled" admission. Same evolution as fact-132, opposite direction. |
+| `fact-045` | doc1 | **Time-emergence inconsistency** (also found at 2-doc scale). "Collapse creates time" contradicted by doc2's "over time, patterns cluster." |
+| `fact-145` | doc2 | Binary memory flag vs gradual decay — implementation decision that evolved between turns. |
+| `fact-210` | doc2 | Collapse as emergent (after patterns stabilize) vs collapse as fundamental first structural entropy. Real theoretical tension. |
+| `fact-227` | doc2 | Three-tier collapse model includes observation-triggered tier, contradicted by "collapse not dependent on observation." |
+| `fact-287` | doc2 | Structural bias from repeated selection vs from cumulative descendant count. Definition refined between conversations. |
+
+**Key insight**: 9 of 19 contested nodes (47%) represent theory evolution — the author changed their mind or refined a concept between conversations. This is a unique capability of cross-conversation knowledge graphs: they surface intellectual development that would be invisible within any single conversation.
+
+#### Within-Theory Tensions (4)
+
+| Node | Doc | Tension |
+|------|-----|---------|
+| `decision-004` | doc2 | Implementation (reset memory_weight to 1.0) contradicts concept (gradual decay). Code diverged from theory. |
+| `fact-189` | doc2 | "No zero data points, only 1s registered" vs "fluctuations are not data." Same concept at different abstraction levels. |
+| `fact-298` | doc2 | Permanent anchors vs immediately-deactivated anchors. Model evolved within the same conversation. |
+| `fact-289` | doc2 | "Null catalysts" vs "1-bit cause." Terminological tension — same mechanism, incompatible descriptions. |
+
+#### Borderline (2)
+
+| Node | Doc | Issue |
+|------|-----|-------|
+| `fact-091` | doc2 | Fluctuations with vs without spatial position. Different stages of model development — contradictory only if both are taken as simultaneous claims. |
+| `fact-040` | doc1 | Entanglement as coherence-until-collapse (first_person) vs decoherence as loss-of-coherence (reported/doc3). Correct theory-vs-standard contradiction, but could also be read as complementary descriptions. |
+
+### Contested Node Stability Across Scale
+
+| Scale | Contested count | False positives |
+|-------|:-:|:-:|
+| 2 docs (353 nodes) | 19 | 0 |
+| 5 docs (643 nodes) | 19 | 0 |
+
+The contested count remained at 19 despite adding 290 nodes across 3 new documents. New documents added `supports` and `related_to` edges but did not create new contested classifications — the fundamental tensions in the theory were already captured by the first 2 documents. This suggests the contested set stabilizes early and represents genuine structural disagreements rather than noise.
+
 ---
 
 ## Architectural Decisions Captured
