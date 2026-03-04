@@ -82,7 +82,9 @@ def load_embeddings(session_dir: Path) -> dict:
     path = _embeddings_path(session_dir)
     if path.exists():
         try:
-            return json.loads(path.read_text())
+            data = json.loads(path.read_text())
+            if isinstance(data, dict) and "model" in data and "vectors" in data:
+                return data
         except (json.JSONDecodeError, KeyError):
             pass
     return {"model": "", "vectors": {}}
