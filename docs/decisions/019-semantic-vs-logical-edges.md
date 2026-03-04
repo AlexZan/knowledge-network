@@ -1,6 +1,6 @@
 # Decision 019: Semantic vs. Logical Edge Types
 
-**Status**: Accepted
+**Status**: Implemented
 **Date**: 2026-03-04
 
 ---

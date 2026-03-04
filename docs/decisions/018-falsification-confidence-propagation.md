@@ -1,7 +1,7 @@
 # Decision 018: Falsification Confidence Propagation
 
 **Date**: 2026-03-03
-**Status**: Accepted — architecture principle, implementation deferred to Rust port
+**Status**: Deferred
 
 ---
 

@@ -1,7 +1,7 @@
 # Decision 015: Graph-Aware Search & Bulk Ingestion Architecture
 
 **Date**: 2026-03-02
-**Status**: Brainstorming
+**Status**: Implemented
 
 ---
 

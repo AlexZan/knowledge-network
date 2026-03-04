@@ -1,7 +1,7 @@
 # Decision 012: Sessions as Audit Logs, Not Persistence Boundaries
 
 **Date**: 2026-02-23
-**Status**: Accepted
+**Status**: Implemented
 
 ---
 

@@ -1,5 +1,7 @@
 # Decision 004: Thread Context via Conclusion IDs
 
+**Status**: Superseded (by [010](010-one-chat-no-projects.md), [011](011-efforts-are-kg-nodes.md))
+
 ## Context
 
 Threads can be follow-ups to previous discussions. Without context, messages like "What about water?" are meaningless - water in relation to what?

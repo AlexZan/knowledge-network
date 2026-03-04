@@ -1,0 +1,129 @@
+# Decision State Registry
+# Single source of truth for decision lifecycle.
+# Statuses: draft, accepted, implemented, superseded, reverted, deferred
+
+- id: "001"
+  title: Scenario Before Stories
+  status: accepted
+  superseded_by: null
+  depends_on: []
+
+- id: "002"
+  title: Hybrid Testing Approach
+  status: accepted
+  superseded_by: null
+  depends_on: []
+
+- id: "003"
+  title: External Prompt Files
+  status: accepted
+  superseded_by: null
+  depends_on: []
+
+- id: "004"
+  title: Thread Context via Conclusion IDs
+  status: superseded
+  superseded_by: ["010", "011"]
+  depends_on: []
+
+- id: "005"
+  title: Conclusions as Knowledge Statements
+  status: superseded
+  superseded_by: ["011"]
+  depends_on: []
+
+- id: "006"
+  title: JSON Storage with Network/Thread Split
+  status: superseded
+  superseded_by: ["007"]
+  depends_on: []
+
+- id: "007"
+  title: SQLite Storage
+  status: reverted
+  superseded_by: null
+  depends_on: []
+
+- id: "008"
+  title: Dev-First Pivot
+  status: accepted
+  superseded_by: null
+  depends_on: []
+
+- id: "009"
+  title: Pipeline Drives Knowledge Network Features
+  status: accepted
+  superseded_by: null
+  depends_on: []
+
+- id: "010"
+  title: One Chat, No Projects
+  status: implemented
+  superseded_by: null
+  depends_on: []
+
+- id: "011"
+  title: Efforts Are KG Nodes
+  status: implemented
+  superseded_by: null
+  depends_on: []
+
+- id: "012"
+  title: Sessions as Audit Logs
+  status: implemented
+  superseded_by: null
+  depends_on: []
+
+- id: "013"
+  title: Unified KG Architecture
+  status: implemented
+  superseded_by: null
+  depends_on: []
+
+- id: "014"
+  title: Sessions as Perspective Containers
+  status: accepted
+  superseded_by: null
+  depends_on: ["012"]
+
+- id: "015"
+  title: Graph-Aware Search and Bulk Ingestion
+  status: implemented
+  superseded_by: null
+  depends_on: []
+
+- id: "016"
+  title: Port to Rust with WASM Targets
+  status: deferred
+  superseded_by: null
+  depends_on: []
+
+- id: "017"
+  title: Typed Conflicts
+  status: superseded
+  superseded_by: ["019"]
+  depends_on: []
+
+- id: "018"
+  title: Falsification Confidence Propagation
+  status: deferred
+  superseded_by: null
+  depends_on: []
+
+- id: "019"
+  title: Semantic vs Logical Edge Types
+  status: implemented
+  superseded_by: null
+  depends_on: []
+
+- id: "020"
+  title: Salience Confidence Separation
+  status: deferred
+  superseded_by: null
+  depends_on: []
+
+- id: "021"
+  title: Contradicts Gate Prompt
+  status: implemented
+  superseded_by: null
+  depends_on: []

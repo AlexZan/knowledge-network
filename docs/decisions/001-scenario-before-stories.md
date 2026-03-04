@@ -1,7 +1,7 @@
 # Decision 001: Scenario Document Before User Stories
 
-**Date:** 2025-01-11
-**Status:** Adopted
+**Date**: 2025-01-11
+**Status**: Accepted
 
 ---
 

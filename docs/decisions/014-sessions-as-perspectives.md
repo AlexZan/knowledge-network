@@ -1,7 +1,7 @@
 # Decision 014: Sessions as Perspective Containers
 
 **Date**: 2026-02-26
-**Status**: Accepted (extends [Decision 012](012-session-as-audit-log.md))
+**Status**: Accepted
 
 ---
 

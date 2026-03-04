@@ -1,5 +1,7 @@
 # Decision 005: Conclusions as Knowledge Statements
 
+**Status**: Superseded (by [011](011-efforts-are-kg-nodes.md))
+
 ## Context
 
 Initial implementation summarized conversations:

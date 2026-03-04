@@ -1,6 +1,6 @@
 # Decision 020: Salience, Corroboration, and Logical Confidence Are Distinct
 
-**Status**: Accepted (architecture direction — implementation deferred)
+**Status**: Deferred
 **Date**: 2026-03-04
 
 ---

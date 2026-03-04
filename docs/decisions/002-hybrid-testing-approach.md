@@ -1,7 +1,7 @@
 # Decision 002: Hybrid Testing Approach
 
-**Date:** 2025-01-11
-**Status:** Adopted
+**Date**: 2025-01-11
+**Status**: Accepted
 
 ---
 

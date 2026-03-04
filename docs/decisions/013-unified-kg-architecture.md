@@ -1,7 +1,7 @@
 # Decision 013: Unified KG Architecture — Mutability Gradient, Automerge Storage, Reactive Edges
 
 **Date**: 2026-02-26
-**Status**: Accepted
+**Status**: Implemented
 
 ---
 

@@ -1,7 +1,7 @@
 # Decision 016: Port to Rust with WASM Targets
 
 **Date**: 2026-03-03
-**Status**: Accepted
+**Status**: Deferred
 
 ---
 

@@ -1,5 +1,7 @@
 # Decision 006: JSON Storage with Network/Thread Split
 
+**Status**: Superseded (by [007](007-sqlite-storage.md))
+
 ## Context
 
 Single JSON file won't scale forever. Discussed alternatives: file sharding, SQLite, graph databases.

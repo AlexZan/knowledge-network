@@ -1,7 +1,7 @@
 # Decision 011: Efforts Are KG Nodes — Everything Under One Graph
 
 **Date**: 2026-02-22
-**Status**: Accepted
+**Status**: Implemented
 
 ---
 

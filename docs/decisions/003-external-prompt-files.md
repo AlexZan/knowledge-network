@@ -1,5 +1,7 @@
 # Decision 003: External Prompt Files
 
+**Status**: Accepted
+
 ## Context
 
 System prompts for LLM operations (like conclusion extraction) were initially hardcoded in Python.

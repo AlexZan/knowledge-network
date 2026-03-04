@@ -1,7 +1,7 @@
 # Decision 010: One Chat, No Projects
 
 **Date**: 2026-02-22
-**Status**: Accepted
+**Status**: Implemented
 
 ---
 

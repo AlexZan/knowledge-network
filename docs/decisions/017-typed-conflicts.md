@@ -1,6 +1,6 @@
-# Typed Conflicts: Beyond Binary Contradiction
+# Decision 017: Typed Conflicts — Beyond Binary Contradiction
 
-## Status: Brainstorm — needs dev agent exploration
+**Status**: Superseded (by [019](019-semantic-vs-logical-edges.md))
 
 ## Discovery
 

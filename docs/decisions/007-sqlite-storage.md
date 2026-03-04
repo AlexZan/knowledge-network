@@ -1,6 +1,8 @@
 # Decision 007: SQLite Storage [REVERTED]
 
-> **Status: REVERTED** - See `docs/lessons-learned/001-premature-optimization.md`
+**Status**: Reverted
+
+> See `docs/lessons-learned/001-premature-optimization.md`
 >
 > We optimized before proving the concept. The data model evolved significantly
 > during brainstorming (threads → efforts → self-evolving artifact schemas).
