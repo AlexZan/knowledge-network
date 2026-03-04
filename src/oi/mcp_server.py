@@ -377,6 +377,8 @@ def _fmt_ingest(result) -> str:
         lines.append(f"Claims: {result.claims_extracted} would be extracted")
     else:
         lines.append(f"Ingested: {result.source_path}")
+        if result.conversations_skipped:
+            lines.append(f"Conversations skipped (already ingested): {result.conversations_skipped}")
         lines.append(f"Nodes created: {len(result.nodes_created)}")
         lines.append(f"Chunks: {result.chunks_processed}/{result.chunks_total} processed")
         lines.append(f"Claims extracted: {result.claims_extracted}")

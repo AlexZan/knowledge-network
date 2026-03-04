@@ -10,6 +10,7 @@ from oi.chatgpt_parser import (
     _linearize_conversation,
     _extract_text,
     _extract_canvas,
+    _epoch_to_iso,
     parse_chatgpt_conversation,
     parse_chatgpt_file,
     parse_chatgpt_export,
@@ -19,7 +20,7 @@ from oi.chatgpt_parser import (
 # === Helpers ===
 
 
-def _node(node_id, role=None, text="", parent=None, children=None):
+def _node(node_id, role=None, text="", parent=None, children=None, create_time=None):
     """Build a mapping node. If role is None, message is null (structural node)."""
     if role is not None:
         message = {
@@ -27,6 +28,8 @@ def _node(node_id, role=None, text="", parent=None, children=None):
             "author": {"role": role},
             "content": {"content_type": "text", "parts": [text]},
         }
+        if create_time is not None:
+            message["create_time"] = create_time
     else:
         message = None
     return {
@@ -345,3 +348,56 @@ class TestParseExport:
         assert len(results) == 1
         assert results[0].metadata.title == "Zip conversation"
         assert results[0].chunks  # has at least one chunk
+
+
+# === Tests for authored_at / create_time propagation ===
+
+
+class TestEpochToIso:
+    def test_converts_epoch_to_iso(self):
+        """Known epoch converts to expected ISO 8601 string."""
+        # 2025-06-15 12:00:00 UTC
+        result = _epoch_to_iso(1750003200.0)
+        assert result.startswith("2025-06-15")
+        assert "T" in result
+
+    def test_none_returns_empty(self):
+        assert _epoch_to_iso(None) == ""
+
+    def test_invalid_returns_empty(self):
+        assert _epoch_to_iso("not-a-number") == ""
+
+
+class TestAuthoredAtOnChunks:
+    def test_turn_pair_has_authored_at(self):
+        """Turn pair chunk gets authored_at from user message create_time."""
+        mapping = {
+            "root": _node("root", parent=None),
+            "u1": _node("u1", role="user", text="Hello", parent="root", create_time=1750003200.0),
+            "a1": _node("a1", role="assistant", text="Hi", parent="u1", create_time=1750075260.0),
+        }
+        conv = {"id": "c1", "title": "T", "mapping": mapping, "current_node": "a1"}
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert len(doc.chunks) == 1
+        assert "authored_at" in doc.chunks[0].metadata
+        assert doc.chunks[0].metadata["authored_at"].startswith("2025-06-15")
+
+    def test_no_create_time_means_no_authored_at(self):
+        """Chunks without create_time on messages have empty metadata."""
+        conv = _simple_conv()
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert doc.chunks[0].metadata.get("authored_at") is None
+
+    def test_conversation_date_from_create_time(self):
+        """DocumentMetadata.date is set from conversation-level create_time."""
+        conv = _simple_conv()
+        conv["create_time"] = 1750003200.0  # 2025-06-15 UTC
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert doc.metadata.date is not None
+        assert str(doc.metadata.date) == "2025-06-15"
+
+    def test_conversation_without_create_time_no_date(self):
+        """No create_time on conversation → date remains None."""
+        conv = _simple_conv()
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert doc.metadata.date is None

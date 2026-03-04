@@ -165,6 +165,7 @@ def add_knowledge(
     reasoning: str = None,
     provenance_uri: str = None,
     voice: str = None,
+    authored_at: str = None,
     skip_linking: bool = False,
     skip_embed: bool = False,
 ) -> str:
@@ -206,6 +207,8 @@ def add_knowledge(
         node["provenance_uri"] = provenance_uri
     if voice and voice != "first_person":
         node["voice"] = voice
+    if authored_at:
+        node["authored_at"] = authored_at
     knowledge["nodes"].append(node)
 
     # Handle supersession: mark old nodes and transfer edges

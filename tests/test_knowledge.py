@@ -616,3 +616,34 @@ class TestSkipLinkingAndEmbed:
                 skip_embed=True,
             )
             mock_embed.assert_not_called()
+
+
+# === authored_at on nodes ===
+
+class TestAuthoredAt:
+    def test_authored_at_stored_on_node(self, session_dir):
+        """authored_at parameter is persisted on the node."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(
+            session_dir, "fact", "Some fact",
+            authored_at="2025-06-15T12:00:00+00:00",
+        )
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert node["authored_at"] == "2025-06-15T12:00:00+00:00"
+
+    def test_no_authored_at_means_no_field(self, session_dir):
+        """Nodes without authored_at don't have the field."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "Some fact")
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert "authored_at" not in node
+
+    def test_empty_authored_at_means_no_field(self, session_dir):
+        """Empty string authored_at is treated as absent."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "Some fact", authored_at="")
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert "authored_at" not in node

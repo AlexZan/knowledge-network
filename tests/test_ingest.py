@@ -11,6 +11,7 @@ from oi.ingest import (
     IngestionResult,
     PipelineResult,
     _build_extraction_prompt,
+    _get_ingested_conv_ids,
     extract_from_chunk,
     extract_document,
     ingest_document,
@@ -304,6 +305,27 @@ class TestExtractFromChunk:
         assert result.claims == []
         mock_chat.assert_not_called()
 
+    @patch("oi.ingest.chat")
+    def test_authored_at_propagated_from_chunk_metadata(self, mock_chat):
+        """Chunk metadata authored_at is copied to extracted claims."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A fact"},
+        ])
+        chunk = _make_chunk(content="Some content")
+        chunk.metadata = {"authored_at": "2025-06-15T12:00:00+00:00"}
+        result = extract_from_chunk(chunk, "docs/test.md")
+        assert result.claims[0].authored_at == "2025-06-15T12:00:00+00:00"
+
+    @patch("oi.ingest.chat")
+    def test_authored_at_empty_when_no_metadata(self, mock_chat):
+        """Claims have empty authored_at when chunk has no metadata."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A fact"},
+        ])
+        chunk = _make_chunk(content="Some content")
+        result = extract_from_chunk(chunk, "docs/test.md")
+        assert result.claims[0].authored_at == ""
+
 
 # === Phase 2: extract_document ===
 
@@ -515,6 +537,36 @@ class TestIngestDocument:
         result = ingest_document(doc, session_dir)
         assert result.source_path == "docs/notes.md"
         assert result.chunks_total == 2
+
+    @patch("oi.ingest.chat")
+    def test_authored_at_stored_on_node(self, mock_chat, session_dir):
+        """authored_at from chunk metadata reaches the knowledge graph node."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A fact"},
+        ])
+        chunk = _make_chunk(content="Some content")
+        chunk.metadata = {"authored_at": "2025-06-15T12:00:00+00:00"}
+        doc = _make_doc(chunks=[chunk])
+        ingest_document(doc, session_dir)
+
+        from oi.state import _load_knowledge
+        kg = _load_knowledge(session_dir)
+        node = kg["nodes"][0]
+        assert node["authored_at"] == "2025-06-15T12:00:00+00:00"
+
+    @patch("oi.ingest.chat")
+    def test_no_authored_at_when_chunk_lacks_metadata(self, mock_chat, session_dir):
+        """Nodes don't have authored_at when chunk metadata is empty."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A fact"},
+        ])
+        doc = _make_doc(chunks=[_make_chunk(content="Content")])
+        ingest_document(doc, session_dir)
+
+        from oi.state import _load_knowledge
+        kg = _load_knowledge(session_dir)
+        node = kg["nodes"][0]
+        assert "authored_at" not in node
 
 
 # === Phase 6: ingest_pipeline ===
@@ -759,6 +811,177 @@ class TestIngestChatGPTExport:
         assert result.claims_extracted == 2
         assert result.errors == []
         assert "test-src" in result.source_path
+
+
+# === Phase 8: Ingestion Resume/Checkpoint ===
+
+
+class TestGetIngestedConvIds:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    def test_empty_graph_returns_empty(self, session_dir):
+        """No nodes → empty set."""
+        result = _get_ingested_conv_ids(session_dir, "my-source")
+        assert result == set()
+
+    def test_finds_existing_conv_ids(self, session_dir):
+        """Nodes with matching provenance_uri → correct conv IDs extracted."""
+        from oi.state import _save_knowledge
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "provenance_uri": "chatgpt://my-source/conv-aaa#turn-0"},
+                {"id": "fact-002", "provenance_uri": "chatgpt://my-source/conv-aaa#turn-1"},
+                {"id": "fact-003", "provenance_uri": "chatgpt://my-source/conv-bbb#turn-0"},
+            ],
+            "edges": [],
+        })
+        result = _get_ingested_conv_ids(session_dir, "my-source")
+        assert result == {"conv-aaa", "conv-bbb"}
+
+    def test_ignores_other_sources(self, session_dir):
+        """Different source_id → not included."""
+        from oi.state import _save_knowledge
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "provenance_uri": "chatgpt://other-source/conv-xxx#turn-0"},
+                {"id": "fact-002", "provenance_uri": "chatgpt://my-source/conv-aaa#turn-0"},
+                {"id": "fact-003", "provenance_uri": "doc://my-source/file.md#intro"},
+            ],
+            "edges": [],
+        })
+        result = _get_ingested_conv_ids(session_dir, "my-source")
+        assert result == {"conv-aaa"}
+
+    def test_ignores_nodes_without_provenance(self, session_dir):
+        """Nodes missing provenance_uri are skipped."""
+        from oi.state import _save_knowledge
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001"},
+                {"id": "fact-002", "provenance_uri": ""},
+            ],
+            "edges": [],
+        })
+        result = _get_ingested_conv_ids(session_dir, "my-source")
+        assert result == set()
+
+
+class TestIngestChatGPTExportResume:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    @patch("oi.ingest.chat")
+    @patch("oi.chatgpt_parser.parse_chatgpt_export")
+    def test_skips_already_ingested(self, mock_parse, mock_chat, session_dir):
+        """Already-ingested conversation is skipped, new one is processed."""
+        from oi.ingest import ingest_chatgpt_export
+        from oi.sources import register_source
+        from oi.state import _save_knowledge
+
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+
+        # Pre-populate graph with nodes from conv-aaa
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Old fact",
+                 "provenance_uri": "chatgpt://test-src/conv-aaa#turn-0",
+                 "status": "active", "source": "test-src",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        # Parser returns 2 conversations: one already ingested, one new
+        mock_parse.return_value = [
+            _make_doc(chunks=[_make_chunk(content="Old content")], source_path="conv-aaa"),
+            _make_doc(chunks=[_make_chunk(content="New content")], source_path="conv-bbb"),
+        ]
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "New fact from conv-bbb"}
+        ])
+
+        result = ingest_chatgpt_export(
+            source_id="test-src", session_dir=session_dir,
+            skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.conversations_skipped == 1
+        # Only conv-bbb should be processed (1 chunk → 1 claim → 1 node)
+        assert len(result.nodes_created) == 1
+        assert result.errors == []
+
+    @patch("oi.ingest.chat")
+    @patch("oi.chatgpt_parser.parse_chatgpt_export")
+    def test_reports_skipped_count(self, mock_parse, mock_chat, session_dir):
+        """PipelineResult.conversations_skipped is set correctly."""
+        from oi.ingest import ingest_chatgpt_export
+        from oi.sources import register_source
+        from oi.state import _save_knowledge
+
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "A",
+                 "provenance_uri": "chatgpt://test-src/conv-1#turn-0",
+                 "status": "active", "source": "test-src",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+                {"id": "fact-002", "type": "fact", "summary": "B",
+                 "provenance_uri": "chatgpt://test-src/conv-2#turn-0",
+                 "status": "active", "source": "test-src",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        mock_parse.return_value = [
+            _make_doc(chunks=[_make_chunk(content="C1")], source_path="conv-1"),
+            _make_doc(chunks=[_make_chunk(content="C2")], source_path="conv-2"),
+            _make_doc(chunks=[_make_chunk(content="C3")], source_path="conv-3"),
+        ]
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "New"}
+        ])
+
+        result = ingest_chatgpt_export(
+            source_id="test-src", session_dir=session_dir,
+            skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.conversations_skipped == 2
+        assert len(result.nodes_created) == 1  # only conv-3
+
+    @patch("oi.ingest.chat")
+    @patch("oi.chatgpt_parser.parse_chatgpt_export")
+    def test_processes_all_when_none_ingested(self, mock_parse, mock_chat, session_dir):
+        """No prior ingestion → all conversations processed."""
+        from oi.ingest import ingest_chatgpt_export
+        from oi.sources import register_source
+
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+
+        mock_parse.return_value = [
+            _make_doc(chunks=[_make_chunk(content="C1")], source_path="conv-1"),
+            _make_doc(chunks=[_make_chunk(content="C2")], source_path="conv-2"),
+        ]
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A fact"}
+        ])
+
+        result = ingest_chatgpt_export(
+            source_id="test-src", session_dir=session_dir,
+            skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.conversations_skipped == 0
+        assert len(result.nodes_created) == 2
 
 
 # === Phase 5: LLM integration tests ===

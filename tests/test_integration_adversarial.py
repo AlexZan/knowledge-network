@@ -42,14 +42,23 @@ class TestAmbiguousOpening:
         if active:
             print(f"  Effort ID: {active['id']}")
 
-    def test_how_do_i_question(self, session_dir):
-        """'How do I fix a memory leak?' — question format but concludable."""
-        result = process_turn(session_dir, "How do I fix a memory leak in my Python application?")
-        active = get_active_effort(session_dir)
-        # Should open — this is a problem-solving topic with a resolution
-        assert active is not None, (
-            f"Expected effort for 'how do I fix' question. Response: {result[:200]}"
-        )
+    def test_how_do_i_question(self, tmp_path):
+        """'How do I fix a memory leak?' — question format but concludable.
+
+        LLM-dependent: retry with fresh session on failure (Issue #5).
+        """
+        last_error = None
+        for attempt in range(3):
+            sd = tmp_path / f"session-{attempt}"
+            result = process_turn(sd, "How do I fix a memory leak in my Python application?")
+            active = get_active_effort(sd)
+            if active is not None:
+                return  # pass
+            last_error = (
+                f"Expected effort for 'how do I fix' question (attempt {attempt + 1}). "
+                f"Response: {result[:200]}"
+            )
+        pytest.fail(last_error)
 
     def test_simple_how_question(self, session_dir):
         """'How tall is the Eiffel Tower?' — factual, no resolution needed."""

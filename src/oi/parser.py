@@ -37,6 +37,7 @@ class DocumentChunk(BaseModel):
     heading_path: list[str] = []
     provenance_uri: str  # doc://path#section-slug
     char_count: int
+    metadata: dict = {}  # Extra metadata (e.g. authored_at from ChatGPT)
 
 
 class ParsedDocument(BaseModel):

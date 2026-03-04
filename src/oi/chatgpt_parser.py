@@ -15,10 +15,21 @@ from __future__ import annotations
 import json
 import tempfile
 import zipfile
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Union
 
 from .parser import DocumentChunk, DocumentMetadata, ParsedDocument
+
+
+def _epoch_to_iso(epoch: float | int | None) -> str:
+    """Convert Unix epoch to ISO 8601 string, or return empty string if None."""
+    if epoch is None:
+        return ""
+    try:
+        return datetime.fromtimestamp(float(epoch), tz=timezone.utc).isoformat()
+    except (ValueError, TypeError, OSError):
+        return ""
 
 
 def _linearize_conversation(mapping: dict, current_node: str) -> list[dict]:
@@ -96,11 +107,21 @@ def parse_chatgpt_conversation(conv: dict, source_id: str) -> ParsedDocument:
 
     provenance_uri = build_chatgpt_uri(source_id, conv_id)
 
+    # Conversation-level date from create_time
+    conv_date = None
+    conv_create_time = conv.get("create_time")
+    if conv_create_time is not None:
+        try:
+            conv_date = datetime.fromtimestamp(float(conv_create_time), tz=timezone.utc).date()
+        except (ValueError, TypeError, OSError):
+            pass
+
     metadata = DocumentMetadata(
         title=title,
         format="chatgpt",
         source_path=conv_id,
         provenance_uri=provenance_uri,
+        date=conv_date,
     )
 
     messages = _linearize_conversation(mapping, current_node)
@@ -119,6 +140,10 @@ def parse_chatgpt_conversation(conv: dict, source_id: str) -> ParsedDocument:
         if canvas is not None:
             name, doc_content = canvas
             chunk_uri = f"{provenance_uri}#canvas-{canvas_n}"
+            chunk_meta = {}
+            authored_at = _epoch_to_iso(msg.get("create_time"))
+            if authored_at:
+                chunk_meta["authored_at"] = authored_at
             chunks.append(DocumentChunk(
                 chunk_id=f"chatgpt://{source_id}/{conv_id}#canvas-{canvas_n}",
                 content=doc_content,
@@ -126,6 +151,7 @@ def parse_chatgpt_conversation(conv: dict, source_id: str) -> ParsedDocument:
                 heading_path=[title, name],
                 provenance_uri=chunk_uri,
                 char_count=len(doc_content),
+                metadata=chunk_meta,
             ))
             canvas_n += 1
             i += 1
@@ -146,6 +172,10 @@ def parse_chatgpt_conversation(conv: dict, source_id: str) -> ParsedDocument:
                         chunk_uri = f"{provenance_uri}#turn-{turn_n}"
                         turn_label = f"Turn {turn_n + 1}"
                         content = f"**User:** {user_text}\n\n**Assistant:** {assistant_text}"
+                        chunk_meta = {}
+                        authored_at = _epoch_to_iso(msg.get("create_time"))
+                        if authored_at:
+                            chunk_meta["authored_at"] = authored_at
                         chunks.append(DocumentChunk(
                             chunk_id=f"chatgpt://{source_id}/{conv_id}#turn-{turn_n}",
                             content=content,
@@ -153,6 +183,7 @@ def parse_chatgpt_conversation(conv: dict, source_id: str) -> ParsedDocument:
                             heading_path=[title, turn_label],
                             provenance_uri=chunk_uri,
                             char_count=len(content),
+                            metadata=chunk_meta,
                         ))
                         turn_n += 1
                     i += 2
