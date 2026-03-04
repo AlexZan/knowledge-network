@@ -118,26 +118,46 @@ def _build_link_prompt_single(node_a: dict, node_b: dict) -> str:
             "'reported'/'described' nodes represent external views, not the author's own claims.\n"
         )
 
+    # Surface abstraction_level metadata when present
+    abs_a = node_a.get("abstraction_level")
+    abs_b = node_b.get("abstraction_level")
+    abs_note = ""
+    if abs_a is not None or abs_b is not None:
+        parts = []
+        if abs_a is not None:
+            parts.append(f"Node A abstraction_level={abs_a}")
+        if abs_b is not None:
+            parts.append(f"Node B abstraction_level={abs_b}")
+        abs_note = (
+            f"\nAbstraction: {', '.join(parts)}. "
+            "Different abstraction levels suggest related_to rather than supports/contradicts.\n"
+        )
+
     cap = _voice_caps_contradicts(node_a, node_b)
-    contradicts_rule = (
-        "   SKIP contradicts — both nodes are reported/described views, not first-person assertions. Use related_to instead."
-        if cap else
-        "5. Does Node A directly and logically refute Node B as a factual claim — not just describe a different scenario or aspect? "
-        "Only use contradicts when both claims cannot simultaneously be true. If YES → \"contradicts\""
-    )
+    if cap:
+        contradicts_rules = (
+            "4. SKIP contradicts — both nodes are reported/described views, not first-person assertions. Use related_to instead."
+        )
+    else:
+        contradicts_rules = (
+            "4a. Could both claims be true if they describe the same concept at different detail levels, "
+            "use different terminology, or apply in different contexts? If YES → \"related_to\"\n"
+            "4b. Does accepting Node A force you to reject Node B — they cannot both be true in ANY context? "
+            "If YES → \"contradicts\""
+        )
 
     return (
         "Compare these two knowledge nodes and classify their relationship.\n\n"
         f"Node A (new): [{node_a.get('type', '')}] {node_a.get('summary', '')}\n"
         f"Node B (existing): [{node_b.get('type', '')}] {node_b.get('summary', '')}\n"
-        f"{voice_note}\n"
+        f"{voice_note}{abs_note}\n"
         "Follow these steps:\n"
         "1. Are they about the same topic, domain, or system at all? If NO → \"none\"\n"
         "2. Are they at the same abstraction level and scope? If one is a high-level principle and the other an implementation detail, "
         "or they describe different scenarios rather than conflicting claims → \"related_to\"\n"
         "3. Is Node A a preference or intent statement (e.g. 'I want to explore X')? "
         "Preferences do not logically support factual claims → \"related_to\"\n"
-        f"4. {contradicts_rule}\n"
+        f"{contradicts_rules}\n"
         "5. Does Node A provide evidence for, reinforce, or logically imply Node B — not just discuss the same topic? "
         "Semantic similarity alone is NOT enough for supports. If YES → \"supports\"\n"
         "6. If related but none of the above clearly apply → \"related_to\"\n\n"
@@ -159,7 +179,11 @@ def link_nodes(new_node: dict, candidate: dict, model: str) -> dict:
             {"role": "user", "content": prompt},
         ]
 
-        raw = chat(messages, model, temperature=0)
+        raw = chat(
+            messages, model, temperature=0,
+            phase="link",
+            log_meta={"new_node": new_node.get("id"), "candidate": candidate.get("id")},
+        )
         text = raw.strip()
 
         # Strip markdown fences
@@ -196,29 +220,35 @@ def batch_link_nodes(new_node: dict, candidates: list[dict], model: str) -> list
 
     try:
         voice_a = new_node.get("voice", "first_person")
+        abs_a = new_node.get("abstraction_level")
         candidate_lines = []
         for i, c in enumerate(candidates):
             node = c["node"]
             voice_b = node.get("voice", "first_person")
+            abs_b = node.get("abstraction_level")
             voice_tag = f" [voice={voice_b}]" if voice_b != "first_person" else ""
+            abs_tag = f" [abstraction_level={abs_b}]" if abs_b is not None else ""
             cap_note = " (contradicts NOT allowed — both are reported/described)" if _voice_caps_contradicts(new_node, node) else ""
             candidate_lines.append(
-                f"  {i+1}. [{node.get('type', '')}] (id: {node['id']}){voice_tag}{cap_note} {node.get('summary', '')}"
+                f"  {i+1}. [{node.get('type', '')}] (id: {node['id']}){voice_tag}{abs_tag}{cap_note} {node.get('summary', '')}"
             )
 
         voice_note = f"\nNode A voice={voice_a}.\n" if voice_a != "first_person" else ""
+        abs_note = f"Node A abstraction_level={abs_a}.\n" if abs_a is not None else ""
 
         prompt = (
             "Classify the relationship between Node A and each candidate node.\n\n"
             f"Node A (new): [{new_node.get('type', '')}] {new_node.get('summary', '')}\n"
-            f"{voice_note}\n"
+            f"{voice_note}{abs_note}\n"
             "Candidates:\n"
             + "\n".join(candidate_lines) + "\n\n"
             "For each candidate, follow these steps:\n"
             "1. Are they about the same topic at all? If NO → \"none\"\n"
             "2. Are they at the same abstraction level? Different scenarios, different scopes, or different aspects of the same topic → \"related_to\"\n"
             "3. Is Node A a preference or intent statement? Preferences do not logically support factual claims → \"related_to\"\n"
-            "4. Does Node A directly refute the candidate — both claims cannot simultaneously be true? "
+            "4a. Could both claims be true if they describe the same concept at different detail levels, "
+            "use different terminology, or apply in different contexts? If YES → \"related_to\"\n"
+            "4b. Does accepting Node A force you to reject the candidate — they cannot both be true in ANY context? "
             "Never use contradicts when the candidate is marked (contradicts NOT allowed). If YES → \"contradicts\"\n"
             "5. Does Node A provide logical evidence for or imply the candidate — semantic similarity alone is NOT enough? If YES → \"supports\"\n"
             "6. If related but unclear → \"related_to\"\n\n"
@@ -231,7 +261,11 @@ def batch_link_nodes(new_node: dict, candidates: list[dict], model: str) -> list
             {"role": "user", "content": prompt},
         ]
 
-        raw = chat(messages, model, temperature=0)
+        raw = chat(
+            messages, model, temperature=0,
+            phase="link_batch",
+            log_meta={"new_node": new_node.get("id"), "candidate_count": len(candidates)},
+        )
         text = raw.strip()
 
         # Strip markdown fences

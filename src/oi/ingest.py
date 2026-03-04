@@ -31,6 +31,7 @@ class ExtractedClaim(BaseModel):
     source_path: str
     reasoning: str = ""
     voice: str = "first_person"  # "first_person" | "reported" | "described"
+    authored_at: str = ""  # ISO 8601 timestamp from source (e.g. ChatGPT create_time)
 
 
 class ChunkExtractionResult(BaseModel):
@@ -76,6 +77,7 @@ class PipelineResult(BaseModel):
     claims_extracted: int = 0
     edges_created: int = 0
     contradictions_found: int = 0
+    conversations_skipped: int = 0
     conflicts: dict = {}  # {total, auto_resolvable, strong_recommendations, ambiguous}
     errors: list[str] = []
     dry_run: bool = False
@@ -156,7 +158,12 @@ def extract_from_chunk(
     valid_types = set(get_extractable_types())
 
     try:
-        raw = chat(messages, model=model or DEFAULT_MODEL)
+        raw = chat(
+            messages,
+            model=model or DEFAULT_MODEL,
+            phase="extract",
+            log_meta={"chunk_id": chunk.chunk_id, "source": source_path},
+        )
         text = raw.strip()
         # Strip markdown fences if present
         if text.startswith("```"):
@@ -181,6 +188,9 @@ def extract_from_chunk(
                 continue
             raw_voice = str(n.get("voice", "first_person")).strip().lower()
             voice = raw_voice if raw_voice in ("first_person", "reported", "described") else "first_person"
+            authored_at = ""
+            if hasattr(chunk, "metadata") and chunk.metadata:
+                authored_at = chunk.metadata.get("authored_at", "")
             claims.append(
                 ExtractedClaim(
                     node_type=ntype,
@@ -189,6 +199,7 @@ def extract_from_chunk(
                     source_path=source_path,
                     reasoning=str(n.get("reasoning", "")).strip(),
                     voice=voice,
+                    authored_at=authored_at,
                 )
             )
 
@@ -301,6 +312,7 @@ def ingest_document(
                 reasoning=claim.reasoning,
                 provenance_uri=claim.provenance_uri,
                 voice=claim.voice,
+                authored_at=claim.authored_at or None,
                 skip_linking=True,
                 skip_embed=True,
             )
@@ -474,6 +486,27 @@ def ingest_pipeline(
     )
 
 
+def _get_ingested_conv_ids(session_dir: Path, source_id: str) -> set[str]:
+    """Return conversation IDs already ingested for this ChatGPT source.
+
+    Scans knowledge.yaml for nodes with provenance_uri matching
+    chatgpt://{source_id}/ prefix and extracts unique conversation IDs.
+    """
+    from .state import _load_knowledge
+
+    knowledge = _load_knowledge(session_dir)
+    prefix = f"chatgpt://{source_id}/"
+    ids: set[str] = set()
+    for node in knowledge.get("nodes", []):
+        uri = node.get("provenance_uri", "")
+        if uri.startswith(prefix):
+            rest = uri[len(prefix):]
+            conv_id = rest.split("#")[0]
+            if conv_id:
+                ids.add(conv_id)
+    return ids
+
+
 def ingest_chatgpt_export(
     source_id: str,
     session_dir: Path,
@@ -537,6 +570,20 @@ def ingest_chatgpt_export(
             errors=[f"Parse failed: {e}"],
         )
 
+    # Filter out already-ingested conversations
+    already_ingested = _get_ingested_conv_ids(session_dir, source_id) if not dry_run else set()
+    new_docs = []
+    conversations_skipped = 0
+    for doc in docs:
+        conv_id = doc.metadata.source_path
+        if conv_id in already_ingested:
+            conversations_skipped += 1
+        else:
+            new_docs.append(doc)
+
+    if not dry_run:
+        docs = new_docs
+
     n_matched = len(docs)
     source_path_label = f"{source_id} ({n_matched} conversations)"
 
@@ -566,6 +613,9 @@ def ingest_chatgpt_export(
             errors=errors,
             dry_run=True,
         )
+
+    if conversations_skipped:
+        _progress("dedup", f"{conversations_skipped} already ingested, skipping")
 
     # Stage 3: Write to graph
     _progress("extract+write", f"{n_matched} conversations")
@@ -635,6 +685,7 @@ def ingest_chatgpt_export(
         claims_extracted=all_claims_count,
         edges_created=edges_created,
         contradictions_found=contradictions_found,
+        conversations_skipped=conversations_skipped,
         conflicts=conflicts,
         errors=errors,
         dry_run=False,

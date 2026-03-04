@@ -12,6 +12,8 @@ from oi.linker import (
     run_linking,
     link_new_nodes,
     LinkingResult,
+    _voice_caps_contradicts,
+    _build_link_prompt_single,
 )
 
 
@@ -268,7 +270,7 @@ class TestBatchLinkNodes:
         # First call returns wrong-length array (triggers fallback),
         # subsequent calls return per-pair results
         call_count = [0]
-        def mock_chat(messages, model, temperature=0):
+        def mock_chat(messages, model, temperature=0, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 return '[{"edge_type": "supports", "reasoning": "only one"}]'
@@ -290,7 +292,7 @@ class TestBatchLinkNodes:
         ]
 
         call_count = [0]
-        def mock_chat(messages, model, temperature=0):
+        def mock_chat(messages, model, temperature=0, **kwargs):
             call_count[0] += 1
             if call_count[0] == 1:
                 raise RuntimeError("API error")
@@ -519,3 +521,90 @@ class TestLinkNewNodes:
         assert isinstance(result.nodes_skipped, int)
         assert isinstance(result.errors, list)
         assert result.nodes_skipped == 1  # no candidates found
+
+
+# === TestVoiceCapsContradicts (regression guard, Decision 019) ===
+
+
+class TestVoiceCapsContradicts:
+    def test_two_reported_nodes_capped(self):
+        a = {"voice": "reported"}
+        b = {"voice": "reported"}
+        assert _voice_caps_contradicts(a, b) is True
+
+    def test_two_described_nodes_capped(self):
+        a = {"voice": "described"}
+        b = {"voice": "described"}
+        assert _voice_caps_contradicts(a, b) is True
+
+    def test_reported_vs_described_capped(self):
+        a = {"voice": "reported"}
+        b = {"voice": "described"}
+        assert _voice_caps_contradicts(a, b) is True
+
+    def test_first_person_vs_reported_not_capped(self):
+        a = {"voice": "first_person"}
+        b = {"voice": "reported"}
+        assert _voice_caps_contradicts(a, b) is False
+
+    def test_two_first_person_not_capped(self):
+        a = {"voice": "first_person"}
+        b = {"voice": "first_person"}
+        assert _voice_caps_contradicts(a, b) is False
+
+    def test_missing_voice_defaults_first_person(self):
+        a = {}
+        b = {"voice": "reported"}
+        assert _voice_caps_contradicts(a, b) is False
+
+
+# === TestAbstractionLevel ===
+
+
+class TestAbstractionLevel:
+    def test_abstraction_level_surfaced_in_single_prompt(self):
+        """Nodes with abstraction_level get it shown in the prompt."""
+        a = _node("fact-001", "High-level principle")
+        a["abstraction_level"] = 1
+        b = _node("fact-002", "Implementation detail")
+        b["abstraction_level"] = 3
+        prompt = _build_link_prompt_single(a, b)
+        assert "abstraction_level=1" in prompt
+        assert "abstraction_level=3" in prompt
+
+    def test_no_abstraction_level_no_note(self):
+        """Nodes without abstraction_level produce no abstraction note."""
+        a = _node("fact-001", "Claim A")
+        b = _node("fact-002", "Claim B")
+        prompt = _build_link_prompt_single(a, b)
+        assert "abstraction_level" not in prompt
+
+    def test_one_node_has_abstraction_level(self):
+        """Only one node having abstraction_level still surfaces it."""
+        a = _node("fact-001", "Claim A")
+        a["abstraction_level"] = 2
+        b = _node("fact-002", "Claim B")
+        prompt = _build_link_prompt_single(a, b)
+        assert "Node A abstraction_level=2" in prompt
+        assert "Node B abstraction_level" not in prompt
+
+    def test_abstraction_level_in_batch_prompt(self):
+        """batch_link_nodes includes abstraction_level tags in candidate lines."""
+        new = _node("fact-003", "JWT tokens must be refreshed before expiry")
+        new["abstraction_level"] = 1
+        c1 = _node("fact-001", "API uses JWT tokens for authentication")
+        c1["abstraction_level"] = 3
+        c2 = _node("fact-002", "JWT uses RS256")
+        candidates = [
+            {"node": c1, "score": 0.5},
+            {"node": c2, "score": 0.3},
+        ]
+
+        mock_response = '[{"edge_type": "related_to", "reasoning": "r1"}, {"edge_type": "supports", "reasoning": "r2"}]'
+        with patch("oi.linker.chat", return_value=mock_response) as mock_chat:
+            batch_link_nodes(new, candidates, "test-model")
+
+        prompt = mock_chat.call_args[0][0][1]["content"]
+        assert "abstraction_level=1" in prompt  # Node A
+        assert "abstraction_level=3" in prompt  # candidate 1
+        assert "[abstraction_level=" not in prompt or "abstraction_level" in prompt  # candidate 2 has no tag

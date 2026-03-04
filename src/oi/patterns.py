@@ -231,7 +231,7 @@ def detect_principle(cluster_summaries: list[str], model: str) -> dict | None:
     ]
 
     try:
-        raw = chat(messages, model)
+        raw = chat(messages, model, phase="pattern", log_meta={"fact_count": len(cluster_summaries)})
         text = raw.strip()
         if text.startswith("```"):
             lines = text.split("\n")

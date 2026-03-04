@@ -520,7 +520,7 @@ def close_effort(session_dir: Path, model: str = None, effort_id: str = None, se
         summary = f"Brief effort: {effort_id} (too short to summarize)"
         extracted_nodes = []
     else:
-        summary = llm_summarize(effort_content, model or DEFAULT_MODEL)
+        summary = llm_summarize(effort_content, effort_id=effort_id, model=model or DEFAULT_MODEL)
         raw_extracted = llm_extract_knowledge(effort_content, effort_id, model or DEFAULT_MODEL)
         extracted_nodes = []
         for node in raw_extracted:

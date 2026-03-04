@@ -2,6 +2,8 @@
 
 import json
 import os
+from datetime import datetime, timezone
+from pathlib import Path
 from litellm import completion
 
 from .schemas import get_extractable_types, build_extraction_type_list
@@ -11,25 +13,66 @@ from .schemas import get_extractable_types, build_extraction_type_list
 DEFAULT_MODEL = os.environ.get("OI_MODEL", "cerebras/gpt-oss-120b")
 
 
-def chat(messages: list[dict], model: str = DEFAULT_MODEL, temperature: float = None) -> str:
+def _log_llm_call(phase: str, model: str, messages: list[dict], response: str, meta: dict | None = None) -> None:
+    """Append one JSONL line to {OI_SESSION_DIR}/llm_log.jsonl. Silently fails on error."""
+    session_dir = os.environ.get("OI_SESSION_DIR") or str(Path.home() / ".oi")
+    if not session_dir:
+        return
+    try:
+        path = Path(session_dir) / "llm_log.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "phase": phase,
+            "model": model,
+            "prompt": messages,
+            "response": response,
+        }
+        if meta:
+            entry["meta"] = meta
+        with open(path, "a") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except Exception:
+        pass
+
+
+def chat(
+    messages: list[dict],
+    model: str = DEFAULT_MODEL,
+    temperature: float = None,
+    phase: str = None,
+    log_meta: dict = None,
+) -> str:
     """Send messages to LLM and get response text."""
     kwargs = {"model": model, "messages": messages}
     if temperature is not None:
         kwargs["temperature"] = temperature
     response = completion(**kwargs)
-    return response.choices[0].message.content
+    text = response.choices[0].message.content
+    if phase:
+        _log_llm_call(phase, model, messages, text, log_meta)
+    return text
 
 
-def chat_with_tools(messages: list[dict], tools: list[dict], model: str = DEFAULT_MODEL):
+def chat_with_tools(
+    messages: list[dict],
+    tools: list[dict],
+    model: str = DEFAULT_MODEL,
+    phase: str = None,
+    log_meta: dict = None,
+):
     """Send messages to LLM with tool definitions.
 
     Returns the full response message object (may contain tool_calls).
     """
     response = completion(model=model, messages=messages, tools=tools)
-    return response.choices[0].message
+    msg = response.choices[0].message
+    if phase:
+        _log_llm_call(phase, model, messages, str(msg.content), log_meta)
+    return msg
 
 
-def summarize_effort(effort_content: str, model: str = DEFAULT_MODEL) -> str:
+def summarize_effort(effort_content: str, effort_id: str = "", model: str = DEFAULT_MODEL) -> str:
     """Summarize an effort's raw log into a concise paragraph."""
     messages = [
         {"role": "system", "content": "You summarize conversations concisely."},
@@ -40,7 +83,7 @@ def summarize_effort(effort_content: str, model: str = DEFAULT_MODEL) -> str:
             f"{effort_content}"
         )}
     ]
-    return chat(messages, model)
+    return chat(messages, model, phase="effort_summarize", log_meta={"effort_id": effort_id})
 
 
 def extract_knowledge(effort_content: str, effort_id: str, model: str = DEFAULT_MODEL) -> list[dict]:
@@ -69,7 +112,7 @@ def extract_knowledge(effort_content: str, effort_id: str, model: str = DEFAULT_
         )}
     ]
     try:
-        raw = chat(messages, model)
+        raw = chat(messages, model, phase="effort_extract", log_meta={"effort_id": effort_id})
         text = raw.strip()
         if text.startswith("```"):
             lines = text.split("\n")
@@ -87,5 +130,3 @@ def extract_knowledge(effort_content: str, effort_id: str, model: str = DEFAULT_
         return valid
     except Exception:
         return []
-
-
