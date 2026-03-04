@@ -164,6 +164,7 @@ def add_knowledge(
     instance_count: int = None,
     reasoning: str = None,
     provenance_uri: str = None,
+    voice: str = None,
     skip_linking: bool = False,
     skip_embed: bool = False,
 ) -> str:
@@ -203,6 +204,8 @@ def add_knowledge(
         node["reasoning"] = reasoning
     if provenance_uri:
         node["provenance_uri"] = provenance_uri
+    if voice and voice != "first_person":
+        node["voice"] = voice
     knowledge["nodes"].append(node)
 
     # Handle supersession: mark old nodes and transfer edges

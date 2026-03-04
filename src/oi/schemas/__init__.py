@@ -53,6 +53,11 @@ def get_linkable_edge_types() -> list[str]:
     return [name for name, cfg in load_schema().get("edge_types", {}).items() if cfg.get("linkable")]
 
 
+def get_logical_edge_types() -> list[str]:
+    """Get edge types that contribute to confidence computation (logical=true)."""
+    return [name for name, cfg in load_schema().get("edge_types", {}).items() if cfg.get("logical")]
+
+
 def get_all_edge_type_names() -> list[str]:
     """Get all edge type names."""
     return list(load_schema().get("edge_types", {}).keys())

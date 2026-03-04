@@ -15,9 +15,17 @@ from pydantic import BaseModel
 
 from .decay import extract_keywords
 from .llm import chat
-from .schemas import get_linkable_edge_types
+from .schemas import get_linkable_edge_types, load_schema
 from .search import graph_walk
 from .state import _load_knowledge, _save_knowledge
+
+
+def _node_type_is_linkable(node_type: str) -> bool:
+    """Return False if the node's type has linkable: false in the schema."""
+    schema = load_schema()
+    type_cfg = schema.get("node_types", {}).get(node_type, {})
+    # If the key is absent, default to True (linkable)
+    return type_cfg.get("linkable", True)
 
 
 class LinkingResult(BaseModel):
@@ -47,6 +55,8 @@ def find_candidates(new_node: dict, graph: dict, max_candidates: int = 8) -> lis
         if node["id"] == new_node["id"]:
             continue
         if node.get("status") != "active":
+            continue
+        if not _node_type_is_linkable(node.get("type", "")):
             continue
 
         node_keywords = extract_keywords(node.get("summary", ""))
@@ -85,27 +95,65 @@ def find_candidates(new_node: dict, graph: dict, max_candidates: int = 8) -> lis
     return candidates[:max_candidates]
 
 
+def _voice_caps_contradicts(node_a: dict, node_b: dict) -> bool:
+    """Return True if voice metadata forbids a contradicts edge between these nodes.
+
+    Two 'reported' or 'described' nodes describing external views should not
+    contradict each other — they're both documenting what someone else claims.
+    A first_person node CAN contradict a reported node (that's the intended relationship).
+    """
+    voice_a = node_a.get("voice", "first_person")
+    voice_b = node_b.get("voice", "first_person")
+    non_first_person = {"reported", "described"}
+    return voice_a in non_first_person and voice_b in non_first_person
+
+
+def _build_link_prompt_single(node_a: dict, node_b: dict) -> str:
+    voice_a = node_a.get("voice", "first_person")
+    voice_b = node_b.get("voice", "first_person")
+    voice_note = ""
+    if voice_a != "first_person" or voice_b != "first_person":
+        voice_note = (
+            f"\nNote: Node A voice={voice_a}, Node B voice={voice_b}. "
+            "'reported'/'described' nodes represent external views, not the author's own claims.\n"
+        )
+
+    cap = _voice_caps_contradicts(node_a, node_b)
+    contradicts_rule = (
+        "   SKIP contradicts — both nodes are reported/described views, not first-person assertions. Use related_to instead."
+        if cap else
+        "5. Does Node A directly and logically refute Node B as a factual claim — not just describe a different scenario or aspect? "
+        "Only use contradicts when both claims cannot simultaneously be true. If YES → \"contradicts\""
+    )
+
+    return (
+        "Compare these two knowledge nodes and classify their relationship.\n\n"
+        f"Node A (new): [{node_a.get('type', '')}] {node_a.get('summary', '')}\n"
+        f"Node B (existing): [{node_b.get('type', '')}] {node_b.get('summary', '')}\n"
+        f"{voice_note}\n"
+        "Follow these steps:\n"
+        "1. Are they about the same topic, domain, or system at all? If NO → \"none\"\n"
+        "2. Are they at the same abstraction level and scope? If one is a high-level principle and the other an implementation detail, "
+        "or they describe different scenarios rather than conflicting claims → \"related_to\"\n"
+        "3. Is Node A a preference or intent statement (e.g. 'I want to explore X')? "
+        "Preferences do not logically support factual claims → \"related_to\"\n"
+        f"4. {contradicts_rule}\n"
+        "5. Does Node A provide evidence for, reinforce, or logically imply Node B — not just discuss the same topic? "
+        "Semantic similarity alone is NOT enough for supports. If YES → \"supports\"\n"
+        "6. If related but none of the above clearly apply → \"related_to\"\n\n"
+        "Respond with ONLY a JSON object:\n"
+        '{"edge_type": "supports"|"contradicts"|"related_to"|"none", "reasoning": "one sentence"}'
+    )
+
+
 def link_nodes(new_node: dict, candidate: dict, model: str) -> dict:
     """Compare two nodes and classify their relationship via LLM.
 
-    Returns {"edge_type": "supports"|"contradicts"|"none", "reasoning": "..."}
+    Returns {"edge_type": "supports"|"contradicts"|"related_to"|"none", "reasoning": "..."}
     Returns {"edge_type": "none", "reasoning": "parse_error"} on any failure.
     """
     try:
-        prompt = (
-            "Compare these two knowledge nodes and classify their relationship.\n\n"
-            f"Node A (new): [{new_node.get('type', '')}] {new_node.get('summary', '')}\n"
-            f"Node B (existing): [{candidate.get('type', '')}] {candidate.get('summary', '')}\n\n"
-            "Follow these steps:\n"
-            "1. Identify the core claim in Node A\n"
-            "2. Identify the core claim in Node B\n"
-            "3. Are they about the same topic, domain, or system? (e.g. two facts about the same API, library, architecture, or concept count as related) If NO → output \"none\"\n"
-            "4. If related: does Node A reinforce, add detail to, provide evidence for, specify an aspect of, or elaborate on Node B? If YES → output \"supports\"\n"
-            "5. If related: does Node A disagree with, contradict, or replace Node B? If YES → output \"contradicts\"\n\n"
-            "Respond with ONLY a JSON object:\n"
-            '{"edge_type": "supports"|"contradicts"|"none", "reasoning": "one sentence"}'
-        )
-
+        prompt = _build_link_prompt_single(new_node, candidate)
         messages = [
             {"role": "system", "content": "You classify relationships between knowledge nodes. Respond ONLY with JSON."},
             {"role": "user", "content": prompt},
@@ -147,24 +195,35 @@ def batch_link_nodes(new_node: dict, candidates: list[dict], model: str) -> list
         return [result]
 
     try:
+        voice_a = new_node.get("voice", "first_person")
         candidate_lines = []
         for i, c in enumerate(candidates):
             node = c["node"]
+            voice_b = node.get("voice", "first_person")
+            voice_tag = f" [voice={voice_b}]" if voice_b != "first_person" else ""
+            cap_note = " (contradicts NOT allowed — both are reported/described)" if _voice_caps_contradicts(new_node, node) else ""
             candidate_lines.append(
-                f"  {i+1}. [{node.get('type', '')}] (id: {node['id']}) {node.get('summary', '')}"
+                f"  {i+1}. [{node.get('type', '')}] (id: {node['id']}){voice_tag}{cap_note} {node.get('summary', '')}"
             )
+
+        voice_note = f"\nNode A voice={voice_a}.\n" if voice_a != "first_person" else ""
 
         prompt = (
             "Classify the relationship between Node A and each candidate node.\n\n"
-            f"Node A (new): [{new_node.get('type', '')}] {new_node.get('summary', '')}\n\n"
+            f"Node A (new): [{new_node.get('type', '')}] {new_node.get('summary', '')}\n"
+            f"{voice_note}\n"
             "Candidates:\n"
             + "\n".join(candidate_lines) + "\n\n"
             "For each candidate, follow these steps:\n"
-            "1. Are they about the same topic, domain, or system? If NO → \"none\"\n"
-            "2. If related: does Node A reinforce, add detail to, provide evidence for, specify an aspect of, or elaborate on the candidate? If YES → \"supports\"\n"
-            "3. If related: does Node A disagree with, contradict, or replace the candidate? If YES → \"contradicts\"\n\n"
+            "1. Are they about the same topic at all? If NO → \"none\"\n"
+            "2. Are they at the same abstraction level? Different scenarios, different scopes, or different aspects of the same topic → \"related_to\"\n"
+            "3. Is Node A a preference or intent statement? Preferences do not logically support factual claims → \"related_to\"\n"
+            "4. Does Node A directly refute the candidate — both claims cannot simultaneously be true? "
+            "Never use contradicts when the candidate is marked (contradicts NOT allowed). If YES → \"contradicts\"\n"
+            "5. Does Node A provide logical evidence for or imply the candidate — semantic similarity alone is NOT enough? If YES → \"supports\"\n"
+            "6. If related but unclear → \"related_to\"\n\n"
             "Respond with ONLY a JSON array, one object per candidate in order:\n"
-            '[{"edge_type": "supports"|"contradicts"|"none", "reasoning": "one sentence"}, ...]'
+            '[{"edge_type": "supports"|"contradicts"|"related_to"|"none", "reasoning": "one sentence"}, ...]'
         )
 
         messages = [
@@ -263,6 +322,13 @@ def link_new_nodes(
         node = nodes_by_id.get(node_id)
         if not node:
             result.errors.append(f"Node not found: {node_id}")
+            continue
+
+        if not _node_type_is_linkable(node.get("type", "")):
+            result.nodes_skipped += 1
+            result.nodes_processed += 1
+            if progress_fn:
+                progress_fn(i + 1, total, node_id)
             continue
 
         try:

@@ -20,6 +20,8 @@ independent_sources: unique `source` values across the node + its inbound suppor
 
 import time
 
+from .schemas import get_logical_edge_types
+
 
 def compute_all_confidences(
     graph: dict,
@@ -51,13 +53,16 @@ def compute_all_confidences(
         return {}
 
     node_id_set = set(node_ids)
+    logical_types = set(get_logical_edge_types())
     edges = graph.get("edges", [])
 
-    # Build adjacency index once — O(E)
+    # Build adjacency index once — O(E), logical edges only
     inbound: dict[str, list[tuple[str, str]]] = {nid: [] for nid in node_ids}
     outbound_count: dict[str, int] = {nid: 0 for nid in node_ids}
 
     for edge in edges:
+        if edge.get("type") not in logical_types:
+            continue
         src, tgt = edge.get("source", ""), edge.get("target", "")
         if src in node_id_set and tgt in node_id_set:
             inbound[tgt].append((src, edge["type"]))

@@ -19,6 +19,7 @@ node_types:
     show_in_display: true
     has_raw_file: false
     id_format: counter
+    linkable: false   # preferences are not logical evidence for factual claims
     valid_statuses: [active, superseded]
     prompt_description: |
       Likes, dislikes, preferences — "I like beach volleyball", "I prefer tabs over spaces"
@@ -57,11 +58,19 @@ node_types:
 edge_types:
   supports:
     linkable: true
+    logical: true
   contradicts:
     linkable: true
+    logical: true
   exemplifies:
     linkable: false
+    logical: true
+  related_to:
+    linkable: true
+    logical: false   # semantic proximity only — does not contribute to confidence
   because_of:
     linkable: false
+    logical: false
   supersedes:
     linkable: false
+    logical: false

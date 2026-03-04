@@ -30,6 +30,7 @@ class ExtractedClaim(BaseModel):
     provenance_uri: str  # from source chunk
     source_path: str
     reasoning: str = ""
+    voice: str = "first_person"  # "first_person" | "reported" | "described"
 
 
 class ChunkExtractionResult(BaseModel):
@@ -109,9 +110,17 @@ def _build_extraction_prompt(chunk: DocumentChunk, metadata_context: str) -> lis
         f"- Each summary must be self-contained (no pronouns like 'it', 'this')\n"
         f"- Include reasoning briefly explaining why this claim is noteworthy\n"
         f"- Skip trivial, redundant, or overly specific details\n"
-        f"- {type_list}\n\n"
+        f"- {type_list}\n"
+        f"- For each claim, set voice to one of:\n"
+        f'    "first_person" — the author is asserting this as their own original claim or position\n'
+        f'    "reported"     — the author is describing what standard physics / conventional theory / existing literature claims.\n'
+        f'                     USE THIS when text contains phrases like: "the standard interpretation holds", "conventional QM says",\n'
+        f'                     "the mainstream view is", "standard quantum mechanics posits", "the accepted explanation is",\n'
+        f'                     or any claim attributed to an external theory, framework, or the scientific consensus.\n'
+        f'    "described"    — the author is neutrally describing an observed phenomenon or experimental result\n'
+        f'                     (neither their own theory nor attributed to another — just describing what happens)\n\n'
         f'Respond with ONLY a JSON array:\n'
-        f'[{{"node_type": "fact", "summary": "...", "reasoning": "..."}}, ...]\n'
+        f'[{{"node_type": "fact", "summary": "...", "reasoning": "...", "voice": "first_person|reported|described"}}, ...]\n'
         f"If nothing is worth extracting, respond with: []\n\n"
         f"--- Document Section ---\n"
         f"{chunk.content}"
@@ -170,6 +179,8 @@ def extract_from_chunk(
                 continue
             if not isinstance(summary, str) or not summary.strip():
                 continue
+            raw_voice = str(n.get("voice", "first_person")).strip().lower()
+            voice = raw_voice if raw_voice in ("first_person", "reported", "described") else "first_person"
             claims.append(
                 ExtractedClaim(
                     node_type=ntype,
@@ -177,6 +188,7 @@ def extract_from_chunk(
                     provenance_uri=chunk.provenance_uri,
                     source_path=source_path,
                     reasoning=str(n.get("reasoning", "")).strip(),
+                    voice=voice,
                 )
             )
 
@@ -288,6 +300,7 @@ def ingest_document(
                 source=source,
                 reasoning=claim.reasoning,
                 provenance_uri=claim.provenance_uri,
+                voice=claim.voice,
                 skip_linking=True,
                 skip_embed=True,
             )
