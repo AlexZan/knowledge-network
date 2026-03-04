@@ -24,9 +24,9 @@ Never recreate content that already exists in another markdown file. Always use 
 
 | Doc | Source of Truth For |
 |-----|---------------------|
-| `docs/ROADMAP.md` | Big picture vision (5 phases, from KG to Open Systems) |
+| `docs/BIG-PICTURE.md` | Big picture vision (5 phases, from KG to Open Systems) |
 | `docs/thesis.md` | Vision, the 5 theses |
-| `docs/slices/README.md` | Tactical implementation roadmap (per-slice) |
+| `docs/slices/README.md` | Tactical implementation roadmap (per-slice) — **Icebox is here** |
 | `docs/PROJECT.md` | Technical architecture |
 | `docs/JOURNEY.md` | Implementation progress, pivots, current status |
 | `docs/decisions/*.md` | Architectural decisions |

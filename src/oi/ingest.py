@@ -3,6 +3,7 @@
 Takes ParsedDocument output from parser.py, uses LLM to extract claims per chunk,
 and writes them to the knowledge graph via add_knowledge(). Includes a top-level
 ingest_pipeline() orchestrator that chains parse → extract → write → link → embed → report.
+Also provides ingest_chatgpt_export() for ChatGPT export zip files.
 """
 
 from __future__ import annotations
@@ -452,6 +453,173 @@ def ingest_pipeline(
         chunks_processed=ingestion.chunks_processed,
         chunks_failed=ingestion.chunks_failed,
         claims_extracted=ingestion.claims_extracted,
+        edges_created=edges_created,
+        contradictions_found=contradictions_found,
+        conflicts=conflicts,
+        errors=errors,
+        dry_run=False,
+    )
+
+
+def ingest_chatgpt_export(
+    source_id: str,
+    session_dir: Path,
+    model: str = None,
+    title_filter: str = "",
+    chatgpt_project_id: str = "",
+    dry_run: bool = False,
+    skip_linking: bool = False,
+    skip_embedding: bool = False,
+    progress_fn: Callable[[str, str], None] | None = None,
+) -> PipelineResult:
+    """Ingest a ChatGPT export using the registered source path.
+
+    Gets zip path from source registry via get_source(session_dir, source_id).
+    Calls parse_chatgpt_export() then runs the pipeline per conversation.
+    Returns aggregated PipelineResult.
+
+    Args:
+        source_id: Registered source ID (from mcp_add_source).
+        session_dir: Path to the session/knowledge directory.
+        model: LLM model for extraction.
+        title_filter: Comma-separated keywords to filter conversations by title.
+        chatgpt_project_id: ChatGPT project ID ('g-p-...' from the export) to
+                            restrict ingestion to one project.
+        dry_run: If True, parse + extract only — no graph writes.
+        skip_linking: Skip the linking pass (faster, cheaper).
+        skip_embedding: Skip the embedding pass.
+        progress_fn: Optional callback(stage, detail) for progress reporting.
+    """
+    from .sources import get_source
+    from .chatgpt_parser import parse_chatgpt_export
+
+    errors: list[str] = []
+
+    def _progress(stage: str, detail: str = "") -> None:
+        if progress_fn:
+            progress_fn(stage, detail)
+
+    # Look up registered source
+    source = get_source(session_dir, source_id)
+    if not source:
+        return PipelineResult(
+            source_path=source_id,
+            errors=[f"Source '{source_id}' not registered. Use mcp_add_source first."],
+        )
+
+    zip_path = source["path"]
+
+    # Stage 1: Parse
+    _progress("parse", zip_path)
+    try:
+        docs = parse_chatgpt_export(
+            zip_path,
+            source_id=source_id,
+            title_filter=title_filter,
+            chatgpt_project_id=chatgpt_project_id,
+        )
+    except Exception as e:
+        return PipelineResult(
+            source_path=source_id,
+            errors=[f"Parse failed: {e}"],
+        )
+
+    n_matched = len(docs)
+    source_path_label = f"{source_id} ({n_matched} conversations)"
+
+    chunks_total = 0
+    chunks_processed = 0
+    chunks_failed = 0
+
+    # Stage 2: Extract (dry-run path)
+    if dry_run:
+        _progress("extract", f"{n_matched} conversations")
+        all_claims_count = 0
+        for doc in docs:
+            extraction = extract_document(doc, model=model)
+            chunks_total += extraction.chunks_total
+            chunks_processed += extraction.chunks_processed
+            chunks_failed += extraction.chunks_failed
+            all_claims_count += len(extraction.claims)
+            errors.extend(extraction.errors)
+
+        _progress("done", "dry run complete")
+        return PipelineResult(
+            source_path=source_path_label,
+            chunks_total=chunks_total,
+            chunks_processed=chunks_processed,
+            chunks_failed=chunks_failed,
+            claims_extracted=all_claims_count,
+            errors=errors,
+            dry_run=True,
+        )
+
+    # Stage 3: Write to graph
+    _progress("extract+write", f"{n_matched} conversations")
+    node_ids: list[str] = []
+    all_claims_count = 0
+    for doc in docs:
+        ingestion = ingest_document(doc, session_dir, model=model, source_label=source_id)
+        node_ids.extend(ingestion.nodes_created)
+        chunks_total += ingestion.chunks_total
+        chunks_processed += ingestion.chunks_processed
+        chunks_failed += ingestion.chunks_failed
+        all_claims_count += ingestion.claims_extracted
+        errors.extend(ingestion.errors)
+
+    # Stage 4: Link
+    edges_created = 0
+    contradictions_found = 0
+    if not skip_linking and node_ids:
+        _progress("link", f"{len(node_ids)} nodes")
+        try:
+            from .linker import link_new_nodes
+
+            link_result = link_new_nodes(node_ids, session_dir, model=model)
+            edges_created = link_result.edges_created
+            contradictions_found = link_result.contradictions_found
+            errors.extend(link_result.errors)
+        except Exception as e:
+            errors.append(f"Linking failed: {e}")
+
+    # Stage 5: Embed
+    if not skip_embedding and node_ids:
+        _progress("embed", f"{len(node_ids)} nodes")
+        try:
+            from .embed import ensure_embeddings
+            from .state import _load_knowledge
+
+            knowledge = _load_knowledge(session_dir)
+            ensure_embeddings(session_dir, knowledge)
+        except Exception as e:
+            errors.append(f"Embedding failed: {e}")
+
+    # Stage 6: Conflict report
+    conflicts: dict = {}
+    if not skip_linking and node_ids:
+        _progress("report", "generating conflict report")
+        try:
+            from .conflicts import generate_conflict_report
+
+            report = generate_conflict_report(session_dir, node_ids=node_ids)
+            conflicts = {
+                "total": report.total_contradictions,
+                "auto_resolvable": report.auto_resolvable,
+                "strong_recommendations": report.strong_recommendations,
+                "ambiguous": report.ambiguous,
+            }
+        except Exception as e:
+            errors.append(f"Conflict report failed: {e}")
+
+    _progress("done", f"{len(node_ids)} nodes created")
+
+    return PipelineResult(
+        source_path=source_path_label,
+        nodes_created=node_ids,
+        chunks_total=chunks_total,
+        chunks_processed=chunks_processed,
+        chunks_failed=chunks_failed,
+        claims_extracted=all_claims_count,
         edges_created=edges_created,
         contradictions_found=contradictions_found,
         conflicts=conflicts,

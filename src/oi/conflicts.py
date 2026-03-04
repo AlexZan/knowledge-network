@@ -18,7 +18,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from .confidence import compute_confidence
+from .confidence import compute_confidence, compute_all_confidences
 from .state import _load_knowledge, _save_knowledge
 
 
@@ -46,19 +46,15 @@ class ConflictReport(BaseModel):
     strong_recommendations: int
     ambiguous: int
     conflicts: list[ConflictPair]
+    depth: int | None = None
+    damping: float = 0.85
+    iterations: int = 0
+    runtime_ms: float = 0.0
 
 
 # --- Internal helpers ---
 
 SUBJECTIVE_TYPES = {"decision", "preference"}
-
-
-def _count_supports(node_id: str, edges: list[dict]) -> int:
-    """Count inbound supports + exemplifies edges for a node."""
-    return sum(
-        1 for e in edges
-        if e["target"] == node_id and e["type"] in ("supports", "exemplifies")
-    )
 
 
 def _classify_conflict(
@@ -101,11 +97,18 @@ def _classify_conflict(
 def generate_conflict_report(
     session_dir: Path,
     node_ids: list[str] | None = None,
+    depth: int | None = None,
+    damping: float = 0.85,
 ) -> ConflictReport:
     """Analyze all contradictions in the graph. Returns a structured report."""
     knowledge = _load_knowledge(session_dir)
     nodes_by_id = {n["id"]: n for n in knowledge.get("nodes", [])}
     edges = knowledge.get("edges", [])
+
+    # Compute weighted confidence once for the whole graph
+    all_conf = compute_all_confidences(knowledge, depth=depth, damping=damping)
+    _iters = next(iter(all_conf.values()), {}).get("iterations", 0) if all_conf else 0
+    _runtime = next(iter(all_conf.values()), {}).get("runtime_ms", 0.0) if all_conf else 0.0
 
     # Find all contradicts edges (deduplicate pairs)
     seen_pairs: set[tuple[str, str]] = set()
@@ -141,15 +144,14 @@ def generate_conflict_report(
         type_b = node_b.get("type", "fact")
         is_subjective = type_a in SUBJECTIVE_TYPES or type_b in SUBJECTIVE_TYPES
 
-        sup_a = _count_supports(a_id, edges)
-        sup_b = _count_supports(b_id, edges)
+        conf_a = all_conf.get(a_id, {"level": "low", "inbound_supports": 0.0, "inbound_contradicts": 0.0, "independent_sources": 0})
+        conf_b = all_conf.get(b_id, {"level": "low", "inbound_supports": 0.0, "inbound_contradicts": 0.0, "independent_sources": 0})
+        sup_a = conf_a["inbound_supports"]
+        sup_b = conf_b["inbound_supports"]
 
         priority, recommended_winner = _classify_conflict(
             sup_a, sup_b, is_subjective, a_id, b_id
         )
-
-        conf_a = compute_confidence(a_id, knowledge)
-        conf_b = compute_confidence(b_id, knowledge)
 
         conflicts.append(ConflictPair(
             node_a=ConflictSide(
@@ -176,6 +178,10 @@ def generate_conflict_report(
         strong_recommendations=sum(1 for c in conflicts if c.priority == "strong_recommendation"),
         ambiguous=sum(1 for c in conflicts if c.priority == "ambiguous"),
         conflicts=conflicts,
+        depth=depth,
+        damping=damping,
+        iterations=_iters,
+        runtime_ms=_runtime,
     )
 
 

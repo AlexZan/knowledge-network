@@ -735,3 +735,35 @@ class TestSourceTools:
             mcp_add_source(id="gone", type="doc_root", path="/nonexistent/path/here")
             result = mcp_list_sources()
             assert "NOT FOUND" in result
+
+
+class TestIngestChatGPTExport:
+    """mcp_ingest_chatgpt_export tool."""
+
+    def test_mcp_ingest_chatgpt_export_dry_run(self, tmp_path):
+        """Dry-run returns formatted result with no graph changes."""
+        from oi.mcp_server import mcp_ingest_chatgpt_export
+        from oi.ingest import PipelineResult
+
+        fake_result = PipelineResult(
+            source_path="physics-chatgpt (5 conversations)",
+            chunks_total=10,
+            chunks_processed=9,
+            claims_extracted=20,
+            dry_run=True,
+        )
+        with patch("oi.mcp_server._get_session_dir", return_value=tmp_path), \
+             patch("oi.mcp_server._get_model", return_value="test-model"), \
+             patch("oi.ingest.ingest_chatgpt_export", return_value=fake_result) as mock_fn:
+            result = mcp_ingest_chatgpt_export(
+                source_id="physics-chatgpt",
+                title_filter="quantum",
+                dry_run=True,
+            )
+            call_kwargs = mock_fn.call_args[1]
+            assert call_kwargs["source_id"] == "physics-chatgpt"
+            assert call_kwargs["title_filter"] == "quantum"
+            assert call_kwargs["dry_run"] is True
+            assert "DRY RUN" in result
+            assert "20 would be extracted" in result
+            assert "physics-chatgpt" in result

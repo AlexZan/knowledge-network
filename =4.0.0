@@ -1,0 +1,9 @@
+Collecting pypdf
+  Downloading pypdf-6.7.5-py3-none-any.whl.metadata (7.1 kB)
+Downloading pypdf-6.7.5-py3-none-any.whl (331 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 331.4/331.4 kB 1.1 MB/s eta 0:00:00
+Installing collected packages: pypdf
+Successfully installed pypdf-6.7.5
+
+[notice] A new release of pip is available: 24.0 -> 26.0.1
+[notice] To update, run: /tmp/oi-venv/bin/python3 -m pip install --upgrade pip

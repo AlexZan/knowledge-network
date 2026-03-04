@@ -172,9 +172,8 @@ class TestComputeConfidence:
             ],
         )
         result = compute_confidence("fact-001", graph)
-        # fact-003 is inactive, so its source doesn't count
-        # But the edge still counts as inbound (we count edges, not just active supporter sources)
-        assert result["inbound_supports"] == 2
+        # fact-003 is inactive — excluded from PageRank, so only fact-002 contributes
+        assert result["inbound_supports"] == pytest.approx(1.0, abs=0.1)
         # Sources: effort-a (node itself) + effort-b (active supporter) = 2
         # effort-c ignored because fact-003 is inactive
         assert result["independent_sources"] == 2
@@ -253,5 +252,82 @@ class TestExemplifies:
         )
         result = compute_confidence("principle-001", graph)
         assert result["level"] == "high"
-        assert result["inbound_supports"] == 2
+        assert result["inbound_supports"] == pytest.approx(2.0, abs=0.1)
         assert result["independent_sources"] == 3
+
+
+class TestPageRankConfidence:
+    """Tests for PageRank depth/convergence behaviour."""
+
+    def test_depth_3_stops_at_3_iterations(self):
+        """depth=3 runs exactly 3 iterations."""
+        graph = _graph(
+            [_node("a"), _node("b")],
+            [_edge("a", "b")],
+        )
+        result = compute_all_confidences(graph, depth=3)
+        assert result["b"]["iterations"] == 3
+
+    def test_full_convergence_runs_more_than_3(self):
+        """depth=None runs until convergence, typically > 3 iterations."""
+        # Chain A→B→C→D: needs multiple hops to propagate authority
+        graph = _graph(
+            [_node("a"), _node("b"), _node("c"), _node("d")],
+            [_edge("a", "b"), _edge("b", "c"), _edge("c", "d")],
+        )
+        result = compute_all_confidences(graph, depth=None)
+        assert result["d"]["iterations"] > 3
+
+    def test_depth_none_vs_depth3_scores_differ(self):
+        """Full convergence gives different scores than depth=3 on a chain graph."""
+        graph = _graph(
+            [_node("a"), _node("b"), _node("c"), _node("d"), _node("e")],
+            [_edge("a", "b"), _edge("b", "c"), _edge("c", "d"), _edge("d", "e")],
+        )
+        r3 = compute_all_confidences(graph, depth=3)
+        rf = compute_all_confidences(graph, depth=None)
+        # At least one node should have a meaningfully different score
+        diffs = [abs(rf[nid]["score"] - r3[nid]["score"]) for nid in rf]
+        assert max(diffs) > 1e-4
+
+    def test_cycle_converges_without_exploding(self):
+        """Mutual support cycle A↔B reaches a stable score, not infinity."""
+        graph = _graph(
+            [_node("a"), _node("b")],
+            [_edge("a", "b"), _edge("b", "a")],
+        )
+        result = compute_all_confidences(graph, depth=None)
+        assert result["a"]["score"] < 10.0
+        assert result["b"]["score"] < 10.0
+        assert result["a"]["score"] == pytest.approx(result["b"]["score"], abs=1e-4)
+
+    def test_high_authority_source_upweights(self):
+        """A well-cited supporter contributes more than 1.0 to weighted_supports."""
+        # hub has 5 inbound citations, hub then supports target
+        nodes = [_node(f"cite{i}") for i in range(5)] + [_node("hub"), _node("target")]
+        edges = ([_edge(f"cite{i}", "hub") for i in range(5)]
+                 + [_edge("hub", "target")])
+        graph = _graph(nodes, edges)
+        result = compute_all_confidences(graph, depth=None)
+        assert result["target"]["inbound_supports"] > 1.0
+
+    def test_isolated_source_contributes_about_one(self):
+        """A node with no inbound edges contributes ≈ 1.0 to weighted_supports."""
+        graph = _graph(
+            [_node("a"), _node("b")],
+            [_edge("a", "b")],
+        )
+        result = compute_all_confidences(graph, depth=None)
+        assert result["b"]["inbound_supports"] == pytest.approx(1.0, abs=0.15)
+
+    def test_runtime_ms_tracked(self):
+        """runtime_ms > 0 and iterations > 0 are returned."""
+        graph = _graph([_node("a"), _node("b")], [_edge("a", "b")])
+        result = compute_all_confidences(graph, depth=3)
+        assert result["b"]["runtime_ms"] >= 0.0
+        assert result["b"]["iterations"] == 3
+
+    def test_empty_graph_returns_empty(self):
+        """No crash on empty graph."""
+        assert compute_all_confidences({}) == {}
+        assert compute_all_confidences({"nodes": [], "edges": []}) == {}

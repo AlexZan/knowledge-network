@@ -166,6 +166,8 @@ These hold from Phase 1 through Phase 6:
 | [013: Unified KG Architecture](decisions/013-unified-kg-architecture.md) | Mutability gradient, CRDT storage, reactive edges |
 | [014: Sessions as Perspectives](decisions/014-sessions-as-perspectives.md) | Multi-agent perspectives, roundtable debate |
 | [016: Rust + WASM Port](decisions/016-rust-wasm-port.md) | Port to Rust, CRDT-backed GraphStore trait, WASM targets |
+| [017: Typed Conflicts](decisions/017-typed-conflicts.md) | Five conflict subtypes beyond binary contradicts |
+| [018: Falsification Confidence Propagation](decisions/018-falsification-confidence-propagation.md) | Disproofs are nodes; confidence in refutation must propagate before refutation propagates |
 
 ## Research
 

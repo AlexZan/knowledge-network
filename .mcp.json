@@ -2,6 +2,12 @@
   "mcpServers": {
     "knowledge-network": {
       "command": "/mnt/storage/Dev/knowledge-network/bin/oi-mcp"
+    },
+    "physics-theory": {
+      "command": "/mnt/storage/Dev/knowledge-network/bin/oi-mcp",
+      "env": {
+        "OI_SESSION_DIR": "/mnt/storage/physics-theory-kg"
+      }
     }
   }
 }

@@ -679,6 +679,88 @@ class TestIngestPipeline:
         assert get_source(session_dir, "my-source")["path"] == str(tmp_path)
 
 
+# === Phase 7: ingest_chatgpt_export ===
+
+
+class TestIngestChatGPTExport:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    def test_ingest_chatgpt_export_unregistered_source_errors(self, session_dir):
+        """Returns error if source_id not in registry."""
+        from oi.ingest import ingest_chatgpt_export
+
+        result = ingest_chatgpt_export(source_id="nonexistent", session_dir=session_dir)
+        assert result.errors
+        assert any("not registered" in e for e in result.errors)
+
+    @patch("oi.ingest.chat")
+    @patch("oi.chatgpt_parser.parse_chatgpt_export")
+    def test_ingest_chatgpt_export_dry_run(self, mock_parse, mock_chat, session_dir):
+        """Dry-run returns extracted claims but writes no nodes."""
+        from oi.ingest import ingest_chatgpt_export
+        from oi.sources import register_source
+
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+
+        # Return a doc with one chunk
+        mock_parse.return_value = [
+            _make_doc(chunks=[_make_chunk(content="**User:** Q\n\n**Assistant:** A")])
+        ]
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A fact from a conversation"}
+        ])
+
+        result = ingest_chatgpt_export(
+            source_id="test-src", session_dir=session_dir, dry_run=True
+        )
+
+        assert result.dry_run is True
+        assert result.claims_extracted == 1
+        assert result.nodes_created == []
+        # No knowledge file written
+        assert not (session_dir / "knowledge.yaml").exists()
+
+    @patch("oi.ingest.chat")
+    @patch("oi.chatgpt_parser.parse_chatgpt_export")
+    def test_ingest_chatgpt_export_creates_nodes(self, mock_parse, mock_chat, session_dir):
+        """Full pipeline writes nodes for each claim extracted from turn pairs."""
+        from oi.ingest import ingest_chatgpt_export
+        from oi.sources import register_source
+
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+
+        mock_parse.return_value = [
+            _make_doc(chunks=[
+                _make_chunk(chunk_id="turn-0", content="**User:** Q1\n\n**Assistant:** A1"),
+                _make_chunk(chunk_id="turn-1", content="**User:** Q2\n\n**Assistant:** A2"),
+            ]),
+        ]
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "Claim from conversation"}
+        ])
+
+        with patch("oi.linker.link_new_nodes") as mock_link, \
+             patch("oi.embed.ensure_embeddings"):
+            from oi.linker import LinkingResult
+            mock_link.return_value = LinkingResult(
+                edges_created=0, contradictions_found=0, nodes_processed=2,
+            )
+            result = ingest_chatgpt_export(
+                source_id="test-src", session_dir=session_dir, skip_embedding=True,
+            )
+
+        assert result.dry_run is False
+        # 2 chunks → 2 LLM calls → 2 claims → 2 nodes
+        assert len(result.nodes_created) == 2
+        assert result.claims_extracted == 2
+        assert result.errors == []
+        assert "test-src" in result.source_path
+
+
 # === Phase 5: LLM integration tests ===
 
 import os

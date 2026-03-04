@@ -108,6 +108,8 @@ class TestGenerateConflictReport:
             _make_node("fact-004"),
             _make_node("fact-005"),
             _make_node("fact-006"),
+            # supporter nodes must exist for PageRank to count them
+            *[_make_node(f"s{i}") for i in range(1, 12)],
         ]
         edges = [
             # Pair 1: 5 vs 0 supports → auto_resolvable
@@ -240,6 +242,8 @@ class TestAutoResolve:
             _make_node("fact-002", has_contradiction=True),
             _make_node("fact-003", has_contradiction=True),
             _make_node("fact-004", has_contradiction=True),
+            # supporter nodes must exist for PageRank to count them
+            *[_make_node(f"s{i}") for i in range(1, 8)],
         ]
         edges = [
             # Pair 1: 5 vs 0 → auto_resolvable

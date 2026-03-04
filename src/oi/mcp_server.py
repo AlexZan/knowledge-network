@@ -450,6 +450,100 @@ def mcp_ingest_document(
 
 
 @mcp.tool()
+def mcp_ingest_chatgpt_export(
+    source_id: str,
+    title_filter: str = "",
+    chatgpt_project_id: str = "",
+    dry_run: bool = False,
+    skip_linking: bool = False,
+) -> str:
+    """Ingest conversations from a registered ChatGPT export source.
+
+    Parses conversations, extracts knowledge claims per turn pair, writes
+    nodes to the graph, links them, and reports conflicts.
+
+    Args:
+        source_id: Registered source name (from mcp_add_source / mcp_list_sources)
+        title_filter: Comma-separated keywords to filter by conversation title.
+                      Empty = ingest all conversations.
+        chatgpt_project_id: ChatGPT project ID (e.g. 'g-p-67ee44a01c18...') to
+                            restrict ingestion to one ChatGPT project. Use
+                            mcp_list_chatgpt_projects to find project IDs.
+        dry_run: If true, parse + extract only — no graph changes.
+        skip_linking: Skip the linking pass (faster, cheaper).
+    """
+    from .ingest import ingest_chatgpt_export
+
+    session_dir = _get_session_dir()
+    model = _get_model()
+
+    result = ingest_chatgpt_export(
+        source_id=source_id,
+        session_dir=session_dir,
+        model=model,
+        title_filter=title_filter,
+        chatgpt_project_id=chatgpt_project_id,
+        dry_run=dry_run,
+        skip_linking=skip_linking,
+    )
+
+    _log_tool_call("mcp_ingest_chatgpt_export", {
+        "source_id": source_id,
+        "title_filter": title_filter or None,
+        "chatgpt_project_id": chatgpt_project_id or None,
+        "dry_run": dry_run,
+        "skip_linking": skip_linking,
+    }, f"{len(result.nodes_created)} nodes")
+
+    return _fmt_ingest(result)
+
+
+@mcp.tool()
+def mcp_list_chatgpt_projects(source_id: str) -> str:
+    """List ChatGPT projects found in a registered export source.
+
+    Reads the zip and groups conversations by project ID (gizmo_id field).
+    No LLM calls — free to run.
+
+    Args:
+        source_id: Registered source name pointing to a ChatGPT export zip.
+    """
+    import zipfile
+    import json as _json
+    from collections import defaultdict
+    from .sources import get_source
+
+    session_dir = _get_session_dir()
+    source = get_source(session_dir, source_id)
+    if not source:
+        return f"Error: source '{source_id}' not registered."
+
+    zip_path = source["path"]
+    try:
+        with zipfile.ZipFile(zip_path) as zf:
+            with zf.open("conversations.json") as f:
+                convs = _json.load(f)
+    except Exception as e:
+        return f"Error reading export: {e}"
+
+    by_project = defaultdict(list)
+    for c in convs:
+        gid = c.get("gizmo_id") or ""
+        by_project[gid].append(c.get("title") or "Untitled")
+
+    lines = [f"{len(convs)} total conversations, {len(by_project)} groups:\n"]
+    for gid, titles in sorted(by_project.items(), key=lambda x: -len(x[1])):
+        label = gid if gid else "(no project)"
+        lines.append(f"  {label}  —  {len(titles)} conversations")
+        for t in titles[:3]:
+            lines.append(f"    {t[:80]}")
+        if len(titles) > 3:
+            lines.append(f"    ... +{len(titles) - 3} more")
+
+    return "\n".join(lines)
+
+
+@mcp.tool()
 def mcp_add_source(
     id: str,
     type: str,

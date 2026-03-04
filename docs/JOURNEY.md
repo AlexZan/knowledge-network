@@ -4,7 +4,7 @@
 
 ## Source of Truth
 
-- **Big picture**: [ROADMAP.md](ROADMAP.md) - 5 phases from KG to Open Systems
+- **Big picture**: [BIG-PICTURE.md](BIG-PICTURE.md) - 5 phases from KG to Open Systems
 - **Thesis**: [thesis.md](thesis.md) - The 5 core theses and vision
 - **Slices**: [slices/README.md](slices/README.md) - Tactical implementation roadmap
 - **Technical**: [PROJECT.md](PROJECT.md) - Current architecture and code structure
@@ -17,7 +17,7 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 Slices 1-13e complete. The Python prototype is proven — 561 tests, bulk ingestion working, MCP server live.
 
-**Major decision (2026-03-03)**: Port to Rust with WASM targets. See [Decision 016](decisions/016-rust-wasm-port.md) and [ROADMAP.md](ROADMAP.md). Motivated by: broken Python Automerge bindings, endgame requiring WASM smart contracts, and the discovery that the entire Rust AI ecosystem (MCP, LLM clients, CRDTs, PDF parsing) is production-ready.
+**Major decision (2026-03-03)**: Port to Rust with WASM targets. See [Decision 016](decisions/016-rust-wasm-port.md) and [BIG-PICTURE.md](BIG-PICTURE.md). Motivated by: broken Python Automerge bindings, endgame requiring WASM smart contracts, and the discovery that the entire Rust AI ecosystem (MCP, LLM clients, CRDTs, PDF parsing) is production-ready.
 
 Next: Phase 2 — Rust scaffold, `GraphStore` trait, core graph ops port.
 
@@ -107,7 +107,7 @@ Built the complete search infrastructure and ingestion pipeline across multiple 
 
 ### What's Next
 
-See [ROADMAP.md](ROADMAP.md) for big picture. Immediate:
+See [BIG-PICTURE.md](BIG-PICTURE.md) for big picture. Immediate:
 1. **Phase 2A**: Rust scaffold + `GraphStore` trait + data models
 2. **Phase 2B**: Core graph ops port (add/query, graph walk, confidence, conflicts)
 3. **Phase 2C**: LLM integration + MCP server + parser
@@ -166,7 +166,7 @@ The knowledge graph and Vault project converge: Automerge (CRDT) as the storage 
 
 ## For Agents
 
-1. **Read [ROADMAP.md](ROADMAP.md)** — big picture (6 phases, KG → blockchain)
+1. **Read [BIG-PICTURE.md](BIG-PICTURE.md)** — big picture (6 phases, KG → blockchain)
 2. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
 3. **Read [Decision 016](decisions/016-rust-wasm-port.md)** — Rust port decision + migration sequence
 4. **Current work**: Phase 1 (Python) complete. Phase 2 (Rust port) starting. Python prototype is the reference implementation.

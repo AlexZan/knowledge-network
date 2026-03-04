@@ -1,81 +1,173 @@
-"""Confidence from topology: compute confidence levels from graph structure.
+"""Confidence from topology: PageRank-style propagation from graph structure.
 
-Pure functions — no persistence. Confidence is computed on-the-fly from edge counts.
+Pure functions — no persistence. Confidence is computed on-the-fly.
 
-Level rules (first match wins):
-- contested: inbound_contradicts >= 1 AND inbound_contradicts >= inbound_supports
-- high: independent_sources >= 3 AND inbound_supports >= 2
-- medium: inbound_supports >= 1 OR independent_sources >= 2
-- low: everything else (default for new nodes)
+Algorithm:
+- Standard PageRank over the full edge graph (supports, contradicts, exemplifies)
+- `depth=N`    → run exactly N iterations (whitepaper baseline)
+- `depth=None` → run until convergence (max_delta < epsilon, full truth potential)
+- Scores are normalized by N so an average node contributes 1.0 to weighted counts
+  (preserves existing level thresholds: >= 1 for medium, >= 2 for high)
 
-independent_sources: unique `source` values across the node itself + all its inbound supporters.
+Level rules (first match wins, over weighted float counts):
+- contested: weighted_contradicts >= 1.0 AND >= weighted_supports
+- high: independent_sources >= 3 AND weighted_supports >= 2.0
+- medium: weighted_supports >= 1.0 OR independent_sources >= 2
+- low: everything else
+
+independent_sources: unique `source` values across the node + its inbound supporters.
 """
 
+import time
 
-def compute_confidence(node_id: str, graph: dict) -> dict:
-    """Compute confidence level for a single node from graph topology.
 
-    Returns {"level", "inbound_supports", "inbound_contradicts", "independent_sources"}
-    Returns level="low" with zeroes if node not found.
+def compute_all_confidences(
+    graph: dict,
+    depth: int | None = None,
+    damping: float = 0.85,
+    epsilon: float = 1e-6,
+    max_iter: int = 100,
+) -> dict:
+    """Compute PageRank-weighted confidence for all active nodes.
+
+    Args:
+        graph: Knowledge graph dict with 'nodes' and 'edges'.
+        depth: Number of iterations. None = run until convergence.
+        damping: PageRank damping factor (default 0.85).
+        epsilon: Convergence threshold (only used when depth=None).
+        max_iter: Hard cap on iterations when depth=None.
+
+    Returns:
+        {node_id: {"level", "score", "inbound_supports", "inbound_contradicts",
+                   "independent_sources", "iterations", "runtime_ms"}}
     """
-    nodes_by_id = {n["id"]: n for n in graph.get("nodes", [])}
-    node = nodes_by_id.get(node_id)
-    if not node or node.get("status") != "active":
-        return {
-            "level": "low",
-            "inbound_supports": 0,
-            "inbound_contradicts": 0,
-            "independent_sources": 0,
-        }
+    t0 = time.monotonic()
 
+    active_nodes = [n for n in graph.get("nodes", []) if n.get("status") == "active"]
+    node_ids = [n["id"] for n in active_nodes]
+    N = len(node_ids)
+
+    if N == 0:
+        return {}
+
+    node_id_set = set(node_ids)
     edges = graph.get("edges", [])
 
-    # Count inbound edges (target == node_id)
-    inbound_supports = 0
-    inbound_contradicts = 0
-    supporter_ids = []
+    # Build adjacency index once — O(E)
+    inbound: dict[str, list[tuple[str, str]]] = {nid: [] for nid in node_ids}
+    outbound_count: dict[str, int] = {nid: 0 for nid in node_ids}
+
     for edge in edges:
-        if edge["target"] == node_id:
-            if edge["type"] == "supports":
-                inbound_supports += 1
-                supporter_ids.append(edge["source"])
-            elif edge["type"] == "exemplifies":
-                inbound_supports += 1
-                supporter_ids.append(edge["source"])
-            elif edge["type"] == "contradicts":
-                inbound_contradicts += 1
+        src, tgt = edge.get("source", ""), edge.get("target", "")
+        if src in node_id_set and tgt in node_id_set:
+            inbound[tgt].append((src, edge["type"]))
+            outbound_count[src] += 1
 
-    # Count independent sources: unique source values from node + active supporters
-    sources = set()
-    node_source = node.get("source")
-    if node_source:
-        sources.add(node_source)
+    # PageRank initialisation
+    scores: dict[str, float] = {nid: 1.0 / N for nid in node_ids}
+    teleport = (1.0 - damping) / N
 
-    for sid in supporter_ids:
-        supporter = nodes_by_id.get(sid)
-        if supporter and supporter.get("status") == "active":
-            supporter_source = supporter.get("source")
-            if supporter_source:
-                sources.add(supporter_source)
+    limit = depth if depth is not None else max_iter
+    actual_iters = 0
 
-    independent_sources = len(sources)
+    for _ in range(limit):
+        actual_iters += 1
+        new_scores: dict[str, float] = {}
+        for nid in node_ids:
+            rank = teleport
+            for src, _ in inbound[nid]:
+                out = outbound_count[src]
+                rank += damping * scores[src] / (out if out > 0 else 1)
+            new_scores[nid] = rank
 
-    # Apply rules: first match wins
-    if inbound_contradicts >= 1 and inbound_contradicts >= inbound_supports:
-        level = "contested"
-    elif independent_sources >= 3 and inbound_supports >= 2:
-        level = "high"
-    elif inbound_supports >= 1 or independent_sources >= 2:
-        level = "medium"
-    else:
-        level = "low"
+        if depth is None:
+            delta = max(abs(new_scores[nid] - scores[nid]) for nid in node_ids)
+            scores = new_scores
+            if delta < epsilon:
+                break
+        else:
+            scores = new_scores
 
-    return {
-        "level": level,
-        "inbound_supports": inbound_supports,
-        "inbound_contradicts": inbound_contradicts,
-        "independent_sources": independent_sources,
-    }
+    runtime_ms = (time.monotonic() - t0) * 1000
+
+    # Normalization base: score of a node with no inbound edges at convergence.
+    # Using this means an average/isolated node always contributes exactly 1.0,
+    # and well-cited nodes contribute proportionally more. Graph-size independent.
+    baseline = teleport  # == (1 - damping) / N
+
+    # Compute weighted confidence per node
+    nodes_by_id = {n["id"]: n for n in graph.get("nodes", [])}
+    result = {}
+
+    for nid in node_ids:
+        node = nodes_by_id[nid]
+        weighted_supports = 0.0
+        weighted_contradicts = 0.0
+        supporter_ids: list[str] = []
+
+        for src, etype in inbound[nid]:
+            contribution = scores[src] / baseline
+            if etype in ("supports", "exemplifies"):
+                weighted_supports += contribution
+                supporter_ids.append(src)
+            elif etype == "contradicts":
+                weighted_contradicts += contribution
+
+        # Independent sources: unique source values from node + active supporters
+        sources: set[str] = set()
+        if node.get("source"):
+            sources.add(node["source"])
+        for sid in supporter_ids:
+            supporter = nodes_by_id.get(sid)
+            if supporter and supporter.get("status") == "active" and supporter.get("source"):
+                sources.add(supporter["source"])
+        independent_sources = len(sources)
+
+        # Level rules (first match wins)
+        if weighted_contradicts >= 1.0 and weighted_contradicts >= weighted_supports:
+            level = "contested"
+        elif independent_sources >= 3 and weighted_supports >= 2.0:
+            level = "high"
+        elif weighted_supports >= 1.0 or independent_sources >= 2:
+            level = "medium"
+        else:
+            level = "low"
+
+        result[nid] = {
+            "level": level,
+            "score": scores[nid],
+            "inbound_supports": weighted_supports,
+            "inbound_contradicts": weighted_contradicts,
+            "independent_sources": independent_sources,
+            "iterations": actual_iters,
+            "runtime_ms": runtime_ms,
+        }
+
+    return result
+
+
+def compute_confidence(
+    node_id: str,
+    graph: dict,
+    depth: int | None = None,
+    damping: float = 0.85,
+) -> dict:
+    """Compute confidence for a single node. Delegates to compute_all_confidences.
+
+    Returns {"level", "score", "inbound_supports", "inbound_contradicts",
+             "independent_sources", "iterations", "runtime_ms"}.
+    Returns level="low" with zeroes if node not found or inactive.
+    """
+    all_conf = compute_all_confidences(graph, depth=depth, damping=damping)
+    return all_conf.get(node_id, {
+        "level": "low",
+        "score": 0.0,
+        "inbound_supports": 0.0,
+        "inbound_contradicts": 0.0,
+        "independent_sources": 0,
+        "iterations": 0,
+        "runtime_ms": 0.0,
+    })
 
 
 def confidence_annotation(conf: dict) -> str:
@@ -83,7 +175,9 @@ def confidence_annotation(conf: dict) -> str:
     level = conf.get("level", "low")
     if level == "contested":
         n = conf.get("inbound_contradicts", 0)
-        return f"(contested - {n} contradiction{'s' if n != 1 else ''})"
+        # n may now be float
+        n_int = int(round(n)) if isinstance(n, float) else n
+        return f"(contested - {n_int} contradiction{'s' if n_int != 1 else ''})"
     elif level == "high":
         n = conf.get("independent_sources", 0)
         return f"(high confidence, {n} sources)"
@@ -91,15 +185,3 @@ def confidence_annotation(conf: dict) -> str:
         n = conf.get("independent_sources", 0)
         return f"(medium confidence, {n} source{'s' if n != 1 else ''})"
     return ""
-
-
-def compute_all_confidences(graph: dict) -> dict:
-    """Compute confidence for all active nodes.
-
-    Returns {node_id: confidence_dict} for each active node.
-    """
-    result = {}
-    for node in graph.get("nodes", []):
-        if node.get("status") == "active":
-            result[node["id"]] = compute_confidence(node["id"], graph)
-    return result

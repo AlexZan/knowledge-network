@@ -11,7 +11,7 @@ The Knowledge Network is a 5,830 LOC Python codebase (23 modules, 561 tests). Ph
 
 1. **Concurrent storage**: Multiple agents already write to the graph simultaneously (dev agent, paper writer, ingestion pipeline). YAML has no locking — concurrent writes corrupt data. The thesis ([Decision 013](013-unified-kg-architecture.md)) calls for Automerge/CRDT storage, but Python's Automerge bindings are broken (v0.1.2, low-level only, can't build from git).
 
-2. **Endgame architecture**: The [big picture roadmap](../ROADMAP.md) targets decentralized, distributed AI systems — smart contracts, eventually a custom blockchain, Open Systems with an experience system. Python cannot compile to WASM, cannot run in a blockchain VM, and cannot provide the memory safety guarantees required for consensus systems.
+2. **Endgame architecture**: The [big picture roadmap](../BIG-PICTURE.md) targets decentralized, distributed AI systems — smart contracts, eventually a custom blockchain, Open Systems with an experience system. Python cannot compile to WASM, cannot run in a blockchain VM, and cannot provide the memory safety guarantees required for consensus systems.
 
 A research spike (2026-03-03) evaluated the Rust ecosystem and found every previously-assumed blocker has a production-ready solution. See [rust-port-analysis.md](../research/rust-port-analysis.md) and [language-and-storage-decision.md](../research/language-and-storage-decision.md).
 
@@ -132,4 +132,4 @@ The Python codebase remains operational throughout — the Rust port runs in par
 - [Decision 014: Sessions as Perspectives](014-sessions-as-perspectives.md) — multi-agent perspectives require concurrent storage
 - [Rust Port Analysis](../research/rust-port-analysis.md) — ecosystem evaluation
 - [Language & Storage Decision](../research/language-and-storage-decision.md) — CRDT comparison + endgame language analysis
-- [Big Picture Roadmap](../ROADMAP.md) — 5-phase vision
+- [Big Picture Roadmap](../BIG-PICTURE.md) — 5-phase vision

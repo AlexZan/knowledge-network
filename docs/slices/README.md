@@ -96,7 +96,7 @@ Ordered top-down by dependency. Each item builds on the one above it.
 
 ### Phase Transition: Python → Rust
 
-Phase 1 (Python prototype) is complete. Phase 2 is a Rust port with CRDT storage and WASM targets. See [Decision 016](../decisions/016-rust-wasm-port.md) and [ROADMAP.md](../ROADMAP.md) for the full 6-phase plan.
+Phase 1 (Python prototype) is complete. Phase 2 is a Rust port with CRDT storage and WASM targets. See [Decision 016](../decisions/016-rust-wasm-port.md) and [BIG-PICTURE.md](../BIG-PICTURE.md) for the full 6-phase plan.
 
 The Python codebase remains as the reference implementation during the port. No further Python slices are planned — new development happens in Rust.
 
@@ -124,6 +124,8 @@ Capabilities that may be valuable but aren't blocking the core vision. Revisit a
 - **Schema-detection agent** — Auto-propose new node types from conversation patterns
 - **`because_of` multi-hop** — Deep chain staleness. Only if dogfooding shows 1-hop is insufficient
 - **12d: LLM Reranking** — LLM classify top-15 results in `query_knowledge`. Current keyword + embedding + graph walk scoring may be sufficient — revisit if search quality degrades at scale
+- **Dynamic KG switching** — Easily switch active KG by effort/context (e.g. "switch to physics theory" auto-loads that KG). Needs brainstorming. Current workaround: separate MCP server entries in `.mcp.json` with different `OI_SESSION_DIR`. Long-term: effort-aware KG routing, a KG registry, or a "load KG" command.
+- **Ingestion resume/checkpoint** — If ingest crashes mid-run (e.g. GPU panic, network drop), restart from where it left off. Track which files/conversations are already processed (by node provenance URI) and skip them on re-run. Critical for large expensive ingestion jobs.
 
 ---
 

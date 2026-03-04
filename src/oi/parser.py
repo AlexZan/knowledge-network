@@ -573,9 +573,12 @@ _FORMAT_MAP = {
     ".txt": "text",
     ".text": "text",
     ".pdf": "pdf",
+    ".json": "json",
 }
 
 DEFAULT_EXTENSIONS = {".md", ".pdf", ".txt"}
+# .json is intentionally excluded from DEFAULT_EXTENSIONS — only valid for
+# ChatGPT conversation files, so callers must opt in explicitly.
 
 
 def _apply_source_id(doc: ParsedDocument, source_id: str | None) -> ParsedDocument:
@@ -623,7 +626,44 @@ def parse_file(
     suffix = path.suffix.lower()
     fmt = _FORMAT_MAP.get(suffix)
 
-    if fmt is None:
+    if fmt == "json":
+        # ChatGPT single-conversation JSON: peek to confirm format
+        try:
+            import json as _json
+            data = _json.loads(path.read_text(encoding="utf-8"))
+        except Exception as e:
+            return _apply_source_id(
+                ParsedDocument(
+                    metadata=DocumentMetadata(
+                        source_path=rel_path,
+                        format="unknown",
+                        provenance_uri=_build_provenance_uri(rel_path),
+                    ),
+                    chunks=[],
+                    total_chars=0,
+                    parse_errors=[f"Failed to read JSON: {e}"],
+                ),
+                source_id,
+            )
+        if isinstance(data, dict) and "mapping" in data and "current_node" in data:
+            from .chatgpt_parser import parse_chatgpt_file
+            # Use source_id if provided, else fall back to parent folder name
+            sid = source_id or path.parent.name
+            return parse_chatgpt_file(path, source_id=sid)
+        return _apply_source_id(
+            ParsedDocument(
+                metadata=DocumentMetadata(
+                    source_path=rel_path,
+                    format="unknown",
+                    provenance_uri=_build_provenance_uri(rel_path),
+                ),
+                chunks=[],
+                total_chars=0,
+                parse_errors=["JSON file is not a recognized ChatGPT conversation format"],
+            ),
+            source_id,
+        )
+    elif fmt is None:
         doc = ParsedDocument(
             metadata=DocumentMetadata(
                 source_path=rel_path,
