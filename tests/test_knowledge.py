@@ -558,7 +558,8 @@ class TestStalenessDetection:
         })
         knowledge["edges"].append({
             "source": "preference-099", "target": "preference-001",
-            "type": "contradicts", "created": now,
+            "type": "contradicts", "reasoning": "directly contradicts",
+            "created": now,
         })
         _save_knowledge(session_dir, knowledge)
 

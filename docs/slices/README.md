@@ -37,8 +37,10 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 | 13c | Graph-Aware Batch Linker | `link_new_nodes()` links all extracted nodes with full graph visibility (Pass 2). Symmetric pair dedup. Detect contradictions. | — |
 | 13d | Conflict Resolution Report | Topology-based classification: auto_resolvable/strong_recommendation/ambiguous. `resolve_conflict`, `auto_resolve`. First run: 6/37 auto-resolved, zero LLM. | — |
 | 13e | Ingestion CLI / MCP Tool | `ingest_pipeline()` orchestrator (parse→extract→write→link→embed→report). MCP `mcp_ingest_document` tool with dry-run and skip_linking. Anomaly ledger (`anomalies.yaml`). | — |
+| 14a | Edge Weights + Salience | Edge weight by reasoning quality (1.0x/0.5x in PageRank). Salience metric from `related_to` density. `sort_by` param in `query_knowledge` + MCP. | [Decision 020](../decisions/020-salience-confidence-separation.md) |
+| 14b | Concept Nodes | Embedding cluster detection (`find_clusters`), LLM concept synthesis (`synthesize_concepts`), `principle` nodes with `exemplifies` edges. Optional pipeline stages. Robust JSON parsing (`_parse_llm_json`). | [Decision 020](../decisions/020-salience-confidence-separation.md) |
 
-**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs. Slices 12a-c add graph-aware search (graph walk, embeddings, batch classification). Slices 13a-e add bulk document ingestion with two-pass architecture, topology-based conflict resolution, and a unified MCP tool.
+**Phase boundary**: Slices 1-7 are a memory system with agent capabilities. Slices 8a-8d add the knowledge graph with topology-based confidence. Slices 8e-8f make the graph usable and traceable at runtime. Slice 8g adds generalization. Slice 8h adds reactive staleness detection. Slice 9 unifies efforts and knowledge into one store. Slice 10 makes the schema extensible. Slice 11 exposes the graph to external tools via MCP. Slice 11b ensures every node links back to its source conversation via provenance URIs. Slices 12a-c add graph-aware search (graph walk, embeddings, batch classification). Slices 13a-e add bulk document ingestion with two-pass architecture, topology-based conflict resolution, and a unified MCP tool. Slices 14a-b add enrichment: reasoning-weighted confidence, salience as a distinct metric, and concept node synthesis from embedding clusters.
 
 ---
 
@@ -49,6 +51,8 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 - [Decision 012: Sessions as Audit Logs](../decisions/012-session-as-audit-log.md) — Sessions are chronological records of graph interactions + ambient conversation, not persistence boundaries.
 - [Decision 013: Unified KG Architecture](../decisions/013-unified-kg-architecture.md) — Mutability gradient, Automerge/Vault storage layer, reactive `because_of` edges. Validated via 7 architectural traces.
 - [Decision 014: Sessions as Perspectives](../decisions/014-sessions-as-perspectives.md) — Sessions develop distinct viewpoints. Enables multi-agent debate, roundtables, adversarial review.
+- [Decision 019: Semantic vs Logical Edges](../decisions/019-semantic-vs-logical-edges.md) — `related_to` excluded from PageRank. Semantic layer feeds salience, not confidence.
+- [Decision 020: Salience, Edge Weights, Concept Nodes](../decisions/020-salience-confidence-separation.md) — Three distinct metrics (salience, corroboration, logical confidence). Reasoning-weighted edges. Concept nodes from embedding clusters.
 
 ---
 
@@ -86,6 +90,10 @@ CCM whitepaper published (Slices 1-4). Now building toward the Knowledge Network
 13d: Conflict Resolution (topology classification, auto_resolve) ✓
  ↓
 13e: Ingestion CLI / MCP Tool (ingest_pipeline, MCP tool, anomaly ledger) ✓
+ ↓
+14a: Edge Weights + Salience (reasoning-weighted PageRank, salience metric, sort_by) ✓
+ ↓
+14b: Concept Nodes (embedding clusters, LLM synthesis, robust JSON parsing) ✓
 ```
 
 ---
@@ -98,7 +106,7 @@ Ordered top-down by dependency. Each item builds on the one above it.
 
 Phase 1 (Python prototype) is complete. Phase 2 is a Rust port with CRDT storage and WASM targets. See [Decision 016](../decisions/016-rust-wasm-port.md) and [BIG-PICTURE.md](../BIG-PICTURE.md) for the full 6-phase plan.
 
-The Python codebase remains as the reference implementation during the port. No further Python slices are planned — new development happens in Rust.
+The Python codebase remains as the reference implementation. Rust port is deferred — Python performance is acceptable while the LLM API is the bottleneck. New Python slices continue as needed.
 
 ---
 

@@ -13,13 +13,13 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Phase 1 Complete, Rust Port Decided
+## Current Status: Phase 1 Complete, Enrichment Pipeline Live
 
-Slices 1-13e complete. The Python prototype is proven — 561 tests, bulk ingestion working, MCP server live.
+Slices 1-14b complete. The Python prototype is proven — 719 tests, full ingestion + enrichment pipeline working, MCP server live. Graph: 908 active nodes.
 
-**Major decision (2026-03-03)**: Port to Rust with WASM targets. See [Decision 016](decisions/016-rust-wasm-port.md) and [BIG-PICTURE.md](BIG-PICTURE.md). Motivated by: broken Python Automerge bindings, endgame requiring WASM smart contracts, and the discovery that the entire Rust AI ecosystem (MCP, LLM clients, CRDTs, PDF parsing) is production-ready.
+**Rust port deferred** (2026-03-03): Python performance is acceptable. Bottleneck is LLM API calls, not Python. See [Decision 016](decisions/016-rust-wasm-port.md) for future triggers.
 
-Next: Phase 2 — Rust scaffold, `GraphStore` trait, core graph ops port.
+Next: Local LLM for ingestion, batch-process physics theory conversations unattended.
 
 ### What's Built
 
@@ -46,8 +46,25 @@ Next: Phase 2 — Rust scaffold, `GraphStore` trait, core graph ops port.
 | 13b | Done | Claim extraction: LLM extracts discrete nodes from chunks, `skip_linking`/`skip_embed` flags for batch. |
 | 13c | Done | Graph-aware batch linker: `link_new_nodes()` with full graph visibility, symmetric pair dedup. |
 | 13d | Done | Conflict resolution: topology-based classification (`auto_resolvable`/`strong_recommendation`/`ambiguous`), `resolve_conflict`, `auto_resolve`. |
+| 13e | Done | Pipeline orchestrator: `ingest_pipeline()` (parse→extract→write→link→embed→report), `mcp_ingest_document` MCP tool, ChatGPT export ingestion. |
+| 14a | Done | Edge weight by reasoning quality (1.0x with reasoning, 0.5x without in PageRank). Salience metric from `related_to` density. `sort_by` param in query. |
+| 14b | Done | Concept nodes from embedding clusters: `find_clusters()` + `synthesize_concepts()` pipeline stages, `principle` nodes with `exemplifies` edges. |
 
-**Test counts**: 552 free tests + 55 LLM tests (marker-separated). 1 skipped.
+**Test counts**: 719 free tests + 55 LLM tests (marker-separated). 1 skipped.
+
+### Session: Decision 020 — Salience, Edge Weights, Concept Nodes (2026-03-04)
+
+Implemented [Decision 020](decisions/020-salience-confidence-separation.md) in three phases:
+
+1. **Edge weight by reasoning quality (14a)**: `confidence.py` now weights edges 1.0x when reasoning is present, 0.5x when absent. All existing edges default to 0.5x. PageRank iteration and contribution calculation both use weights. 6 new tests, 4 existing tests updated.
+
+2. **Salience metric (14a)**: New `compute_salience()` counts bidirectional `related_to` edges per node, normalizes to 0.0–1.0. `query_knowledge()` accepts `sort_by` param ("salience", "confidence"). MCP server displays salience in results. 6 new tests.
+
+3. **Concept nodes from embedding clusters (14b)**: New `cluster.py` — greedy cosine similarity clustering (threshold 0.85), LLM synthesis of `principle` nodes with `exemplifies` edges. Pipeline stages (optional via `skip_clustering`). 11 new tests.
+
+4. **JSON parsing hardened**: LLMs sometimes emit control characters or truncated JSON. Extracted `_parse_llm_json()` helper that sanitizes control chars and repairs truncated arrays by finding the last complete object. 11 new tests. Addresses anomaly `llm-json-truncation` (2 occurrences).
+
+5. **Real data validation**: Ingested `docs/thesis.md` (230 nodes, 1205 edges), `docs/BIG-PICTURE.md` (85 nodes, 424 edges), `docs/PROJECT.md` (114 nodes, 129 edges, 72 concept nodes synthesized). Graph now at 908 active nodes.
 
 ### Session: MCP Server + Provenance (2026-03-01 to 2026-03-02)
 
@@ -108,9 +125,9 @@ Built the complete search infrastructure and ingestion pipeline across multiple 
 ### What's Next
 
 See [BIG-PICTURE.md](BIG-PICTURE.md) for big picture. Immediate:
-1. **Phase 2A**: Rust scaffold + `GraphStore` trait + data models
-2. **Phase 2B**: Core graph ops port (add/query, graph walk, confidence, conflicts)
-3. **Phase 2C**: LLM integration + MCP server + parser
+1. **Local LLM for ingestion**: Switch ingest model to local (e.g. via Ollama) for unattended batch processing
+2. **Batch physics conversations**: Process all 188 physics theory ChatGPT conversations (needs resume/checkpoint)
+3. **Cluster quality tuning**: 72 concepts from 42 claims suggests threshold (0.85) may be too aggressive — evaluate and tune
 
 ---
 

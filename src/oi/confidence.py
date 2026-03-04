@@ -57,16 +57,19 @@ def compute_all_confidences(
     edges = graph.get("edges", [])
 
     # Build adjacency index once — O(E), logical edges only
-    inbound: dict[str, list[tuple[str, str]]] = {nid: [] for nid in node_ids}
-    outbound_count: dict[str, int] = {nid: 0 for nid in node_ids}
+    # Each inbound entry: (source_id, edge_type, has_reasoning)
+    inbound: dict[str, list[tuple[str, str, bool]]] = {nid: [] for nid in node_ids}
+    outbound_count: dict[str, float] = {nid: 0.0 for nid in node_ids}
 
     for edge in edges:
         if edge.get("type") not in logical_types:
             continue
         src, tgt = edge.get("source", ""), edge.get("target", "")
         if src in node_id_set and tgt in node_id_set:
-            inbound[tgt].append((src, edge["type"]))
-            outbound_count[src] += 1
+            has_reasoning = bool(edge.get("reasoning"))
+            reasoning_weight = 1.0 if has_reasoning else 0.5
+            inbound[tgt].append((src, edge["type"], has_reasoning))
+            outbound_count[src] += reasoning_weight
 
     # PageRank initialisation
     scores: dict[str, float] = {nid: 1.0 / N for nid in node_ids}
@@ -80,9 +83,10 @@ def compute_all_confidences(
         new_scores: dict[str, float] = {}
         for nid in node_ids:
             rank = teleport
-            for src, _ in inbound[nid]:
+            for src, _, has_reasoning in inbound[nid]:
+                reasoning_weight = 1.0 if has_reasoning else 0.5
                 out = outbound_count[src]
-                rank += damping * scores[src] / (out if out > 0 else 1)
+                rank += damping * (scores[src] * reasoning_weight) / (out if out > 0 else 1)
             new_scores[nid] = rank
 
         if depth is None:
@@ -110,8 +114,9 @@ def compute_all_confidences(
         weighted_contradicts = 0.0
         supporter_ids: list[str] = []
 
-        for src, etype in inbound[nid]:
-            contribution = scores[src] / baseline
+        for src, etype, has_reasoning in inbound[nid]:
+            reasoning_weight = 1.0 if has_reasoning else 0.5
+            contribution = (scores[src] / baseline) * reasoning_weight
             if etype in ("supports", "exemplifies"):
                 weighted_supports += contribution
                 supporter_ids.append(src)
@@ -173,6 +178,41 @@ def compute_confidence(
         "iterations": 0,
         "runtime_ms": 0.0,
     })
+
+
+def compute_salience(graph: dict) -> dict[str, float]:
+    """Compute salience for all active nodes based on related_to edge count.
+
+    Salience measures how central a concept is — nodes with many semantic
+    connections (related_to edges) are more salient. Unlike confidence
+    (which uses logical edges like supports/contradicts), salience uses
+    only related_to edges (bidirectional).
+
+    Returns:
+        {node_id: salience_score} where scores are normalized 0.0–1.0.
+    """
+    active_nodes = [n for n in graph.get("nodes", []) if n.get("status") == "active"]
+    node_ids = {n["id"] for n in active_nodes}
+
+    if not node_ids:
+        return {}
+
+    # Count related_to edges per node (both directions)
+    related_count: dict[str, int] = {nid: 0 for nid in node_ids}
+    for edge in graph.get("edges", []):
+        if edge.get("type") != "related_to":
+            continue
+        src, tgt = edge.get("source", ""), edge.get("target", "")
+        if src in node_ids:
+            related_count[src] += 1
+        if tgt in node_ids:
+            related_count[tgt] += 1
+
+    max_count = max(related_count.values()) if related_count else 0
+    if max_count == 0:
+        return {nid: 0.0 for nid in node_ids}
+
+    return {nid: count / max_count for nid, count in related_count.items()}
 
 
 def confidence_annotation(conf: dict) -> str:

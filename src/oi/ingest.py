@@ -9,6 +9,7 @@ Also provides ingest_chatgpt_export() for ChatGPT export zip files.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -78,6 +79,8 @@ class PipelineResult(BaseModel):
     edges_created: int = 0
     contradictions_found: int = 0
     conversations_skipped: int = 0
+    clusters_found: int = 0
+    concepts_created: int = 0
     conflicts: dict = {}  # {total, auto_resolvable, strong_recommendations, ambiguous}
     errors: list[str] = []
     dry_run: bool = False
@@ -134,6 +137,47 @@ def _build_extraction_prompt(chunk: DocumentChunk, metadata_context: str) -> lis
 # === Core Functions ===
 
 
+def _parse_llm_json(text: str) -> list:
+    """Parse JSON array from LLM output, handling common LLM quirks.
+
+    Handles: markdown fences, control characters, truncated output.
+    Raises JSONDecodeError only if all repair attempts fail.
+    """
+    text = text.strip()
+    # Strip markdown fences (opening always present, closing may be truncated)
+    if text.startswith("```"):
+        lines = text.split("\n")
+        # Remove opening fence line
+        lines = lines[1:]
+        # Remove closing fence if present
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines)
+    # Sanitize control characters (keep \n, \r, \t)
+    text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Truncation repair: close unclosed brackets/braces.
+    # Strategy: if text starts with '[', try progressively trimming from the end
+    # to find the last complete object, then close the array.
+    if text.lstrip().startswith("["):
+        # Trim trailing partial object: find last '}' and close the array there
+        last_brace = text.rfind("}")
+        if last_brace > 0:
+            candidate = text[:last_brace + 1].rstrip().rstrip(",") + "]"
+            try:
+                return json.loads(candidate)
+            except json.JSONDecodeError:
+                pass
+
+    # Nothing worked — raise the original error for reporting
+    return json.loads(text)
+
+
 def extract_from_chunk(
     chunk: DocumentChunk,
     source_path: str,
@@ -165,11 +209,7 @@ def extract_from_chunk(
             log_meta={"chunk_id": chunk.chunk_id, "source": source_path},
         )
         text = raw.strip()
-        # Strip markdown fences if present
-        if text.startswith("```"):
-            lines = text.split("\n")
-            text = "\n".join(lines[1:-1]) if len(lines) > 2 else text
-        nodes = json.loads(text)
+        nodes = _parse_llm_json(text)
         if not isinstance(nodes, list):
             return ChunkExtractionResult(
                 chunk_id=chunk.chunk_id,
@@ -346,6 +386,7 @@ def ingest_pipeline(
     dry_run: bool = False,
     skip_linking: bool = False,
     skip_embedding: bool = False,
+    skip_clustering: bool = True,
     progress_fn: Callable[[str, str], None] | None = None,
     source_id: str | None = None,
 ) -> PipelineResult:
@@ -452,7 +493,30 @@ def ingest_pipeline(
         except Exception as e:
             errors.append(f"Embedding failed: {e}")
 
-    # Stage 6: Conflict report
+    # Stage 6: Cluster
+    clusters_found = 0
+    concepts_created = 0
+    if not skip_clustering and not skip_embedding and node_ids:
+        _progress("cluster", f"finding similar nodes")
+        try:
+            from .cluster import find_clusters, synthesize_concepts
+            from .state import _load_knowledge as _load_kg
+
+            kg = _load_kg(session_dir)
+            clusters = find_clusters(session_dir, kg)
+            clusters_found = len(clusters)
+
+            # Stage 7: Synthesize concepts
+            if clusters:
+                _progress("synthesize", f"{clusters_found} cluster(s)")
+                concepts = synthesize_concepts(clusters, session_dir, kg, model=model)
+                concepts_created = len(concepts)
+                for c in concepts:
+                    node_ids.append(c["concept_node_id"])
+        except Exception as e:
+            errors.append(f"Clustering failed: {e}")
+
+    # Stage 8: Conflict report
     conflicts: dict = {}
     if not skip_linking and node_ids:
         _progress("report", "generating conflict report")
@@ -480,6 +544,8 @@ def ingest_pipeline(
         claims_extracted=ingestion.claims_extracted,
         edges_created=edges_created,
         contradictions_found=contradictions_found,
+        clusters_found=clusters_found,
+        concepts_created=concepts_created,
         conflicts=conflicts,
         errors=errors,
         dry_run=False,
@@ -516,6 +582,7 @@ def ingest_chatgpt_export(
     dry_run: bool = False,
     skip_linking: bool = False,
     skip_embedding: bool = False,
+    skip_clustering: bool = True,
     progress_fn: Callable[[str, str], None] | None = None,
 ) -> PipelineResult:
     """Ingest a ChatGPT export using the registered source path.
@@ -657,7 +724,30 @@ def ingest_chatgpt_export(
         except Exception as e:
             errors.append(f"Embedding failed: {e}")
 
-    # Stage 6: Conflict report
+    # Stage 6: Cluster
+    clusters_found = 0
+    concepts_created = 0
+    if not skip_clustering and not skip_embedding and node_ids:
+        _progress("cluster", f"finding similar nodes")
+        try:
+            from .cluster import find_clusters, synthesize_concepts
+            from .state import _load_knowledge as _load_kg2
+
+            kg = _load_kg2(session_dir)
+            clusters = find_clusters(session_dir, kg)
+            clusters_found = len(clusters)
+
+            # Stage 7: Synthesize concepts
+            if clusters:
+                _progress("synthesize", f"{clusters_found} cluster(s)")
+                concepts = synthesize_concepts(clusters, session_dir, kg, model=model)
+                concepts_created = len(concepts)
+                for c in concepts:
+                    node_ids.append(c["concept_node_id"])
+        except Exception as e:
+            errors.append(f"Clustering failed: {e}")
+
+    # Stage 8: Conflict report
     conflicts: dict = {}
     if not skip_linking and node_ids:
         _progress("report", "generating conflict report")
@@ -686,6 +776,8 @@ def ingest_chatgpt_export(
         edges_created=edges_created,
         contradictions_found=contradictions_found,
         conversations_skipped=conversations_skipped,
+        clusters_found=clusters_found,
+        concepts_created=concepts_created,
         conflicts=conflicts,
         errors=errors,
         dry_run=False,

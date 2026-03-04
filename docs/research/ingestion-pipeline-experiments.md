@@ -373,6 +373,129 @@ The contested count remained at 19 despite adding 290 nodes across 3 new documen
 
 ---
 
+## Experiment 4: Salience vs Confidence Separation + Concept Synthesis
+
+**Date**: 2026-03-04
+**Pipeline version**: Post-Decision 020 (reasoning-weighted edges, salience metric, concept node synthesis)
+**KG**: `~/.oi/` (knowledge-network's own docs KG — 908 active nodes after this experiment)
+**Documents ingested this session**: `docs/thesis.md` (230 nodes), `docs/BIG-PICTURE.md` (85 nodes), `docs/PROJECT.md` (114 nodes incl. 72 concept nodes)
+
+### Setup
+
+Decision 020 introduced three new capabilities:
+1. **Edge weight by reasoning quality**: `supports`/`contradicts` edges with a `reasoning` field get 1.0x weight in PageRank; edges without get 0.5x.
+2. **Salience metric**: `compute_salience()` counts bidirectional `related_to` edges per node, normalized to 0.0–1.0. Independent of confidence.
+3. **Concept synthesis from embedding clusters**: Greedy cosine similarity clustering (threshold 0.85) groups near-duplicate fact nodes, then LLM synthesizes a `principle` node linking them via `exemplifies` edges.
+
+### Key Finding: Salience and Confidence Rank Nodes Differently
+
+The top 10 nodes by salience vs confidence diverge significantly, validating that the two metrics capture different epistemic signals:
+
+**Top 5 by salience** (semantic centrality — "what is this domain about?"):
+
+| Node | Salience | Confidence | Summary |
+|------|:--------:|:----------:|---------|
+| `fact-016` | **1.00** | high | Conflict resolution empirical result (236 nodes, 877 edges, 37 contradictions) |
+| `decision-074` | **0.54** | medium | System should recognize trigger patterns and compact the KN |
+| `fact-134` | **0.52** | medium | Edges are typed as supports/contradicts/exemplifies/supersedes |
+| `fact-113` | **0.49** | high | 236-node graph, 6 auto-resolved conflicts with zero LLM calls |
+| `fact-425` | **0.48** | medium | Conclusion nodes include Content, Source, Connections, Confidence, Abstraction |
+
+**Top 5 by confidence** (logical justification — "what is well-supported?"):
+
+| Node | Confidence | Salience | Summary |
+|------|:----------:|:--------:|---------|
+| `fact-074` | high | 0.35 | Topological truth-finding prevents confidence inflation |
+| `fact-240` | high | 0.16 | Confidence should emerge from node connectivity |
+| `fact-062` | high | 0.44 | Conclusion-triggered compaction creates a KN where connectivity determines confidence |
+| `fact-063` | high | 0.35 | The network rejected voting in favor of structural connectivity |
+| `fact-019` | high | **0.02** | Resolution 6 is self-referential: topology chose topology (28:4) |
+
+**The divergence case**: `fact-019` (the self-referential result) has **high confidence** (many reasoned support edges from independent sources) but **salience 0.02** (very few `related_to` connections). It's a specific finding, not a central concept — exactly right. Conversely, `decision-074` has **salience 0.54** (highly connected semantically) but only **medium confidence** (logically underspecified). It's central to the domain but lacks strong evidential backing.
+
+This is the Paper 3 result: salience answers "what is this domain about?" while confidence answers "what is well-justified?" A single metric conflating both would rank `fact-019` lower (few connections) or `decision-074` higher (many connections) — both wrong.
+
+### Edge Weight Impact
+
+With reasoning-based weighting, unreasoned edges contribute 0.5x to PageRank. This means:
+- Linker-generated edges (which always have `reasoning`) count at 1.0x
+- Manually added edges without reasoning count at 0.5x
+- The distinction rewards evidential justification over bare assertions
+
+In the 908-node graph, the majority of edges were created by the linker (with reasoning), so the weight change primarily affects manually-added early nodes. The structural effect: early seed nodes that bootstrapped the graph have slightly lower confidence influence than their edge count would suggest — correct, since those edges were asserted without justification.
+
+### Concept Synthesis Results
+
+Ingesting `docs/PROJECT.md` with `skip_clustering=False` produced:
+- **42 fact/decision claims** extracted from 8 chunks
+- **72 embedding clusters** detected (cosine similarity ≥ 0.85)
+- **72 principle nodes** synthesized, each linking 2+ fact nodes via `exemplifies`
+
+Sample synthesized concepts (sorted by salience):
+
+| Concept | Confidence | Exemplifiers | Summary |
+|---------|:----------:|:------------:|---------|
+| `principle-003` | high | 4 | Topological truth-finding is non-authoritarian, non-gameable, self-correcting, and auditable |
+| `principle-028` | high | 2 | In Living KNs, the network itself functions as the model — no separate training phase |
+| `principle-017` | high | 2 | System self-referentially validated its thesis by choosing topology over voting |
+| `principle-014` | medium | 3 | "Contradicts" reclassified as "related_to" when claims operate at different abstraction levels |
+| `principle-059` | medium | 2 | Independent convergence raises confidence — a trigger for conclusion-triggered compaction |
+
+**Observation**: 72 clusters from 42 claims + ~800 pre-existing nodes is high. Investigation below.
+
+### Cluster Threshold Tuning (667 active fact nodes with embeddings)
+
+Tested 6 thresholds on the full 908-node knowledge-network KG:
+
+| Threshold | Clusters | Nodes clustered | Max size | Avg size |
+|:---------:|:--------:|:---------------:|:--------:|:--------:|
+| 0.80 | 114 | 291 | 7 | 2.6 |
+| 0.85 | 72 | 163 | 5 | 2.3 |
+| 0.88 | 51 | 109 | 3 | 2.1 |
+| **0.90** | **39** | **84** | **3** | **2.2** |
+| 0.92 | 28 | 58 | 3 | 2.1 |
+| 0.95 | 18 | 36 | 2 | 2.0 |
+
+**Qualitative evaluation** of the top clusters at each threshold:
+
+**0.85 (too aggressive)**: Clusters 5 nodes about "topology-based conflict resolution" that make *distinct* claims — one about novel reasoning, one about four properties, one about the algorithm, one about empirical results. Pairwise sims range 0.82–0.90. These shouldn't merge into one concept — they're different aspects of the same topic.
+
+**0.90 (sweet spot)**: Largest clusters are genuine near-duplicates — the same claim extracted from different documents. Examples:
+- "Preference conflicts are subjective choices where both options are valid" — 3 nodes, sims 0.894–0.954
+- "Lessons learned in one session are not transferred to subsequent sessions" — 3 nodes, sims 0.914–1.0
+- "Value extraction allows lessons to be shared without exposing source data" — 3 nodes, sims 0.901–0.990
+
+All legitimate duplicates from thesis.md, topological-truth-paper.md, and conflict-resolution-findings.md covering overlapping ground.
+
+**0.92 (too conservative)**: Misses valid duplicates that sit in the 0.90–0.92 range. Still catches the strongest paraphrases (0.92+) but loses the "same claim, moderate rewording" cases.
+
+**Decision**: Default changed from 0.85 to 0.90. The key discriminant: at 0.85, "distinct claims about the same topic" get merged (bad). At 0.90, only "same claim in different words" gets merged (good). At 0.92, some legitimate duplicates are missed (acceptable but leaves value on the table).
+
+### JSON Parsing Robustness
+
+During this session, a robustness fix was applied to the extraction pipeline. The LLM (Cerebras `gpt-oss-120b`) occasionally emits:
+1. **Control characters** (e.g., `\x08` backspace) inside JSON string values — invalid per JSON spec
+2. **Truncated output** — JSON array cut off mid-object
+
+The new `_parse_llm_json()` helper handles both:
+- Strips control characters `\x00-\x08`, `\x0b`, `\x0c`, `\x0e-\x1f` (preserves `\n`, `\r`, `\t`)
+- Repairs truncated arrays by finding the last complete `}` and closing the array
+- 11 unit tests cover all edge cases
+
+This eliminated the `BIG-PICTURE.md` ingestion error from the previous session (chunk `big-picture-roadmap-phase-1...` had failed with "Invalid control character at line 35 column 8").
+
+### Implications for Paper 3
+
+1. **Salience ≠ confidence is empirically validated.** The top-10 divergence between salience and confidence ranking demonstrates that a single metric would conflate "central to the domain" with "well-justified" — two distinct epistemic signals.
+
+2. **Reasoning-weighted edges reward evidential quality.** A support edge backed by an explicit justification ("Both assert that measurement creates rather than reveals physical properties") contributes more than a bare edge. This is the graph-level analog of requiring citations in academic work.
+
+3. **Concept synthesis produces meaningful abstractions.** The synthesized principles correctly identify cross-cutting themes (topological truth-finding, network-as-model, self-referential validation) from independent fact nodes. The `exemplifies` edges create a natural abstraction hierarchy — facts at the bottom, principles at the top.
+
+4. **Pipeline robustness matters at scale.** JSON parsing failures that lose 1/9 chunks (11%) compound across hundreds of documents. The repair mechanism recovers gracefully, preserving all complete objects from truncated output. Critical for the planned 188-conversation batch job.
+
+---
+
 ## Architectural Decisions Captured
 
 - [Decision 019: Semantic vs Logical Edges](../decisions/019-semantic-vs-logical-edges.md) — `related_to` (logical: false) vs `supports`/`contradicts`/`exemplifies` (logical: true)

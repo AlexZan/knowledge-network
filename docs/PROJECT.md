@@ -70,12 +70,22 @@ src/oi/
 ├── chatlog.py       # Raw chat log (append-only JSONL)
 ├── storage.py       # JSON persistence
 ├── cli.py           # Command-line interface
-├── llm.py           # LiteLLM wrapper
+├── llm.py           # LiteLLM wrapper, audit trail (JSONL)
+├── knowledge.py     # add_knowledge(), query_knowledge(), graph operations
+├── confidence.py    # PageRank confidence (edge-weighted), compute_salience()
+├── ingest.py        # Document ingestion pipeline, ChatGPT export ingestion
+├── parser.py        # Markdown/PDF/plain text parser, section chunking
+├── cluster.py       # Embedding cluster detection + concept synthesis
+├── embed.py         # Embedding via Ollama (nomic-embed-text)
+├── conflicts.py     # Conflict detection + topology-based resolution
+├── decay.py         # Knowledge decay scoring
+├── mcp_server.py    # MCP server (FastMCP, stdio transport)
 ├── prompts/
 │   ├── system.md    # Main AI system prompt
 │   └── interpret.md # Artifact interpretation rules
 └── schemas/
     ├── __init__.py        # Schema loader utilities
+    ├── node_types.yaml    # Node type definitions (single source of truth)
     └── artifact_types.yaml # Default type definitions
 ```
 

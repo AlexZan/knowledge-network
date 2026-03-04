@@ -118,9 +118,9 @@
 
 - id: "020"
   title: Salience Confidence Separation
-  status: deferred
+  status: implemented
   superseded_by: null
-  depends_on: []
+  depends_on: ["019"]
 
 - id: "021"
   title: Contradicts Gate Prompt

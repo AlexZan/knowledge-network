@@ -19,9 +19,15 @@ def query_knowledge(
     node_type: str = None,
     min_confidence: str = None,
     max_results: int = 10,
+    sort_by: str = None,
 ) -> str:
-    """Search the knowledge graph by keyword. Returns JSON with matching nodes."""
-    from .confidence import compute_confidence
+    """Search the knowledge graph by keyword. Returns JSON with matching nodes.
+
+    Args:
+        sort_by: Optional sort order. "salience" sorts by related_to centrality,
+                 "confidence" sorts by confidence level. None uses default walk order.
+    """
+    from .confidence import compute_confidence, compute_salience
     from .decay import extract_keywords
 
     knowledge = _load_knowledge(session_dir)
@@ -143,6 +149,21 @@ def query_knowledge(
             entry["stale_dependencies"] = stale_deps
 
         results.append(entry)
+
+    # Compute salience and add to results
+    salience_scores = compute_salience(knowledge)
+    for entry in results:
+        entry["salience"] = salience_scores.get(entry["node_id"], 0.0)
+
+    # Sort if requested
+    if sort_by == "salience":
+        results.sort(key=lambda r: r.get("salience", 0.0), reverse=True)
+    elif sort_by == "confidence":
+        level_order = {"contested": 0, "low": 1, "medium": 2, "high": 3}
+        results.sort(
+            key=lambda r: level_order.get(r.get("confidence", {}).get("level", "low"), 0),
+            reverse=True,
+        )
 
     total_active = len(active_nodes)
     if max_results and len(results) > max_results:

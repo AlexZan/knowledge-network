@@ -105,7 +105,9 @@ def _fmt_query(raw: str) -> str:
     lines = [f"{len(results)} match(es) of {d.get('total_active', '?')} active nodes:\n"]
     for r in results:
         conf = r.get("confidence", {}).get("level", "?")
-        lines.append(f"  {r['node_id']} [{r.get('type')}] ({conf}): {r.get('summary')}")
+        salience = r.get("salience", 0.0)
+        sal_str = f", salience: {salience:.2f}" if salience > 0 else ""
+        lines.append(f"  {r['node_id']} [{r.get('type')}] ({conf}{sal_str}): {r.get('summary')}")
         if r.get("source"):
             lines.append(f"    source: {r['source']}")
         if r.get("reasoning"):
@@ -230,6 +232,7 @@ def mcp_query_knowledge(
     query: str,
     node_type: str = "",
     min_confidence: str = "",
+    sort_by: str = "",
 ) -> str:
     """Search the knowledge graph by topic. Returns matching nodes with confidence.
 
@@ -237,12 +240,14 @@ def mcp_query_knowledge(
         query: Keyword search string (topic, concept, or node ID)
         node_type: Filter results by node type
         min_confidence: Minimum confidence level (low, medium, high)
+        sort_by: Sort order: "salience" (by centrality), "confidence" (by level), or empty (default walk order)
     """
     raw = query_knowledge(
         session_dir=_get_session_dir(),
         query=query,
         node_type=_or_none(node_type),
         min_confidence=_or_none(min_confidence),
+        sort_by=_or_none(sort_by),
     )
     result_data = json.loads(raw)
     _log_tool_call("mcp_query_knowledge", {"query": query},
@@ -387,6 +392,11 @@ def _fmt_ingest(result) -> str:
                 f"Edges: {result.edges_created} created, "
                 f"{result.contradictions_found} contradictions"
             )
+        if result.clusters_found or result.concepts_created:
+            lines.append(
+                f"Clusters: {result.clusters_found} found, "
+                f"{result.concepts_created} concepts created"
+            )
         if result.conflicts:
             c = result.conflicts
             lines.append(
@@ -414,6 +424,7 @@ def mcp_ingest_document(
     file_path: str,
     dry_run: bool = False,
     skip_linking: bool = False,
+    skip_clustering: bool = False,
     source_id: str = "",
 ) -> str:
     """Ingest a document into the knowledge graph.
@@ -425,6 +436,7 @@ def mcp_ingest_document(
         file_path: Absolute path to the document file (.md, .pdf, .txt)
         dry_run: If true, parse and extract only — show what would happen without writing
         skip_linking: If true, skip the linking pass (faster, cheaper, no contradiction detection)
+        skip_clustering: If true, skip the cluster + concept synthesis pass
         source_id: Registered source name for logical provenance URIs (e.g. 'my-docs')
     """
     from .ingest import ingest_pipeline
@@ -438,6 +450,7 @@ def mcp_ingest_document(
         model=model,
         dry_run=dry_run,
         skip_linking=skip_linking,
+        skip_clustering=skip_clustering,
         source_id=_or_none(source_id),
     )
 
@@ -445,6 +458,7 @@ def mcp_ingest_document(
         "file_path": file_path,
         "dry_run": dry_run,
         "skip_linking": skip_linking,
+        "skip_clustering": skip_clustering,
         "source_id": source_id or None,
     }, f"{len(result.nodes_created)} nodes")
 

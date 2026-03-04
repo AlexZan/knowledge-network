@@ -12,6 +12,7 @@ from oi.ingest import (
     PipelineResult,
     _build_extraction_prompt,
     _get_ingested_conv_ids,
+    _parse_llm_json,
     extract_from_chunk,
     extract_document,
     ingest_document,
@@ -161,6 +162,71 @@ class TestBuildExtractionPrompt:
         msgs = _build_extraction_prompt(chunk, "")
         assert "Section path:" not in msgs[1]["content"]
         assert "Section:" not in msgs[1]["content"]
+
+
+# === JSON Parsing Robustness ===
+
+
+class TestParseLlmJson:
+    """Tests for _parse_llm_json — LLM output sanitization and repair."""
+
+    def test_clean_json_passes_through(self):
+        result = _parse_llm_json('[{"a": 1}, {"b": 2}]')
+        assert result == [{"a": 1}, {"b": 2}]
+
+    def test_strips_markdown_fences(self):
+        text = '```json\n[{"a": 1}]\n```'
+        assert _parse_llm_json(text) == [{"a": 1}]
+
+    def test_strips_control_characters(self):
+        # \x08 (backspace) inside a JSON string value
+        text = '[{"summary": "hello\x08world"}]'
+        result = _parse_llm_json(text)
+        assert result[0]["summary"] == "helloworld"
+
+    def test_preserves_newlines_and_tabs(self):
+        text = '[{"summary": "line1\\nline2\\ttab"}]'
+        result = _parse_llm_json(text)
+        assert "line1\nline2\ttab" in result[0]["summary"]
+
+    def test_repairs_truncated_array(self):
+        # LLM output cut off mid-object — last complete object should survive
+        text = '[{"a": 1}, {"b": 2}, {"c": 3'
+        result = _parse_llm_json(text)
+        assert len(result) == 2
+        assert result[0] == {"a": 1}
+        assert result[1] == {"b": 2}
+
+    def test_repairs_truncated_after_comma(self):
+        text = '[{"a": 1}, {"b": 2},'
+        result = _parse_llm_json(text)
+        assert len(result) == 2
+
+    def test_repairs_truncated_mid_value(self):
+        # Truncated inside a string value
+        text = '[{"a": 1}, {"b": "hello wor'
+        result = _parse_llm_json(text)
+        assert len(result) == 1
+        assert result[0] == {"a": 1}
+
+    def test_combined_fences_control_chars_truncation(self):
+        text = '```json\n[{"s": "ok\x08"}, {"s": "trunc'
+        result = _parse_llm_json(text)
+        assert len(result) == 1
+        assert result[0] == {"s": "ok"}
+
+    def test_empty_array(self):
+        assert _parse_llm_json("[]") == []
+
+    def test_hopelessly_broken_raises(self):
+        with pytest.raises(Exception):
+            _parse_llm_json("this is not json at all")
+
+    def test_single_complete_object_truncated(self):
+        # Only one object, and it's truncated — nothing salvageable
+        text = '[{"a": "hello wor'
+        with pytest.raises(Exception):
+            _parse_llm_json(text)
 
 
 # === Phase 1: extract_from_chunk ===

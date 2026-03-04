@@ -112,23 +112,23 @@ class TestGenerateConflictReport:
             *[_make_node(f"s{i}") for i in range(1, 12)],
         ]
         edges = [
-            # Pair 1: 5 vs 0 supports → auto_resolvable
+            # Pair 1: 5 vs 0 supports (reasoned) → auto_resolvable
             _make_edge("fact-001", "fact-002", "contradicts"),
-            _make_edge("s1", "fact-001", "supports"),
-            _make_edge("s2", "fact-001", "supports"),
-            _make_edge("s3", "fact-001", "supports"),
-            _make_edge("s4", "fact-001", "supports"),
-            _make_edge("s5", "fact-001", "supports"),
-            # Pair 2: 3 vs 1 supports → strong_recommendation
+            _make_edge("s1", "fact-001", "supports", reasoning="ev1"),
+            _make_edge("s2", "fact-001", "supports", reasoning="ev2"),
+            _make_edge("s3", "fact-001", "supports", reasoning="ev3"),
+            _make_edge("s4", "fact-001", "supports", reasoning="ev4"),
+            _make_edge("s5", "fact-001", "supports", reasoning="ev5"),
+            # Pair 2: 3 vs 1 supports (reasoned) → strong_recommendation
             _make_edge("fact-003", "fact-004", "contradicts"),
-            _make_edge("s6", "fact-003", "supports"),
-            _make_edge("s7", "fact-003", "supports"),
-            _make_edge("s8", "fact-003", "supports"),
-            _make_edge("s9", "fact-004", "supports"),
-            # Pair 3: equal → ambiguous
+            _make_edge("s6", "fact-003", "supports", reasoning="ev6"),
+            _make_edge("s7", "fact-003", "supports", reasoning="ev7"),
+            _make_edge("s8", "fact-003", "supports", reasoning="ev8"),
+            _make_edge("s9", "fact-004", "supports", reasoning="ev9"),
+            # Pair 3: equal (reasoned) → ambiguous
             _make_edge("fact-005", "fact-006", "contradicts"),
-            _make_edge("s10", "fact-005", "supports"),
-            _make_edge("s11", "fact-006", "supports"),
+            _make_edge("s10", "fact-005", "supports", reasoning="ev10"),
+            _make_edge("s11", "fact-006", "supports", reasoning="ev11"),
         ]
         _setup_graph(tmp_path, nodes, edges)
 
@@ -246,17 +246,17 @@ class TestAutoResolve:
             *[_make_node(f"s{i}") for i in range(1, 8)],
         ]
         edges = [
-            # Pair 1: 5 vs 0 → auto_resolvable
+            # Pair 1: 5 vs 0 (reasoned) → auto_resolvable
             _make_edge("fact-001", "fact-002", "contradicts"),
-            _make_edge("s1", "fact-001", "supports"),
-            _make_edge("s2", "fact-001", "supports"),
-            _make_edge("s3", "fact-001", "supports"),
-            _make_edge("s4", "fact-001", "supports"),
-            _make_edge("s5", "fact-001", "supports"),
-            # Pair 2: equal → ambiguous (should NOT be resolved)
+            _make_edge("s1", "fact-001", "supports", reasoning="ev1"),
+            _make_edge("s2", "fact-001", "supports", reasoning="ev2"),
+            _make_edge("s3", "fact-001", "supports", reasoning="ev3"),
+            _make_edge("s4", "fact-001", "supports", reasoning="ev4"),
+            _make_edge("s5", "fact-001", "supports", reasoning="ev5"),
+            # Pair 2: equal (reasoned) → ambiguous (should NOT be resolved)
             _make_edge("fact-003", "fact-004", "contradicts"),
-            _make_edge("s6", "fact-003", "supports"),
-            _make_edge("s7", "fact-004", "supports"),
+            _make_edge("s6", "fact-003", "supports", reasoning="ev6"),
+            _make_edge("s7", "fact-004", "supports", reasoning="ev7"),
         ]
         _setup_graph(tmp_path, nodes, edges)
 

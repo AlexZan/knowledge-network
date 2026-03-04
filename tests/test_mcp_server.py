@@ -226,6 +226,7 @@ class TestToolDelegation:
                 query="python",
                 node_type=None,
                 min_confidence=None,
+                sort_by=None,
             )
             assert "No matches" in result
 

@@ -1215,11 +1215,13 @@ class TestNodeLinking:
         }
         _save_knowledge(session_dir, knowledge)
 
-        # compute_confidence should still work
+        # compute_confidence should still work (no KeyError)
+        # Edges without reasoning get 0.5x weight (Decision 020)
         from oi.confidence import compute_confidence
         conf = compute_confidence("fact-001", knowledge)
+        # Still medium: independent_sources >= 2 (effort-a + effort-b)
         assert conf["level"] == "medium"
-        assert conf["inbound_supports"] == 1
+        assert conf["inbound_supports"] == pytest.approx(0.5, abs=0.15)
 
 
 # === Slice 8f: Expanded knowledge state tests ===
