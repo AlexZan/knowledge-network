@@ -113,6 +113,13 @@ class TestStorage:
         data = load_embeddings(tmp_path)
         assert data == {"model": "", "vectors": {}}
 
+    def test_load_malformed_structure_returns_empty(self, tmp_path):
+        """Bare {} or missing keys should not be returned as-is (caused silent embedding failures)."""
+        for bad in ["{}", '{"model": "x"}', '{"vectors": {}}', "[]", "42"]:
+            (tmp_path / "embeddings.json").write_text(bad)
+            data = load_embeddings(tmp_path)
+            assert data == {"model": "", "vectors": {}}, f"Failed for: {bad}"
+
 
 # === TestEmbedNode ===
 
