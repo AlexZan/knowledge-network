@@ -128,11 +128,25 @@ Built the complete search infrastructure and ingestion pipeline across multiple 
 
 5. **Decision 016**: Port to Rust with WASM targets. CRDT-backed `GraphStore` trait (backend-agnostic). Python prototype remains as reference. See [Decision 016](decisions/016-rust-wasm-port.md).
 
+### Session: Cross-Author Analysis (2026-03-05)
+
+Re-ingested all 7 physics theory conversations + SEP "Collapse Theories" article into a fresh v2 graph with all current pipeline features (Decisions 019, 020, 021). Key findings:
+
+1. **Cross-author edges**: 293 total (24 supports, 24 contradicts, 245 related_to). All flow SEP → theory.
+2. **95% of theory nodes have zero cross-author contact** — the theory extends far beyond what GRW/CSL collapse theories address.
+3. **Contact surface**: Only 34 theory nodes connected, all clustered around double-slit experiment and collapse mechanism.
+4. **Core disagreement**: Conditional (entropy-triggered) vs unconditional (spontaneous) collapse — 22/24 contradictions trace to this single fork.
+5. **Unique theory territory**: Parent/child universe cosmology, anchors/fluctuations as novel primitives, dark matter/energy replacement, emergence of spacetime, named formal principles.
+6. **False positive rate**: 3/27 contested nodes (11%), up from 0% in v1. Cross-author content introduces scope/framing mismatches.
+
+See [cross-author-analysis.md](research/cross-author-analysis.md) for full writeup.
+
 ### What's Next
 
 See [BIG-PICTURE.md](BIG-PICTURE.md) for big picture. Immediate:
-1. **Local LLM for ingestion**: Switch ingest model to local (e.g. via Ollama) for unattended batch processing
-2. **Batch physics conversations**: Process all 188 physics theory ChatGPT conversations (resume/checkpoint now implemented)
+1. **Standard QM ingestion**: Add a third perspective (standard QM text) for three-way interaction analysis
+2. **Conflict resolution on v2**: Run topology-based resolution on the 27 contested nodes
+3. **White paper update**: Incorporate multi-source data, cross-author findings, revised limitations
 
 ---
 
