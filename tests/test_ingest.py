@@ -797,6 +797,281 @@ class TestIngestPipeline:
         assert get_source(session_dir, "my-source")["path"] == str(tmp_path)
 
 
+# === Phase 6b: Document ingestion resume ===
+
+
+class TestDocumentIngestionResume:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    @pytest.fixture
+    def sample_md(self, tmp_path):
+        f = tmp_path / "sample.md"
+        f.write_text("# Title\n\nSome content about Python.\n")
+        return f
+
+    def test_get_ingested_doc_paths_empty_graph(self, session_dir):
+        """Empty graph returns empty set."""
+        from oi.ingest import _get_ingested_doc_paths
+        assert _get_ingested_doc_paths(session_dir) == set()
+
+    def test_get_ingested_doc_paths_finds_docs(self, session_dir):
+        """Finds doc paths from provenance URIs."""
+        from oi.ingest import _get_ingested_doc_paths
+        from oi.state import _save_knowledge
+
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "A",
+                 "provenance_uri": "doc://my-source/thesis.md#intro",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+                {"id": "fact-002", "type": "fact", "summary": "B",
+                 "provenance_uri": "doc://my-source/notes.md#section-1",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+                {"id": "fact-003", "type": "fact", "summary": "C",
+                 "provenance_uri": "chatgpt://other/conv-1#turn-0",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        paths = _get_ingested_doc_paths(session_dir)
+        assert "my-source/thesis.md" in paths
+        assert "my-source/notes.md" in paths
+        assert len(paths) == 2  # chatgpt URI excluded
+
+    def test_get_ingested_doc_paths_returns_all_sources(self, session_dir):
+        """Returns paths from all sources (no source_id filter)."""
+        from oi.ingest import _get_ingested_doc_paths
+        from oi.state import _save_knowledge
+
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "A",
+                 "provenance_uri": "doc://src-a/file.md#s1",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+                {"id": "fact-002", "type": "fact", "summary": "B",
+                 "provenance_uri": "doc://src-b/file.md#s1",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        paths = _get_ingested_doc_paths(session_dir)
+        assert "src-a/file.md" in paths
+        assert "src-b/file.md" in paths
+        assert len(paths) == 2
+
+    @patch("oi.ingest.chat")
+    def test_skips_already_ingested_document(self, mock_chat, session_dir, sample_md):
+        """Document with matching provenance is skipped without LLM calls."""
+        from oi.ingest import ingest_pipeline
+        from oi.state import _save_knowledge
+
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Old",
+                 "provenance_uri": f"doc://sample.md#title",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        result = ingest_pipeline(
+            sample_md, session_dir, skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.documents_skipped == 1
+        assert result.nodes_created == []
+        assert result.claims_extracted == 0
+        mock_chat.assert_not_called()
+
+    @patch("oi.ingest.chat")
+    def test_skip_existing_false_forces_reingest(self, mock_chat, session_dir, sample_md):
+        """skip_existing=False processes document even if already ingested."""
+        from oi.ingest import ingest_pipeline
+        from oi.state import _save_knowledge
+
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Old",
+                 "provenance_uri": f"doc://sample.md#title",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "Re-ingested fact"},
+        ])
+
+        result = ingest_pipeline(
+            sample_md, session_dir, skip_existing=False,
+            skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.documents_skipped == 0
+        assert len(result.nodes_created) == 1
+        mock_chat.assert_called()
+
+    @patch("oi.ingest.chat")
+    def test_no_skip_when_no_match(self, mock_chat, session_dir, sample_md):
+        """Document not previously ingested is processed normally."""
+        from oi.ingest import ingest_pipeline
+        from oi.state import _save_knowledge
+
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Other",
+                 "provenance_uri": "doc://other-file.md#intro",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "New fact"},
+        ])
+
+        result = ingest_pipeline(
+            sample_md, session_dir, skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.documents_skipped == 0
+        assert len(result.nodes_created) == 1
+
+    @patch("oi.ingest.chat")
+    def test_skip_with_source_id(self, mock_chat, session_dir, tmp_path):
+        """Skip works correctly with source_id-prefixed provenance URIs."""
+        from oi.ingest import ingest_pipeline
+        from oi.sources import register_source
+        from oi.state import _save_knowledge
+
+        register_source(session_dir, id="my-src", type="doc_root", path=str(tmp_path))
+
+        md = tmp_path / "notes.md"
+        md.write_text("# Notes\n\nContent.\n")
+
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Old",
+                 "provenance_uri": "doc://my-src/notes.md#notes",
+                 "status": "active", "source": "my-src",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        result = ingest_pipeline(
+            md, session_dir, source_id="my-src",
+            skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.documents_skipped == 1
+        mock_chat.assert_not_called()
+
+    @patch("oi.ingest.chat")
+    def test_skip_cross_source_id(self, mock_chat, session_dir, sample_md):
+        """File ingested under source_id is skipped when re-ingested without one.
+
+        Regression test: thesis.md ingested as doc://knowledge-network-docs/thesis.md
+        was not skipped when re-ingested as doc://thesis.md (no source_id), creating
+        223 duplicate nodes. The skip check must match by filename across source_id prefixes.
+        """
+        from oi.ingest import ingest_pipeline
+        from oi.state import _save_knowledge
+
+        # Previously ingested with source_id="my-source"
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Old",
+                 "provenance_uri": "doc://my-source/sample.md#title",
+                 "status": "active", "source": "my-source",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        # Re-ingest WITHOUT source_id — should still skip
+        result = ingest_pipeline(
+            sample_md, session_dir, skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.documents_skipped == 1
+        assert result.nodes_created == []
+        mock_chat.assert_not_called()
+
+    @patch("oi.ingest.chat")
+    def test_skip_cross_source_id_reverse(self, mock_chat, session_dir, tmp_path):
+        """File ingested without source_id is skipped when re-ingested with one."""
+        from oi.ingest import ingest_pipeline
+        from oi.sources import register_source
+        from oi.state import _save_knowledge
+
+        register_source(session_dir, id="my-src", type="doc_root", path=str(tmp_path))
+
+        md = tmp_path / "notes.md"
+        md.write_text("# Notes\n\nContent.\n")
+
+        # Previously ingested without source_id
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Old",
+                 "provenance_uri": "doc://notes.md#notes",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        # Re-ingest WITH source_id — should still skip
+        result = ingest_pipeline(
+            md, session_dir, source_id="my-src",
+            skip_linking=True, skip_embedding=True,
+        )
+
+        assert result.documents_skipped == 1
+        mock_chat.assert_not_called()
+
+    def test_dry_run_skips_skip_check(self, session_dir, sample_md):
+        """Dry run does not skip even if document was already ingested."""
+        from oi.ingest import ingest_pipeline
+        from oi.state import _save_knowledge
+
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "Old",
+                 "provenance_uri": "doc://sample.md#title",
+                 "status": "active", "source": "test",
+                 "created": "2025-01-01", "updated": "2025-01-01"},
+            ],
+            "edges": [],
+        })
+
+        with patch("oi.ingest.chat") as mock_chat:
+            mock_chat.return_value = _llm_response([
+                {"node_type": "fact", "summary": "Dry run fact"},
+            ])
+            result = ingest_pipeline(
+                sample_md, session_dir, dry_run=True,
+            )
+
+        assert result.documents_skipped == 0
+        assert result.dry_run is True
+        assert result.claims_extracted == 1
+
+
 # === Phase 7: ingest_chatgpt_export ===
 
 

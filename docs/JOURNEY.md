@@ -50,7 +50,13 @@ Next: Local LLM for ingestion, batch-process physics theory conversations unatte
 | 14a | Done | Edge weight by reasoning quality (1.0x with reasoning, 0.5x without in PageRank). Salience metric from `related_to` density. `sort_by` param in query. |
 | 14b | Done | Concept nodes from embedding clusters: `find_clusters()` + `synthesize_concepts()` pipeline stages, `principle` nodes with `exemplifies` edges. |
 
-**Test counts**: 719 free tests + 55 LLM tests (marker-separated). 1 skipped.
+**Test counts**: 729 free tests + 55 LLM tests (marker-separated). 1 skipped.
+
+### Session: Document Ingestion Resume (2026-03-05)
+
+Added `skip_existing` to `ingest_pipeline()` — checks `doc://` provenance URIs in the graph before parsing/extracting. Already-ingested documents are skipped with zero LLM calls.
+
+**Bug found during live testing**: `thesis.md` originally ingested with `source_id="knowledge-network-docs"` (provenance: `doc://knowledge-network-docs/thesis.md#...`) was **not** skipped when re-ingested without a source_id (expected: `doc://thesis.md#...`). Created 223 duplicate nodes before the issue was caught. Root cause: skip check only matched the exact prefixed form. Fix: match by filename across any source_id prefix — `p == rel_str or p.endswith(f"/{rel_str}")`. Two regression tests added (`test_skip_cross_source_id`, `test_skip_cross_source_id_reverse`).
 
 ### Session: Decision 020 — Salience, Edge Weights, Concept Nodes (2026-03-04)
 
@@ -126,8 +132,7 @@ Built the complete search infrastructure and ingestion pipeline across multiple 
 
 See [BIG-PICTURE.md](BIG-PICTURE.md) for big picture. Immediate:
 1. **Local LLM for ingestion**: Switch ingest model to local (e.g. via Ollama) for unattended batch processing
-2. **Batch physics conversations**: Process all 188 physics theory ChatGPT conversations (needs resume/checkpoint)
-3. **Cluster quality tuning**: 72 concepts from 42 claims suggests threshold (0.85) may be too aggressive — evaluate and tune
+2. **Batch physics conversations**: Process all 188 physics theory ChatGPT conversations (resume/checkpoint now implemented)
 
 ---
 

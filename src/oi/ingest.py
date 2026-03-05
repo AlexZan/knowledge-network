@@ -79,6 +79,7 @@ class PipelineResult(BaseModel):
     edges_created: int = 0
     contradictions_found: int = 0
     conversations_skipped: int = 0
+    documents_skipped: int = 0
     clusters_found: int = 0
     concepts_created: int = 0
     conflicts: dict = {}  # {total, auto_resolvable, strong_recommendations, ambiguous}
@@ -387,6 +388,7 @@ def ingest_pipeline(
     skip_linking: bool = False,
     skip_embedding: bool = False,
     skip_clustering: bool = True,
+    skip_existing: bool = True,
     progress_fn: Callable[[str, str], None] | None = None,
     source_id: str | None = None,
 ) -> PipelineResult:
@@ -425,6 +427,35 @@ def ingest_pipeline(
             )
             if reg.get("status") == "conflict":
                 errors.append(f"Source registration conflict: {reg['error']}")
+
+    # Check if already ingested (before expensive parse+extract)
+    # Matches by filename regardless of source_id prefix — the same file
+    # ingested as doc://thesis.md and doc://my-source/thesis.md are the same
+    # document and should not be re-ingested.
+    if skip_existing and not dry_run:
+        file_p = Path(file_path).resolve()
+        bd = Path(base_dir).resolve() if base_dir else file_p.parent
+        try:
+            rel = file_p.relative_to(bd)
+        except ValueError:
+            rel = Path(file_p.name)
+        rel_str = str(rel).replace("\\", "/")
+        ingested = _get_ingested_doc_paths(session_dir)
+        # Match either exact path or path with any source_id prefix
+        # e.g. rel_str="thesis.md" matches "thesis.md" or "my-source/thesis.md"
+        matched = any(p == rel_str or p.endswith(f"/{rel_str}") for p in ingested)
+        if not matched and source_id:
+            # Also check the source_id-prefixed form
+            prefixed = f"{source_id}/{rel_str}"
+            matched = any(p == prefixed or p.endswith(f"/{rel_str}") for p in ingested)
+        if matched:
+            _progress("skip", f"{rel_str} already ingested")
+            return PipelineResult(
+                source_path=str(file_path),
+                documents_skipped=1,
+                errors=[f"Already ingested ({rel_str}), skipping. Use skip_existing=False to force re-ingest."],
+                dry_run=dry_run,
+            )
 
     # Stage 1: Parse
     _progress("parse", str(file_path))
@@ -571,6 +602,29 @@ def _get_ingested_conv_ids(session_dir: Path, source_id: str) -> set[str]:
             if conv_id:
                 ids.add(conv_id)
     return ids
+
+
+def _get_ingested_doc_paths(session_dir: Path) -> set[str]:
+    """Return doc paths already ingested. Scans provenance_uri for doc:// prefix.
+
+    Returns set of full path fragments as they appear after 'doc://'
+    (e.g. 'thesis.md', 'my-source/thesis.md'). Does NOT filter by source_id
+    because the same file may have been ingested under a different source_id
+    previously — we want to catch that cross-source duplicate.
+    """
+    from .state import _load_knowledge
+
+    knowledge = _load_knowledge(session_dir)
+    paths: set[str] = set()
+    for node in knowledge.get("nodes", []):
+        uri = node.get("provenance_uri", "")
+        if uri.startswith("doc://"):
+            # Extract path between doc:// and #section
+            rest = uri[len("doc://"):]
+            path_part = rest.split("#")[0]
+            if path_part:
+                paths.add(path_part)
+    return paths
 
 
 def ingest_chatgpt_export(
