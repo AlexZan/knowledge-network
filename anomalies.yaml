@@ -18,9 +18,10 @@
     a JSONDecodeError. The chunk content is valid and short — the LLM just
     produces incomplete output. Fixed in _parse_llm_json(): strips control
     chars, repairs truncated arrays by closing at last complete object.
-  count: 3
+  count: 4
   first_seen: 2026-03-03
   last_seen: 2026-03-05
+  github_issue: 7
   context:
     - "2026-03-03: ingest_pipeline on conflict-resolution-findings.md — chunk
       'Resolution 3: Explicit declaration vs. roundtable winner-picking'
@@ -35,3 +36,7 @@
       'Expecting comma delimiter at char 2420'. 1/111 chunks (0.9%).
       Model: cerebras/gpt-oss-120b. Non-deterministic (retry succeeded).
       Fix: added missing-comma repair ('}\\s*{' → '},{') to _parse_llm_json()."
+    - "2026-03-05: SEP QT article ingestion — chunk 'entanglement-nonlocality'
+      failed with 'Expecting property name enclosed in double quotes at char 1359'.
+      1/22 chunks (4.5%). Model: cerebras/gpt-oss-120b. New failure mode:
+      unquoted/malformed property names. Not yet handled by _parse_llm_json()."

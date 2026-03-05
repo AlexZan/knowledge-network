@@ -13,13 +13,15 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Phase 1 Complete, Enrichment Pipeline Live
+## Current Status: Phase 1 Complete, White Paper Experiment In Progress
 
-Slices 1-14b complete. The Python prototype is proven — 719 tests, full ingestion + enrichment pipeline working, MCP server live. Graph: 908 active nodes.
+Slices 1-14b complete. The Python prototype is proven — 731 tests, full ingestion + enrichment pipeline working, MCP server live.
+
+**Physics theory KG**: 894 active nodes, 5020 edges across 9 sources (7 author conversations + 2 cross-author SEP articles). Three-way interaction analysis (author theory vs GRW collapse vs standard QM foundations) in progress.
 
 **Rust port deferred** (2026-03-03): Python performance is acceptable. Bottleneck is LLM API calls, not Python. See [Decision 016](decisions/016-rust-wasm-port.md) for future triggers.
 
-Next: Local LLM for ingestion, batch-process physics theory conversations unattended.
+**White paper**: [topological-truth-paper.md](research/topological-truth-paper.md) — "Living Knowledge Networks: Topological Truth Without Voting." Multi-source empirical data now collected, needs update with cross-author findings.
 
 ### What's Built
 
@@ -50,7 +52,7 @@ Next: Local LLM for ingestion, batch-process physics theory conversations unatte
 | 14a | Done | Edge weight by reasoning quality (1.0x with reasoning, 0.5x without in PageRank). Salience metric from `related_to` density. `sort_by` param in query. |
 | 14b | Done | Concept nodes from embedding clusters: `find_clusters()` + `synthesize_concepts()` pipeline stages, `principle` nodes with `exemplifies` edges. |
 
-**Test counts**: 729 free tests + 55 LLM tests (marker-separated). 1 skipped.
+**Test counts**: 731 free tests + 55 LLM tests (marker-separated). 1 skipped.
 
 ### Session: Document Ingestion Resume (2026-03-05)
 
@@ -141,12 +143,27 @@ Re-ingested all 7 physics theory conversations + SEP "Collapse Theories" article
 
 See [cross-author-analysis.md](research/cross-author-analysis.md) for full writeup.
 
+### Session: Standard QM Ingestion (2026-03-05)
+
+Ingested SEP "Philosophical Issues in Quantum Theory" (Myrvold) as a third cross-author source for three-way interaction testing.
+
+**Results**: 118 nodes (98 claims + 20 concept clusters), 608 edges, 7 contradictions. All 7 contradictions are genuine — Everettian/pilot-wave theories (which reject collapse) vs the author's collapse-based theory.
+
+**Three-way graph totals**: 894 active nodes, 5020 edges (1198 supports, 3618 related_to, 163 contradicts, 41 exemplifies). Sources: 730 theory nodes, 66 SEP-collapse nodes, 98 SEP-QT nodes.
+
+**Cross-author edges (QT article)**: 391 total (373 related_to, 11 supports, 7 contradicts). The QT article has broader topical overlap (391 edges vs SEP-collapse's 293) but fewer contradictions (7 vs 24) — because it describes the measurement problem landscape rather than advocating a specific mechanism.
+
+**Inter-SEP edges**: Only 5 edges between the two SEP articles (all related_to) — they cover different aspects of the same field without directly contradicting each other.
+
+See [v2-reingestion-findings.md](research/v2-reingestion-findings.md) for the full experiment writeup.
+
 ### What's Next
 
 See [BIG-PICTURE.md](BIG-PICTURE.md) for big picture. Immediate:
-1. **Standard QM ingestion**: Add a third perspective (standard QM text) for three-way interaction analysis
-2. **Conflict resolution on v2**: Run topology-based resolution on the 27 contested nodes
+1. **Run conflict resolution** on the full 3-source graph (free, no LLM calls)
+2. **Three-way interaction analysis** — where do all 3 sources agree? Where does each stand alone?
 3. **White paper update**: Incorporate multi-source data, cross-author findings, revised limitations
+4. **Batch physics conversations**: Process remaining ~181 physics theory ChatGPT conversations (resume/checkpoint implemented)
 
 ---
 
@@ -205,4 +222,33 @@ The knowledge graph and Vault project converge: Automerge (CRDT) as the storage 
 1. **Read [BIG-PICTURE.md](BIG-PICTURE.md)** — big picture (6 phases, KG → blockchain)
 2. **Read [thesis.md](thesis.md)** — understand the vision (5 theses)
 3. **Read [Decision 016](decisions/016-rust-wasm-port.md)** — Rust port decision + migration sequence
-4. **Current work**: Phase 1 (Python) complete. Phase 2 (Rust port) starting. Python prototype is the reference implementation.
+4. **Current work**: White paper experiment — multi-source physics KG analysis. Python prototype is the reference implementation.
+
+### Key Research Docs
+
+| Doc | Contents |
+|-----|----------|
+| [v2-reingestion-findings.md](research/v2-reingestion-findings.md) | Full v2 experiment: v1 vs v2 metrics, contested node classification, pipeline performance |
+| [cross-author-analysis.md](research/cross-author-analysis.md) | SEP collapse theories vs physics theory: edge analysis, unique concepts, contact surface |
+| [ingestion-pipeline-experiments.md](research/ingestion-pipeline-experiments.md) | Iterative linker improvement (5 runs, same doc, prompt tuning) |
+| [conflict-resolution-findings.md](research/conflict-resolution-findings.md) | First conflict resolution run: topology-based classification |
+| [ingestion-resume-findings.md](research/ingestion-resume-findings.md) | skip_existing feature and cross-source-id bug |
+| [topological-truth-paper.md](research/topological-truth-paper.md) | White paper draft: "Living Knowledge Networks" |
+| [paper-roadmap.md](research/paper-roadmap.md) | Paper strategy and publication targets |
+
+### Physics Theory KG
+
+**Location**: `/mnt/storage/physics-theory-kg/`
+**MCP server**: `physics-theory` (configured in `.mcp.json`)
+**Source conversations**: `/mnt/storage/physics-theory/*.json` (188 total, 7 ingested so far)
+**Cross-author docs**: `/mnt/storage/physics-theory/cross-author/` (2 SEP articles ingested)
+
+### Environment Notes
+
+- **OS**: NixOS (may change — migration to standard Linux planned)
+- **MCP wrapper**: `bin/oi-mcp` sets `LD_LIBRARY_PATH` for NixOS. After OS migration, this path will need updating.
+- **Venv**: `/tmp/oi-venv` — ephemeral, rebuild after OS change
+- **Test command**: `LD_LIBRARY_PATH=... /tmp/oi-venv/bin/python -m pytest` (see CLAUDE.md for exact paths)
+- **LLM**: Cerebras `gpt-oss-120b` via `OI_MODEL` in `.env`. API key: `CEREBRAS_API_KEY`
+- **Embeddings**: Local Ollama `nomic-embed-text` (GPU). Models at `/mnt/storage/ollama/models/`
+- **Budget**: ~$12 Cerebras credits remaining as of 2026-03-05
