@@ -13,8 +13,6 @@ URI format:
 from __future__ import annotations
 
 import json
-import tempfile
-import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Union
@@ -218,10 +216,10 @@ def parse_chatgpt_export(
     title_filter: str = "",
     chatgpt_project_id: str = "",
 ) -> list[ParsedDocument]:
-    """Parse a ChatGPT export zip or conversations.json array.
+    """Parse a ChatGPT conversations.json array or directory of individual JSON files.
 
     Args:
-        path: Path to .zip or conversations.json
+        path: Path to conversations.json file or directory of individual conversation JSON files.
         source_id: Registered source ID (used in URIs)
         title_filter: Comma-separated keywords; empty = all conversations.
                       Each keyword is case-insensitive substring match on title.
@@ -235,12 +233,14 @@ def parse_chatgpt_export(
     """
     path = Path(path)
 
-    if str(path).endswith(".zip"):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with zipfile.ZipFile(path, "r") as zf:
-                zf.extract("conversations.json", tmpdir)
-            json_path = Path(tmpdir) / "conversations.json"
-            conversations = json.loads(json_path.read_text(encoding="utf-8"))
+    if path.is_dir():
+        # Directory of individual conversation JSON files
+        conversations = []
+        for f in sorted(path.glob("*.json")):
+            try:
+                conversations.append(json.loads(f.read_text(encoding="utf-8")))
+            except (json.JSONDecodeError, OSError):
+                continue
     else:
         conversations = json.loads(path.read_text(encoding="utf-8"))
 

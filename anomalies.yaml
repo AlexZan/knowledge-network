@@ -18,9 +18,9 @@
     a JSONDecodeError. The chunk content is valid and short — the LLM just
     produces incomplete output. Fixed in _parse_llm_json(): strips control
     chars, repairs truncated arrays by closing at last complete object.
-  count: 2
+  count: 3
   first_seen: 2026-03-03
-  last_seen: 2026-03-04
+  last_seen: 2026-03-05
   context:
     - "2026-03-03: ingest_pipeline on conflict-resolution-findings.md — chunk
       'Resolution 3: Explicit declaration vs. roundtable winner-picking'
@@ -31,3 +31,7 @@
       failed with 'Invalid control character at: line 35 column 8 (char 1562)'.
       1/9 chunks affected. Model: cerebras/gpt-oss-120b. Fix: added control
       character sanitization (re.sub) before json.loads() in extract_from_chunk()."
+    - "2026-03-05: physics KG re-ingestion — turn-16 of 6813ea48 failed with
+      'Expecting comma delimiter at char 2420'. 1/111 chunks (0.9%).
+      Model: cerebras/gpt-oss-120b. Non-deterministic (retry succeeded).
+      Fix: added missing-comma repair ('}\\s*{' → '},{') to _parse_llm_json()."

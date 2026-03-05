@@ -215,6 +215,19 @@ class TestParseLlmJson:
         assert len(result) == 1
         assert result[0] == {"s": "ok"}
 
+    def test_repairs_missing_comma_between_objects(self):
+        # LLM emits "}{" instead of "},{"
+        text = '[{"a": 1}{"b": 2}]'
+        result = _parse_llm_json(text)
+        assert len(result) == 2
+        assert result[0] == {"a": 1}
+        assert result[1] == {"b": 2}
+
+    def test_repairs_missing_comma_with_whitespace(self):
+        text = '[{"a": 1}\n{"b": 2}]'
+        result = _parse_llm_json(text)
+        assert len(result) == 2
+
     def test_empty_array(self):
         assert _parse_llm_json("[]") == []
 

@@ -1,8 +1,8 @@
-passed: 729
+passed: 731
 failed: 0
 skipped: 1
 date: 2026-03-05
-commit: 5234ac5 (dirty)
-duration: 16.1s
+commit: 1a9182c (dirty)
+duration: 10.9s
 e2e: excluded
-command: /tmp/oi-venv/bin/python -m pytest -q
+command: /tmp/oi-venv/bin/python -m pytest

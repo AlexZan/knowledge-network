@@ -162,6 +162,14 @@ def _parse_llm_json(text: str) -> list:
     except json.JSONDecodeError:
         pass
 
+    # Missing comma repair: LLMs sometimes emit "}{" instead of "},{"
+    repaired = re.sub(r'\}\s*\{', '},{', text)
+    if repaired != text:
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            pass
+
     # Truncation repair: close unclosed brackets/braces.
     # Strategy: if text starts with '[', try progressively trimming from the end
     # to find the last complete object, then close the array.

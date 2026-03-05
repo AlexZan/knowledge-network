@@ -1,7 +1,6 @@
 """Tests for ChatGPT export parser (Slice 13f)."""
 
 import json
-import zipfile
 from pathlib import Path
 
 import pytest
@@ -332,22 +331,21 @@ class TestParseExport:
         ids = {d.metadata.source_path for d in results}
         assert ids == {"c1", "c3"}
 
-    def test_parse_export_from_zip(self, tmp_path):
-        """Zip file is extracted and conversations.json parsed correctly."""
-        convs = [
-            _simple_conv(conv_id="z1", title="Zip conversation"),
-        ]
-        json_path = tmp_path / "conversations.json"
-        json_path.write_text(json.dumps(convs), encoding="utf-8")
+    def test_parse_export_from_directory(self, tmp_path):
+        """Directory of individual JSON files is parsed correctly."""
+        conv_dir = tmp_path / "convos"
+        conv_dir.mkdir()
 
-        zip_path = tmp_path / "export.zip"
-        with zipfile.ZipFile(zip_path, "w") as zf:
-            zf.write(json_path, "conversations.json")
+        conv1 = _simple_conv(conv_id="d1", title="Dir conversation 1")
+        conv2 = _simple_conv(conv_id="d2", title="Dir conversation 2")
+        (conv_dir / "d1.json").write_text(json.dumps(conv1), encoding="utf-8")
+        (conv_dir / "d2.json").write_text(json.dumps(conv2), encoding="utf-8")
 
-        results = parse_chatgpt_export(zip_path, source_id="src")
-        assert len(results) == 1
-        assert results[0].metadata.title == "Zip conversation"
-        assert results[0].chunks  # has at least one chunk
+        results = parse_chatgpt_export(conv_dir, source_id="src")
+        assert len(results) == 2
+        titles = {r.metadata.title for r in results}
+        assert "Dir conversation 1" in titles
+        assert "Dir conversation 2" in titles
 
 
 # === Tests for authored_at / create_time propagation ===
