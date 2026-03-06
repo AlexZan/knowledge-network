@@ -2,22 +2,22 @@
 
 ## Test Environment
 
-Tests MUST be run with the project venv and LD_LIBRARY_PATH set for NixOS:
+Tests MUST be run with the project venv:
 
 ```bash
-# One-time venv setup (if /tmp/oi-venv doesn't exist):
-cd /mnt/storage/Dev/knowledge-network
-/nix/store/5mxcy0d9pxrwsmk58c3lglqbczhckxlz-python3-3.11.14/bin/python3.11 -m venv /tmp/oi-venv
-/tmp/oi-venv/bin/pip install -e ".[dev]"
+# One-time venv setup (if .venv doesn't exist):
+cd /data/Dev/knowledge-network
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev,mcp]"
 
 # Run tests (free, no API calls):
-LD_LIBRARY_PATH=/nix/store/ld973bya5s9qdznqxp4ki5fpqkilx1va-system-path/lib /tmp/oi-venv/bin/python -m pytest
+.venv/bin/python -m pytest
 
 # Run LLM tests (costs money — ONLY with user approval):
-LD_LIBRARY_PATH=/nix/store/ld973bya5s9qdznqxp4ki5fpqkilx1va-system-path/lib /tmp/oi-venv/bin/python -m pytest -m llm
+.venv/bin/python -m pytest -m llm
 
 # Run everything:
-LD_LIBRARY_PATH=/nix/store/ld973bya5s9qdznqxp4ki5fpqkilx1va-system-path/lib /tmp/oi-venv/bin/python -m pytest -m ""
+.venv/bin/python -m pytest -m ""
 ```
 
 **NEVER run `pytest` or `python -m pytest` directly** — it will use the system Python which is missing litellm and other dependencies, causing false import errors.
@@ -53,7 +53,7 @@ date: YYYY-MM-DD
 commit: abc1234 (dirty)
 duration: 10.0s
 e2e: excluded
-command: /tmp/oi-venv/bin/python -m pytest
+command: .venv/bin/python -m pytest
 failed_tests: <only present if failed > 0>
 ```
 

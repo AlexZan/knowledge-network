@@ -238,17 +238,17 @@ The knowledge graph and Vault project converge: Automerge (CRDT) as the storage 
 
 ### Physics Theory KG
 
-**Location**: `/mnt/storage/physics-theory-kg/`
+**Location**: `/data/physics-theory-kg/`
 **MCP server**: `physics-theory` (configured in `.mcp.json`)
-**Source conversations**: `/mnt/storage/physics-theory/*.json` (188 total, 7 ingested so far)
-**Cross-author docs**: `/mnt/storage/physics-theory/cross-author/` (2 SEP articles ingested)
+**Source conversations**: `/data/physics-theory/*.json` (188 total, 7 ingested so far)
+**Cross-author docs**: `/data/physics-theory/cross-author/` (2 SEP articles ingested)
 
 ### Environment Notes
 
-- **OS**: NixOS (may change — migration to standard Linux planned)
-- **MCP wrapper**: `bin/oi-mcp` sets `LD_LIBRARY_PATH` for NixOS. After OS migration, this path will need updating.
-- **Venv**: `/tmp/oi-venv` — ephemeral, rebuild after OS change
-- **Test command**: `LD_LIBRARY_PATH=... /tmp/oi-venv/bin/python -m pytest` (see CLAUDE.md for exact paths)
+- **OS**: CachyOS (Arch-based), migrated from NixOS on 2026-03-06
+- **MCP wrapper**: `bin/oi-mcp` — thin wrapper calling `.venv/bin/oi-mcp`
+- **Venv**: `.venv/` in project root (Python 3.14)
+- **Test command**: `.venv/bin/python -m pytest` (see CLAUDE.md for details)
 - **LLM**: Cerebras `gpt-oss-120b` via `OI_MODEL` in `.env`. API key: `CEREBRAS_API_KEY`
-- **Embeddings**: Local Ollama `nomic-embed-text` (GPU). Models at `/mnt/storage/ollama/models/`
+- **Embeddings**: Local Ollama `nomic-embed-text` (GPU)
 - **Budget**: ~$12 Cerebras credits remaining as of 2026-03-05
