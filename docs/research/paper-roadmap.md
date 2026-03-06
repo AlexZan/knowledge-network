@@ -28,7 +28,7 @@
 
 **What it proves**: The hardest claim in the framework — that graph structure can *arbitrate disputes* without external judgment. If topology can resolve conflicts, the easier claims (ranking confidence, identifying well-supported nodes) follow as corollaries. The self-referential result (topology chose topology over voting) and the 14 honest abstentions are the headline findings.
 
-**Empirical data**: 236-node graph, 877 edges, 37 contradictions, 6 auto-resolutions, 14 ambiguous (zero LLM calls in resolution).
+**Empirical data**: Two runs — (1) 236-node single-doc graph: 37 contradictions, 6 auto-resolved. (2) 894-node 3-source graph: 163 contradictions, 110 auto-resolved (67%). Zero LLM calls in resolution. See `docs/research/conflict-resolution-findings.md`.
 
 **Relationship to Paper 1**: CCM produces compacted conclusions. This paper asks: when those conclusions contradict each other, can the graph resolve it? Answer: yes, when structural evidence is sufficient; honestly no when it isn't.
 

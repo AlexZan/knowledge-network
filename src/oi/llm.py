@@ -4,13 +4,25 @@ import json
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from litellm import completion
+from litellm import completion, get_model_info
 
 from .schemas import get_extractable_types, build_extraction_type_list
 
 
 # Default to Cerebras for fast testing (falls back to DeepSeek)
 DEFAULT_MODEL = os.environ.get("OI_MODEL", "cerebras/gpt-oss-120b")
+
+
+def get_max_input_tokens(model: str = None) -> int:
+    """Get the max input token limit for a model from litellm's registry.
+
+    Falls back to 8192 if the model isn't found.
+    """
+    try:
+        info = get_model_info(model or DEFAULT_MODEL)
+        return info.get("max_input_tokens", 8192)
+    except Exception:
+        return 8192
 
 
 def _log_llm_call(phase: str, model: str, messages: list[dict], response: str, meta: dict | None = None) -> None:

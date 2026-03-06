@@ -1,6 +1,42 @@
 # Conflict Resolution Empirical Findings
 
-> **Purpose**: Raw data and analysis from the first run of Slice 13d conflict resolution against the thesis.md knowledge graph. Written for the paper-writing agent.
+> **Purpose**: Raw data and analysis from conflict resolution runs. Written for the paper-writing agent.
+
+## How Conflict Resolution Works
+
+### Data safety
+
+Source data (conversations, documents) is **never modified**. Conflict resolution only changes the knowledge graph (`knowledge.yaml`). The original claims are preserved — losers are marked `superseded`, not deleted.
+
+### Audit trail
+
+Every resolution creates a `supersedes` edge with a `reasoning` field explaining the decision. You can always trace: node X was superseded by node Y, because of reason Z. The chain is:
+
+1. **Before**: `contradicts` edge between node A and node B
+2. **After**: `contradicts` edge removed, `supersedes` edge added (winner → loser), loser gets `status: "superseded"` and `superseded_by: <winner_id>`
+
+To see all resolutions, search for `supersedes` edges or `status: superseded` nodes in the graph.
+
+### Classification (zero LLM calls)
+
+All classification uses topology only — support counts from PageRank-weighted confidence:
+
+| Type | Threshold | Auto-resolve? |
+|------|-----------|--------------|
+| Factual, winner ≥5x supports | `auto_resolvable` | Yes |
+| Factual, winner ≥2x supports | `strong_recommendation` | No — needs review |
+| Subjective (decision/preference), winner ≥3x | `strong_recommendation` | Never — needs human sign-off |
+| Equal or near-equal support | `ambiguous` | No |
+
+### Reversibility
+
+Resolutions can be reversed. If new evidence arrives that supports a superseded node, the resolution can be undone by removing the `supersedes` edge and restoring the node's status. The graph doesn't commit permanently.
+
+---
+
+## First Run: thesis.md Graph (2026-03-03)
+
+> 236 nodes, 877 edges, 37 contradictions. See detail below.
 
 ## Experiment Setup
 
@@ -153,3 +189,36 @@ Key design decisions:
 | `tests/test_conflicts.py` | 14 tests (all graph-based, zero LLM) |
 | `.oi-test/knowledge.yaml` | Original 236-node graph (untouched) |
 | `.oi-test-conflicts/knowledge.yaml` | Post-resolution copy (6 conflicts resolved) |
+
+---
+
+## Second Run: 3-Source Physics Graph (2026-03-06)
+
+> 894 active nodes, 5020 edges, 163 contradictions. Sources: 730 theory nodes, 66 SEP-collapse nodes, 98 SEP-QT nodes.
+
+### Classification Results
+
+| Priority | Count |
+|----------|-------|
+| auto_resolvable | 110 |
+| strong_recommendation | 19 |
+| ambiguous | 34 |
+| **Total** | **163** |
+
+PageRank: 45 iterations, 53ms runtime.
+
+### After Auto-Resolve (110 resolved, 0 errors)
+
+| Priority | Count |
+|----------|-------|
+| auto_resolvable | 2 |
+| strong_recommendation | 11 |
+| ambiguous | 25 |
+| **Remaining** | **38** |
+
+### Observations
+
+- **Scale**: 163 contradictions across 3 sources vs. 37 from a single document — cross-author content generates significantly more conflicts.
+- **Auto-resolve rate**: 67% (110/163), up from 16% (6/37) in the first run. Larger graphs produce more lopsided support ratios, making topology-based resolution more effective.
+- **Zero errors**: All 110 auto-resolutions completed cleanly.
+- **Remaining 38**: Need manual review — these are genuine disagreements where topology doesn't strongly favor either side (e.g., conditional vs. unconditional collapse mechanisms).

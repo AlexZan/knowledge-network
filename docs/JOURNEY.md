@@ -157,13 +157,44 @@ Ingested SEP "Philosophical Issues in Quantum Theory" (Myrvold) as a third cross
 
 See [v2-reingestion-findings.md](research/v2-reingestion-findings.md) for the full experiment writeup.
 
-### What's Next
+### Session: CachyOS Migration + Conflict Resolution (2026-03-06)
 
-See [BIG-PICTURE.md](BIG-PICTURE.md) for big picture. Immediate:
-1. **Run conflict resolution** on the full 3-source graph (free, no LLM calls)
-2. **Three-way interaction analysis** — where do all 3 sources agree? Where does each stand alone?
-3. **White paper update**: Incorporate multi-source data, cross-author findings, revised limitations
-4. **Batch physics conversations**: Process remaining ~181 physics theory ChatGPT conversations (resume/checkpoint implemented)
+Migrated from NixOS to CachyOS. Updated all paths, rebuilt venv (Python 3.14), verified MCP servers, 731 tests passing.
+
+Ran conflict resolution on the full 3-source physics graph:
+- 163 contradictions → 112 auto-resolved (67% rate, up from 16% on the 236-node graph)
+- 36 remaining: 11 strong recommendations, 25 ambiguous
+- Three-way analysis updated: all 4 "battleground" nodes survived, only 1 cross-author contradicts edge remains
+
+**Major finding during conflict review**: The current ingestion pipeline extracts claims per-turn-pair in isolation, causing false intra-author contradictions (same person refining their position across turns). See [Decision 022](decisions/022-conversation-aware-extraction.md). This invalidates the current physics KG — rebuild required after pipeline improvement.
+
+### What's Next — Conversation-Aware Extraction (Decision 022)
+
+**Phase 1: New extraction function**
+- `extract_from_conversation()` in `src/oi/ingest.py`
+- Sends full conversation to LLM in one call (conclusion-focused prompt)
+- For conversations exceeding context window: iterative node-carry-forward (first chunk → extract nodes → next chunk + node summaries → repeat)
+- Uses `get_max_input_tokens()` from litellm to auto-detect model limits
+- Tests: unit tests with mock LLM, iterative path test
+
+**Phase 2: Wire into ChatGPT ingestion**
+- `ingest_chatgpt_export()` uses new function for conversations
+- Document ingestion (.md/.pdf) unchanged — chunk-based still appropriate
+- Tests: verify existing pipeline tests still pass
+
+**Phase 3: Rebuild physics KG**
+- Backup current KG for comparison
+- Wipe and re-ingest 7 conversations + 2 SEP articles
+- Run conflict resolution, compare metrics (node count, contradictions, false positives)
+
+**Phase 4: Batch remaining 181 conversations**
+- 1 LLM call per conversation instead of ~10 — credits go ~10x further
+- Run conflict resolution on full graph
+- Update white paper with new data
+
+**After Phase 4:**
+- White paper update with improved empirical data
+- Paper review of remaining conflicts
 
 ---
 

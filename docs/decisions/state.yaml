@@ -127,3 +127,9 @@
   status: implemented
   superseded_by: null
   depends_on: []
+
+- id: "022"
+  title: Conversation-Aware Extraction
+  status: accepted
+  superseded_by: null
+  depends_on: []

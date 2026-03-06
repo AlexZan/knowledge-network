@@ -1,14 +1,36 @@
 # Three-Way Interaction Analysis: Theory vs Collapse vs QM Foundations
 
-**Date**: 2026-03-05
-**KG**: `/mnt/storage/physics-theory-kg/` (894 nodes, 5020 edges)
-**Sources**: 7 author conversations (730 nodes) + SEP Collapse Theories (66 nodes) + SEP Philosophical Issues in QT (98 nodes)
+**Date**: 2026-03-05 (initial), 2026-03-06 (post-resolution update)
+**KG**: `/data/physics-theory-kg/`
+**Sources**: 7 author conversations + SEP Collapse Theories + SEP Philosophical Issues in QT
+
+## Post-Resolution Update (2026-03-06)
+
+After auto-resolving 110 conflicts (see [conflict-resolution-findings.md](conflict-resolution-findings.md)):
+
+| Metric | Pre-resolution | Post-resolution |
+|--------|---------------|-----------------|
+| Active nodes | 894 | 845 |
+| Superseded nodes | 0 | 49 |
+| Theory nodes | 730 | 667 |
+| SEP-collapse nodes | 66 | 63 |
+| SEP-QT nodes | 98 | 95 |
+| Concept nodes | — | 20 |
+| Cross-author contradicts edges | 31 | 1 |
+| Three-way agreement nodes | 3 | 3 (unchanged) |
+| Three-way disagreement nodes | 4 | 0 (all resolved) |
+
+**Key changes**: The 4 previously-identified "battleground" nodes (fact-016, -017, -019, -028) all survived — they remain active. Their cross-author `contradicts` edges were resolved by superseding the weaker side of each pair, not by removing the core theory nodes. The topology correctly identified the author's claims as better-supported within the graph.
+
+Only 1 cross-author contradicts edge remains (between a collapse theory meta-claim and a theory node about QBism). 37 intra-theory contradicts edges remain — these are internal tensions within the author's own reasoning across conversations.
 
 ## Why This Matters for the Paper
 
 The two-way analysis (theory vs collapse) showed where the theory agrees and disagrees with one competing framework. The three-way analysis reveals something deeper: **different sources challenge the theory at different levels of depth**, and the system can distinguish between them mechanically.
 
 ## Edge Distribution by Source Interaction
+
+### Pre-resolution (894 nodes)
 
 | Category | supports | contradicts | related_to | exemplifies | Total |
 |----------|:--------:|:-----------:|:----------:|:-----------:|:-----:|
@@ -18,6 +40,20 @@ The two-way analysis (theory vs collapse) showed where the theory agrees and dis
 | theory ↔ QT | 11 | 7 | 368 | 0 | 386 |
 | theory ↔ collapse | 24 | 24 | 245 | 0 | 293 |
 | collapse ↔ QT | 0 | 0 | 5 | 0 | 5 |
+
+### Post-resolution (845 active nodes)
+
+| Category | supports | contradicts | related_to | exemplifies | Total |
+|----------|:--------:|:-----------:|:----------:|:-----------:|:-----:|
+| intra-theory | 1017 | 37 | 2542 | — | 3596 |
+| intra-SEP-QT | 27 | 0 | 186 | — | 213 |
+| intra-SEP-collapse | 30 | 0 | 69 | — | 99 |
+| theory ↔ QT | 9 | 0 | 358 | — | 367 |
+| theory ↔ collapse | 24 | 1 | 243 | — | 268 |
+| collapse ↔ QT | 0 | 0 | 4 | — | 4 |
+| concept ↔ theory | — | — | — | 38 | 38 |
+
+**Resolution impact on contradicts edges**: 132 → 37 intra-theory, 7 → 0 theory↔QT, 24 → 1 theory↔collapse. Total: 163 → 38.
 
 ### Key Observations
 
@@ -39,9 +75,9 @@ Three theory nodes are supported by **both** SEP articles — validated from two
 
 **fact-016 is the most remarkable**: the author's core claim about entropy-driven collapse receives support from *both* SEP sources while also being contradicted by both (see below). It's the central battleground.
 
-## Three-Way Disagreement (4 nodes)
+## Three-Way Disagreement (4 nodes → 0 after resolution)
 
-Four theory nodes are contradicted by **both** SEP articles:
+Before conflict resolution, four theory nodes were contradicted by **both** SEP articles:
 
 | Node | Body | Why collapse objects | Why QT objects |
 |------|------|---------------------|----------------|
@@ -50,7 +86,9 @@ Four theory nodes are contradicted by **both** SEP articles:
 | fact-019 | Screen as first collapse-inducing system | GRW: collapse not triggered by measurement | Everett: no collapse; Bohm: screen reveals position |
 | fact-028 | Collapse-Conservation principle | GRW: no entropy condition needed | von Neumann: distinction is conventional, not physical |
 
-**fact-016 is simultaneously in three-way agreement AND three-way disagreement.** Both sources support parts of the claim (detection causes physical changes) while contradicting other parts (the specific mechanism). This is exactly the kind of nuanced position that a knowledge graph can capture but a simple agree/disagree classification cannot.
+**Post-resolution**: All 4 theory nodes survived (remain active). The weaker side of each cross-author `contradicts` pair was superseded — the SEP nodes that contradicted these theory claims had less topological support within the graph (which is dominated by the author's 667 theory nodes). This is expected: the graph reflects what *this* knowledge base supports, not what the broader physics community agrees on.
+
+**fact-016 was simultaneously in three-way agreement AND three-way disagreement** (pre-resolution). Both sources supported parts of the claim (detection causes physical changes) while contradicting other parts (the specific mechanism). After resolution, the support edges remain but the contradiction edges are resolved — the nuanced "partially agrees" signal is now captured as support-only plus the supersedes audit trail.
 
 ## The Depth Gradient: Family Disputes vs Foundational Challenges
 
