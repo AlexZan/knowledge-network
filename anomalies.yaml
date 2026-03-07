@@ -40,3 +40,20 @@
       failed with 'Expecting property name enclosed in double quotes at char 1359'.
       1/22 chunks (4.5%). Model: cerebras/gpt-oss-120b. New failure mode:
       unquoted/malformed property names. Not yet handled by _parse_llm_json()."
+
+- id: llm-ignores-json-instruction
+  category: llm-output
+  description: >
+    LLM ignores "respond ONLY with a JSON array" system instruction and
+    returns free-form prose instead. Causes JSONDecodeError at char 0
+    since the response doesn't start with '['. Different from truncation —
+    the model simply disregards the output format constraint entirely.
+  count: 1
+  first_seen: 2026-03-07
+  last_seen: 2026-03-07
+  context:
+    - "2026-03-07: conversation-aware extraction of '68028f8e — @Collapse-First
+      QFT Model' (118 turns). Model returned a step-by-step experimental plan
+      instead of JSON claims. 1/120 conversations (0.8%). Model: cerebras/gpt-oss-120b.
+      Conversation content may have triggered instruction-following override —
+      the conversation itself asked for a step-by-step plan."
