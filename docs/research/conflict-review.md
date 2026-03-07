@@ -1,450 +1,755 @@
-# Conflict Review — 36 Remaining Conflicts
+# Conflict Review — Physics Theory KG (Post Decision 022 Rebuild)
 
-> Generated 2026-03-06 from physics-theory-kg (843 active nodes, 112 auto-resolved).
-> Review each conflict and mark your decision in the Action column.
+**Date**: 2026-03-07
+**Total remaining conflicts**: 37
+**Strong recommendations**: 14
+**Ambiguous**: 23
 
-## How to use this file
+## Instructions
 
-For each conflict, you can:
-- **agree** with the recommended winner → I'll resolve it
-- **reverse** → pick the other side
-- **skip** → leave it ambiguous (no action)
-- **false positive** → the contradiction edge is wrong, should be removed
-
----
-
-## Strong Recommendations (11)
-
-### S1. (supports: 145 vs 46) — recommended: A
-
-**A** [high]: My theory states that the screen acts as the first collapse‑inducing system, whose entropic signature combines with the electron's recursive structure to select a position.
-
-**B** [high]: According to my view, the photon does not detect the electron but conditions its collapse, creating the which‑slit outcome during the collapse event.
-
-**Why they conflict**: Candidate 7 attributes collapse conditioning to the photon, contradicting Node A’s assertion that the screen initiates collapse.
-
-**Action**: _________
+For each conflict, set **action** to one of:
+- `keep_a` — Side A wins, Side B is superseded
+- `keep_b` — Side B wins, Side A is superseded
+- `keep_both` — not actually contradictory, remove the contradicts edge
+- `remove_both` — both are wrong or too vague
+- `defer` — needs more context, skip for now
 
 ---
 
-### S2. (supports: 31 vs 145) — recommended: B
+### S1 — STRONG RECOMMENDATION
 
-**A** [medium]: When a photon detects an electron, it injects collapse structure and pre‑collapses the electron into a path that no longer retains its original superpositional waveform, making interference impossible.
+**Side A** (fact-059, source=physics-theory):
+> Wavefunction collapse does not happen at random but is tied to information flow, emergence, and the observer's complexity
 
-**B** [high]: My theory states that the screen acts as the first collapse‑inducing system, whose entropic signature combines with the electron's recursive structure to select a position.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A places collapse at the photon detection stage, contradicting candidate 8’s claim that the screen is the first collapse‑inducing system.
+**Side B** (fact-031, source=physics-theory):
+> Decoherence, the entanglement of a quantum system with its environment, explains the apparent collapse of the wave function without invoking a conscious observer.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A asserts observer complexity is essential for collapse, whereas candidate 2 says collapse occurs without any observer.
 
-### S3. (supports: 65 vs 145) — recommended: B
+**Recommendation**: Keep A
 
-**A** [medium]: If the photon of an entangled pair is detected first, the photon’s collapse projects a consistent history onto the electron, causing the electron to appear as if it passed a specific slit.
-
-**B** [high]: My theory states that the screen acts as the first collapse‑inducing system, whose entropic signature combines with the electron's recursive structure to select a position.
-
-**Why they conflict**: Node A places the photon detector as the first collapse‑inducing system, whereas Candidate 7 claims the screen fulfills that role, making the two statements mutually exclusive.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### S4. (supports: 2 vs 1) — recommended: A
+### S2 — STRONG RECOMMENDATION
 
-**A** [medium]: Gravitational lensing strength can exceed or fall short of predictions based on baryonic plus dark matter models in regions of high coherence or low collapse density.
+**Side A** (fact-059, source=physics-theory):
+> Wavefunction collapse does not happen at random but is tied to information flow, emergence, and the observer's complexity
 
-**B** [contested]: Standard ΛCDM combined with holographic encoding assumes gravitational potential arises solely from mass‑energy distributions encoded on a boundary
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A implies gravity depends on collapse structure, which opposes the candidate’s claim that gravity arises solely from mass‑energy.
+**Side B** (fact-013, source=physics-theory):
+> Quantum mechanics predicts that only probabilities of measurement outcomes can be known; specific results are fundamentally unpredictable.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A denies randomness of collapse, whereas candidate 5 says specific results are fundamentally unpredictable.
 
-### S5. (supports: 0 vs 2) — recommended: B
+**Recommendation**: Keep A
 
-**A** [low]: In the standard model, lensing strength depends solely on total mass (baryonic plus dark matter)
-
-**B** [medium]: Gravitational lensing strength can exceed or fall short of predictions based on baryonic plus dark matter models in regions of high coherence or low collapse density.
-
-**Why they conflict**: Candidate 1 says lensing can exceed or fall short of mass‑based predictions, which opposes Node A's claim that lensing depends solely on total mass.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### S6. (supports: 0 vs 4) — recommended: B
+### S3 — STRONG RECOMMENDATION
 
-**A** [low]: In the standard model, lensing strength depends solely on total mass (baryonic plus dark matter)
+**Side A** (fact-061, source=physics-theory):
+> The observer or measurement device plays a creative role by projecting deterministic form onto quantum chaos using its internal model of reality
 
-**B** [medium]: Gravitational lensing potential Φ(𝐱) is proportional to the integral of the gradient of collapse density, Φ(𝐱)∝∫∇ρ_C(𝐱′)·n̂ d³x′
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Candidate 5 links lensing potential to gradients of collapse density, opposing Node A's claim of dependence only on total mass.
+**Side B** (fact-013, source=physics-theory):
+> Quantum mechanics predicts that only probabilities of measurement outcomes can be known; specific results are fundamentally unpredictable.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A asserts a deterministic projection by the observer, while the candidate claims outcomes are fundamentally unpredictable.
 
-### S7. (supports: 15 vs 5) — recommended: A
+**Recommendation**: Keep B
 
-**A** [medium]: A single fluctuation creates a binary anchor that marks the first distinction and the first memory
-
-**B** [contested]: The first fluctuation is not a concrete thing but a role, either setting a condition by preceding the second or establishing contrast by remaining present.
-
-**Why they conflict**: Node A treats the first fluctuation as a concrete entity creating an anchor, whereas candidate 8 claims the first fluctuation is not a concrete thing.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### S8. (supports: 1 vs 17) — recommended: B
+### S4 — AMBIGUOUS
 
-**A** [medium]: When the number of accumulated anchors exceeds the per-tick limit c_per_tick, the system will randomly select which anchors resolve that tick
+**Side A** (fact-127, source=physics-theory):
+> All events in the universe are causally linked, forming a complete recorded history that is retraceable given sufficient information
 
-**B** [medium]: The current system does not accumulate more active anchors than can be resolved per tick
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A assumes anchors can exceed the per‑tick limit, while fact‑472 states the system never accumulates more than can be resolved.
+**Side B** (fact-870, source=physics-theory):
+> No data passes from a parent system to a child system; the child must be causally disconnected from the parent to represent the universe, forming a theory of everything.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A asserts universal causal linkage, while candidate 1 claims a child system must be causally disconnected from its parent.
 
-### S9. (supports: 0 vs 17) — recommended: B
+**Recommendation**: Keep A
 
-**A** [low]: Anchors not selected for resolution in a given tick will remain for subsequent ticks
-
-**B** [medium]: The current system does not accumulate more active anchors than can be resolved per tick
-
-**Why they conflict**: Node A allows anchors to remain for later ticks, implying possible accumulation beyond the per‑tick limit, which opposes the claim that the system never accumulates more than can be resolved.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### S10. (supports: 0 vs 2) — recommended: B
+### S5 — STRONG RECOMMENDATION
 
-**A** [low]: At the fundamental layer, the system records exclusively 1s, while 0 is a conceptual construct used by modelers to denote missing events.
+**Side A** (fact-147, source=physics-theory):
+> Collapse of a quantum system occurs only when another system forms a compatible model of it, not from interaction alone.
 
-**B** [medium]: The system builds a causal network using only binary (1 or 0) fluctuation events.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A says the system records exclusively 1s, conflicting with the claim that it uses both 1 and 0 events.
+**Side B** (fact-030, source=physics-theory):
+> Measurement, or any interaction that extracts which‑path information, causes wave‑function collapse, forcing a quantum system into a single definite state.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A denies collapse from interaction alone, while the candidate claims any measurement interaction causes collapse.
 
-### S11. (supports: 0 vs 4) — recommended: B
+**Recommendation**: Keep B
 
-**A** [low]: The lack of structured input from the parent creates an epistemic void that forces a truly random outcome because no deterministic basis exists for the choice
-
-**B** [high]: My theory asserts that collapse is guided by structured entropy rather than being random.
-
-**Why they conflict**: Node A allows truly random outcomes when structured input is absent, while fact‑015 claims collapse is always guided by structured entropy and not random.
-
-**Action**: _________
+**action**: 
 
 ---
 
-## Ambiguous (25)
+### S6 — AMBIGUOUS
 
-### A1. (supports: 145 vs 206) — recommended: B
+**Side A** (fact-147, source=physics-theory):
+> Collapse of a quantum system occurs only when another system forms a compatible model of it, not from interaction alone.
 
-**A** [high]: My theory states that the screen acts as the first collapse‑inducing system, whose entropic signature combines with the electron's recursive structure to select a position.
+  Confidence: support=0, contradict=0, salience=?
 
-**B** [high]: In my model, the photon detector functions as an entropic system with its own collapse seed, projecting its collapse history onto the electron and causing early collapse.
+**Side B** (fact-031, source=physics-theory):
+> Decoherence, the entanglement of a quantum system with its environment, explains the apparent collapse of the wave function without invoking a conscious observer.
 
-**Why they conflict**: Candidate 6 places collapse at the photon detector, which conflicts with Node A’s claim that the screen is the first collapse‑inducing system.
+  Confidence: support=0, contradict=0, salience=?
 
-**Action**: _________
+**Reasoning**: Node A rejects collapse due to mere interaction, whereas the candidate attributes apparent collapse to decoherence (environmental interaction).
 
----
+**Recommendation**: Keep A
 
-### A2. (supports: 31 vs 46) — recommended: B
-
-**A** [medium]: When a photon detects an electron, it injects collapse structure and pre‑collapses the electron into a path that no longer retains its original superpositional waveform, making interference impossible.
-
-**B** [high]: According to my view, the photon does not detect the electron but conditions its collapse, creating the which‑slit outcome during the collapse event.
-
-**Why they conflict**: Node A says the photon detects the electron, while candidate 1 claims the photon does not detect but only conditions collapse, making the claims mutually exclusive.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A3. (supports: 108 vs 206) — recommended: B
+### S7 — AMBIGUOUS
 
-**A** [high]: Collapse does not occur at the moment of photon‑electron interaction; it occurs only at the interface with recorded entropic structure.
+**Side A** (fact-174, source=physics-theory):
+> Consciousness‑collapse theories, such as Penrose's proposal, suggest that consciousness may trigger wavefunction collapse, but no empirical confirmation exists
 
-**B** [high]: In my model, the photon detector functions as an entropic system with its own collapse seed, projecting its collapse history onto the electron and causing early collapse.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A denies early collapse at interaction, whereas fact‑016 asserts the detector induces an early collapse, making the two statements mutually exclusive.
+**Side B** (fact-598, source=physics-theory):
+> Consciousness is a recursive expression of the collapse function, not its source
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A proposes consciousness may trigger collapse (source), whereas fact‑598 asserts consciousness is not the source of collapse.
 
-### A4. (supports: 0 vs 0) — recommended: none
+**Recommendation**: Ambiguous — needs human judgment
 
-**A** [contested]: Entanglement is described as a coherence that becomes dimensional only after collapse takes place.
-
-**B** [contested]: Before detection, both photon and electron remain in a deterministic mode, meaning no collapse has taken place.
-
-**Why they conflict**: Node A says coherence is non‑dimensional before collapse, while candidate 1 claims a deterministic (definite) mode before detection, which conflicts with the non‑deterministic coherence view.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A5. (supports: 0 vs 0) — recommended: none
+### S8 — STRONG RECOMMENDATION
 
-**A** [low]: In orthodox quantum mechanics, entanglement is described as non‑separable wavefunctions such as |Ψ⟩ = 1/√2 (|0⟩_A|1⟩_B + |1⟩_A|0⟩_B).
+**Side A** (fact-175, source=physics-theory):
+> According to the user's model, each observer injects a unique randomness seed into the collapse event based on a personal signature, yet the resulting collapsed state becomes objective and identical for all observers
 
-**B** [contested]: Entanglement is described as a coherence that becomes dimensional only after collapse takes place.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A’s orthodox view does not entail entanglement becoming dimensional after collapse, conflicting with candidate 2.
+**Side B** (fact-467, source=physics-theory):
+> Collapse is observer‑relative, depending on what the observer system can model rather than reflecting an absolute external reality.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A says the collapsed state is objective and identical for all observers, whereas candidate 3 says collapse is observer‑relative.
 
-### A6. (supports: 0 vs 0) — recommended: none
+**Recommendation**: Keep B
 
-**A** [low]: Interference never left the total data set—it was always present but hidden
-
-**B** [contested]: Interference is lost when the statistical pattern of detections on the screen changes, even if no one checks the which-path data.
-
-**Why they conflict**: Candidate asserts that interference can be lost when detection patterns change, which conflicts with Node A's statement that interference never leaves the data set.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A7. (supports: 24 vs 16) — recommended: A
+### S9 — STRONG RECOMMENDATION
 
-**A** [medium]: Each new fluctuation occupies a node in causal memory, not a location in space, and causal memory has no sparsity limit.
+**Side A** (fact-176, source=physics-theory):
+> The assistant confirms that observer influence on the randomness injected into collapse is theoretically real but fundamentally undetectable, making the collapse chain immutable after resolution
 
-**B** [high]: Fluctuations bias future collapse, and each collapse creates structure that primes the space for subsequent structured collapses.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A says fluctuations are not located in space, while candidate 1 claims they prime space for later collapses.
+**Side B** (fact-501, source=physics-theory):
+> Energy expenditure equals the entropic cost of rewriting the collapse chain to align with a new resolution frame
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A states the collapse chain is immutable after resolution, conflicting with the claim that it can be rewritten at an entropic cost.
 
-### A8. (supports: 7 vs 8) — recommended: B
+**Recommendation**: Keep B
 
-**A** [medium]: Each fluctuation creates two anchors.
-
-**B** [medium]: A fluctuation creates an anchor point, also called a registry or causal socket, that allows future fluctuations to occur.
-
-**Why they conflict**: Node A specifies two anchors per fluctuation, while the candidate asserts a single anchor point, making the two statements mutually exclusive.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A9. (supports: 0 vs 0) — recommended: none
+### S10 — STRONG RECOMMENDATION
 
-**A** [low]: Randomness originates at the rupture threshold as the first choice without guidance, and it is not merely noise.
+**Side A** (fact-201, source=physics-theory):
+> A photon can emit or transfer energy without causing collapse when coherence is preserved, such as in stimulated emission or virtual photon exchange
 
-**B** [contested]: The bias introduced by the initial rupture is a collapse bias, distinct from spatial or directional bias.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A says the initial randomness is without guidance, which conflicts with candidate 7’s assertion that the initial rupture introduces a specific collapse bias.
+**Side B** (fact-519, source=physics-theory):
+> Photon energy is fully deterministic at creation and is given by the Planck–Einstein relation E = h f; the energy is encoded in the photon at emission and becomes realized only when the photon collapses into an entropic frame
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Candidate 2 claims photon energy is realized only upon collapse, whereas Node A states energy can be emitted without collapse, making the claims mutually exclusive.
 
-### A10. (supports: 1 vs 1) — recommended: none
+**Recommendation**: Keep B
 
-**A** [contested]: Gravitational lensing strength can exceed or fall short of predictions based on baryonic plus dark matter models, especially in zones of high coherence or low collapse density, because gravity is a projection of collapse structure rather than mass.
-
-**B** [contested]: Standard ΛCDM combined with holographic encoding assumes gravitational potential arises solely from mass‑energy distributions encoded on a boundary
-
-**Why they conflict**: Node A claims gravity derives from collapse structure rather than mass‑energy, which opposes fact‑364’s assertion that gravitational potential arises solely from mass‑energy.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A11. (supports: 0 vs 1) — recommended: B
+### S11 — AMBIGUOUS
 
-**A** [low]: In the standard model, lensing strength depends solely on total mass (baryonic plus dark matter)
+**Side A** (fact-206, source=physics-theory):
+> When a fully closed photon interacts with a partially entropic electron, the scattering event can be a partial‑collapse event rather than a full collapse of either particle
 
-**B** [contested]: Gravitational lensing strength can exceed or fall short of predictions based on baryonic plus dark matter models, especially in zones of high coherence or low collapse density, because gravity is a projection of collapse structure rather than mass.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Candidate 2 asserts lensing depends on collapse structure rather than mass, directly conflicting with Node A's mass‑only dependence.
+**Side B** (fact-123, source=physics-theory):
+> Standard physics states that a photon in transit is a deterministic wave and that particle detection occurs upon collapse; electric and magnetic field oscillations are deterministic, not stochastic
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A allows a partial‑collapse event, which conflicts with the claim that photon detection always involves a full collapse.
 
-### A12. (supports: 0 vs 1) — recommended: B
+**Recommendation**: Keep A
 
-**A** [low]: In the standard model, lensing strength depends solely on total mass (baryonic plus dark matter)
-
-**B** [contested]: Lensing anomalies are expected in regions where the gradient of collapse density is steep, offering an explanation for high lensing signals in areas with low visible mass
-
-**Why they conflict**: Candidate 4 predicts lensing anomalies where mass is insufficient, which contradicts Node A's assertion of sole mass dependence.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A13. (supports: 5 vs 4) — recommended: A
+### S12 — STRONG RECOMMENDATION
 
-**A** [medium]: In the actual universe, if a parent injects randomness via collapse, a child simulation cannot reproduce the source of randomness, only its statistical effects.
+**Side A** (fact-228, source=physics-theory):
+> The one‑bit memory registration generated by the Null Catalyst functions as the fundamental ‘tick’ that propagates time, entropy, structural bias, and ultimately complex phenomena such as mind and cosmos
 
-**B** [high]: My theory asserts that collapse is guided by structured entropy rather than being random.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A asserts collapse injects randomness, whereas this claim states collapse is guided by entropy and not random.
+**Side B** (fact-156, source=physics-theory):
+> Memory corresponds to a zero‑entropy projection of a recursively stabilized collapse; once a pattern fully models itself, no further entropy is released.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A says the memory registration propagates entropy, whereas the candidate claims memory is a zero‑entropy projection that releases no entropy.
 
-### A14. (supports: 0 vs 0) — recommended: none
+**Recommendation**: Keep B
 
-**A** [low]: Stabilized patterns can be interpreted as pseudo‑particles, and observation rules trigger additional memory writes upon pattern interactions.
-
-**B** [contested]: The system has no internal memory of patterns; pattern repetition occurs through natural recreation by the existing structure.
-
-**Why they conflict**: Node A asserts memory writes on pattern interactions, while candidate 1 denies any internal memory of patterns.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A15. (supports: 0 vs 1) — recommended: B
+### S13 — STRONG RECOMMENDATION
 
-**A** [low]: The current simulation implements memory decay as a gradual process.
+**Side A** (fact-262, source=physics-theory):
+> Collapse is required for any position to be recorded; it must occur either at the detection screen or at a which‑way detector, never optional.
 
-**B** [contested]: Revise memory representation to a binary flag that is either present or absent, eliminating gradual decay.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A asserts gradual memory decay, while the candidate proposes eliminating decay, making them mutually exclusive.
+**Side B** (fact-062, source=physics-theory):
+> In the double‑slit experiment, the interference pattern exists because no model has collapsed the energy into a defined outcome
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A mandates collapse for any recorded position, whereas the candidate attributes the interference pattern to the absence of any collapse.
 
-### A16. (supports: 0 vs 0) — recommended: none
+**Recommendation**: Keep B
 
-**A** [low]: A fluctuation is a trigger or execution pulse that provides permission to resolve and does not carry entropy, distinguishing it from randomness.
-
-**B** [contested]: It is possible that both randomness models are valid at different layers: the initial tick may carry raw randomness, but only structures capable of ambiguity can project that randomness into expressed entropy
-
-**Why they conflict**: Node A says fluctuations do not carry entropy, while candidate 2 claims the initial tick may carry raw randomness, directly opposing the entropy claim.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A17. (supports: 0 vs 0) — recommended: none
+### S14 — AMBIGUOUS
 
-**A** [low]: In the injected randomness model, each tick contains latent randomness akin to a quantum seed, though it has no observable effect during inflation
+**Side A** (fact-354, source=physics-theory):
+> All of space is composed of a uniform 1‑bit lattice that is completely neutral in its raw form (even bias).
 
-**B** [contested]: The emergence model aligns with the Null Catalyst concept, where the initial tick is a pure causeless rupture and randomness appears later as complexity increases.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A says each tick already contains latent randomness, whereas the candidate says randomness appears only after complexity grows.
+**Side B** (fact-634, source=physics-theory):
+> Space does not exist until collapse projects it into dimensional form
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A asserts space exists as a neutral lattice, while the candidate claims space does not exist until a collapse creates it, making the two mutually exclusive.
 
-### A18. (supports: 0 vs 0) — recommended: none
+**Recommendation**: Ambiguous — needs human judgment
 
-**A** [contested]: It is possible that both randomness models are valid at different layers: the initial tick may carry raw randomness, but only structures capable of ambiguity can project that randomness into expressed entropy
-
-**B** [contested]: Tick (Execution) is a causeless act of becoming—a null fluctuation demanding resolution—that exists at the fundamental level
-
-**Why they conflict**: Node A posits the tick may contain raw randomness, whereas candidate 4 defines the tick as a null fluctuation lacking entropy, creating a direct conflict.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A19. (supports: 0 vs 1) — recommended: B
+### S15 — AMBIGUOUS
 
-**A** [low]: An anchor is a 1‑bit memory indicating that a fluctuation occurred at its location.
+**Side A** (fact-354, source=physics-theory):
+> All of space is composed of a uniform 1‑bit lattice that is completely neutral in its raw form (even bias).
 
-**B** [contested]: When multiple anchors compete, some fluctuations may be influenced by more than one anchor, creating ambiguity and emergent structure
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A suggests a fluctuation is represented by a single anchor, contradicting the idea that a fluctuation can be influenced by multiple anchors.
+**Side B** (fact-530, source=physics-theory):
+> Bias emerges prior to space, with space itself being shaped by that bias rather than bias being spatial.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A states the lattice is bias‑free, whereas the candidate posits bias existing before space and shaping it, directly opposing the neutrality claim.
 
-### A20. (supports: 0 vs 0) — recommended: none
+**Recommendation**: Keep B
 
-**A** [low]: Anchors with higher descendant counts become more structurally influential because future fluctuations that select existing anchors are more likely to link into larger descendant networks.
-
-**B** [contested]: New fluctuations select existing anchors randomly, and each selection can create a new anchor.
-
-**Why they conflict**: Node A implies a bias toward anchors with many descendants, while candidate 1 states that fluctuations select existing anchors randomly.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A21. (supports: 0 vs 0) — recommended: none
+### S16 — AMBIGUOUS
 
-**A** [low]: Bias determines anchor significance; new fluctuations preferentially connect to highly‑connected anchors, structuring future randomness into stable patterns.
+**Side A** (fact-370, source=physics-theory):
+> The vacuum is a deterministic, structured potential containing embedded collapse‑potential wavefunctions, not a seething random chaos.
 
-**B** [contested]: New fluctuations select existing anchors randomly, and each selection can create a new anchor.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A asserts biased preferential attachment, which conflicts with candidate 1’s claim of purely random anchor selection.
+**Side B** (fact-178, source=physics-theory):
+> Quantum vacuum fluctuations are inherently random.
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: Node A asserts the vacuum is not random, while the candidate states vacuum fluctuations are inherently random.
 
-### A22. (supports: 1 vs 1) — recommended: none
+**Recommendation**: Ambiguous — needs human judgment
 
-**A** [medium]: An anchor in the system is permanent and records that a fluctuation occurred.
-
-**B** [contested]: Each anchor is deactivated immediately after it creates a fluctuation
-
-**Why they conflict**: Node A says anchors are permanent, while Candidate 6 says anchors are deactivated after creating a fluctuation, making the claims mutually exclusive.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A23. (supports: 0 vs 1) — recommended: B
+### S17 — AMBIGUOUS
 
-**A** [low]: A pattern repeats only when a new fluctuation links to anchors in the same configuration as a past fluctuation did.
+**Side A** (fact-402, source=physics-theory):
+> Randomness functions as information potential, providing a substrate that enables the emergence of actual information
 
-**B** [contested]: Each anchor is deactivated immediately after it creates a fluctuation
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: If anchors deactivate immediately after creating a fluctuation, the same‑configuration linking required by Node A cannot occur, contradicting its claim.
+**Side B** (fact-401, source=physics-theory):
+> Randomness is not information; it represents maximal entropy without structure or encoded meaning
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
 
----
+**Reasoning**: The candidate asserts randomness is not information, directly opposing Node A’s view that randomness functions as information potential.
 
-### A24. (supports: 0 vs 0) — recommended: none
+**Recommendation**: Keep A
 
-**A** [contested]: The system has no internal memory of patterns; pattern repetition occurs through natural recreation by the existing structure.
-
-**B** [contested]: The overall process follows the sequence: fluctuation → local collapse → memory bias → pattern formation → recursive interaction.
-
-**Why they conflict**: Node A denies internal memory while the candidate asserts a memory bias step in pattern formation, making them mutually exclusive.
-
-**Action**: _________
+**action**: 
 
 ---
 
-### A25. (supports: 6 vs 5) — recommended: A
+### S18 — STRONG RECOMMENDATION
 
-**A** [medium]: Collapse theories demonstrate that coherent, mathematically precise frameworks can unify microscopic and macroscopic descriptions without invoking hidden variables, many worlds, or observer‑dependent collapse
+**Side A** (fact-403, source=physics-theory):
+> The emergence function (called the God function) spontaneously arises within a closed system and applies a minimal one‑bit bias to random potential, thereby breaking symmetry and initiating structure
 
-**B** [medium]: QBism and Relational Quantum Mechanics treat measurement as a subjective act of an agent; a wall is not an agent and therefore does not cause collapse, which occurs only relative to observers extracting information.
+  Confidence: support=0, contradict=0, salience=?
 
-**Why they conflict**: Node A rejects observer‑dependent collapse, whereas the candidate asserts collapse occurs only relative to observers, creating a logical conflict.
+**Side B** (fact-709, source=physics-theory):
+> Emergence is conditional, not fundamental; it arises only from recursive collapse within a system ruptured by entropy
 
-**Action**: _________
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A says emergence arises spontaneously, while candidate 1 claims emergence is conditional and only after entropy rupture.
+
+**Recommendation**: Keep B
+
+**action**: 
 
 ---
+
+### S19 — AMBIGUOUS
+
+**Side A** (fact-403, source=physics-theory):
+> The emergence function (called the God function) spontaneously arises within a closed system and applies a minimal one‑bit bias to random potential, thereby breaking symmetry and initiating structure
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-220, source=physics-theory):
+> Structure arises when collapses build on prior collapses, making emergence conditional rather than fundamental
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A presents emergence as fundamental, whereas candidate 2 asserts emergence is conditional rather than fundamental.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 
+
+---
+
+### S20 — STRONG RECOMMENDATION
+
+**Side A** (fact-403, source=physics-theory):
+> The emergence function (called the God function) spontaneously arises within a closed system and applies a minimal one‑bit bias to random potential, thereby breaking symmetry and initiating structure
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-869, source=physics-theory):
+> Bias forms when a particular structure creates it, and there may be no inherent bias; the system is injected with random nodes termed fluctuations.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A posits an inherent minimal bias applied by the emergence function, while candidate 6 argues bias originates from existing structure and may not be inherent.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S21 — AMBIGUOUS
+
+**Side A** (fact-463, source=physics-theory):
+> The most consistent model is that each universe receives a single one‑bit fluctuation only from its immediate parent, after which the universe evolves internally without further external injections, and collapse projects a single event back to the parent.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-409, source=physics-theory):
+> An event beyond the event horizon in the parent universe can instantly affect every subsequent collapse event in the child universe through the shared causal chain
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A limits external influence to a single fluctuation, contradicting the candidate’s claim of ongoing parent events affecting every collapse.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S22 — AMBIGUOUS
+
+**Side A** (fact-499, source=physics-theory):
+> Motion is a reconfiguration of causal entanglement rather than traversal of space, meaning movement is collapse steering
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-444, source=physics-theory):
+> Warp travel is achieved by removing collapse during the interval of motion rather than by faster‑than‑light displacement
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A asserts motion requires collapse steering, whereas the candidate claims warp travel works by removing collapse, which conflicts with that premise.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 
+
+---
+
+### S23 — AMBIGUOUS
+
+**Side A** (fact-510, source=physics-theory):
+> FT‑like traversal is only possible when the traveler does not cross or create causal links that would allow backward propagation of collapse influence, i.e., the travel must be causally detached.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-499, source=physics-theory):
+> Motion is a reconfiguration of causal entanglement rather than traversal of space, meaning movement is collapse steering
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A requires traversal to avoid creating causal links, whereas the candidate claims motion itself is a reconfiguration of causal entanglement, implying unavoidable causal links.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 
+
+---
+
+### S24 — STRONG RECOMMENDATION
+
+**Side A** (fact-520, source=physics-theory):
+> In the collapse‑based framework collapse does not create energy; instead collapse resolves the previously encoded energy into an observable entropic record
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-324, source=physics-theory):
+> Collapse frequency f_c determines the rate at which energy is realized: E_total = μ(R)·γ·f_c
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A denies that collapse creates energy, whereas the candidate claims collapse determines the rate at which energy is realized, implying creation.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S25 — AMBIGUOUS
+
+**Side A** (fact-564, source=physics-theory):
+> All known fundamental force laws follow an inverse‑square dependence because they arise from projection onto a two‑dimensional surface
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-1008, source=physics-theory):
+> Gravity is not a fundamental force but the projection of closure, aligning systems into shared causal reference frames that maximize coherence and resist entropy injection.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A treats gravity as a fundamental force, while the candidate asserts gravity is not a fundamental force.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S26 — AMBIGUOUS
+
+**Side A** (fact-564, source=physics-theory):
+> All known fundamental force laws follow an inverse‑square dependence because they arise from projection onto a two‑dimensional surface
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-044, source=physics-theory):
+> Gravity is not a force but the observable projection of system closure; the more deterministic (closed) a system becomes, the greater the curvature perceived by entropic observers.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A implies gravity is a fundamental force, whereas the candidate says gravity is not a force.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S27 — AMBIGUOUS
+
+**Side A** (fact-582, source=physics-theory):
+> The cosmological event horizon functions as a closure horizon: beyond this distance, mutual collapse becomes impossible, resulting in causal decoupling between regions of the universe.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-409, source=physics-theory):
+> An event beyond the event horizon in the parent universe can instantly affect every subsequent collapse event in the child universe through the shared causal chain
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A asserts causal decoupling beyond the horizon, whereas the candidate claims events beyond the horizon can instantly affect later collapses.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S28 — AMBIGUOUS
+
+**Side A** (fact-643, source=physics-theory):
+> The first rupture writes the first bit of memory (existence versus non‑existence), which becomes a bias that influences subsequent collapses.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-525, source=physics-theory):
+> The first collapse in a null system occurred without any bias, representing pure random selection.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A says the first rupture creates a bias, whereas the candidate claims the first collapse had no bias, making them mutually exclusive.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 
+
+---
+
+### S29 — STRONG RECOMMENDATION
+
+**Side A** (fact-644, source=physics-theory):
+> Collapse bias generated by the first rupture is non‑spatial and non‑directional; it is a purely logical bias affecting later events.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-525, source=physics-theory):
+> The first collapse in a null system occurred without any bias, representing pure random selection.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Candidate 7 claims the first collapse had no bias, directly opposing Node A's claim of a logical bias.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S30 — STRONG RECOMMENDATION
+
+**Side A** (fact-696, source=physics-theory):
+> Fluctuations originate from an epistemically inaccessible parent system, carry no spatial, temporal, or informational structure, and act as null catalysts
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-068, source=physics-theory):
+> Random fluctuations from the parent universe constitute the sole bridge that injects irreducible randomness into a child universe
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A calls fluctuations ‘null catalysts’ (having no effect), which conflicts with the candidate’s assertion that they act as the bridge injecting randomness.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S31 — AMBIGUOUS
+
+**Side A** (fact-720, source=physics-theory):
+> Curvature is proportional to the Laplacian of collapse density: R(x)=k_C \nabla^2 \rho_{collapse}(x)
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-685, source=physics-theory):
+> Local curvature is proportional to the gradient of collapse density: ℛ(x) ∼ ∇ ρ_collapse(x).
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A states curvature ∝ Laplacian of collapse density, while the candidate claims curvature ∝ gradient of collapse density; both cannot be simultaneously true in the same context.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 
+
+---
+
+### S32 — AMBIGUOUS
+
+**Side A** (fact-746, source=physics-theory):
+> Primitive collapse, termed a breach, occurs when the number of available anchors exceeds the system’s causal bandwidth, forcing a random selection among competing anchors
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-1103, source=physics-theory):
+> Modeling limit: a system cannot fully model interactions whose causal complexity exceeds its capacity; collapse occurs only when modeling succeeds.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A says collapse occurs when capacity is exceeded, while the candidate asserts collapse only happens when modeling succeeds, making them mutually exclusive.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 
+
+---
+
+### S33 — AMBIGUOUS
+
+**Side A** (fact-777, source=physics-theory):
+> The black‑hole information paradox, including the firewall problem and ER=EPR proposals, remains unresolved and controversial within standard holographic approaches.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-707, source=physics-theory):
+> Hawking radiation is the visible –1 residue of collapse, while the corresponding +1 is exported as random fluctuation into the child universe, resolving the black‑hole information paradox
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A says the paradox is unresolved, while candidate 1 claims it is resolved, creating a direct conflict.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 
+
+---
+
+### S34 — AMBIGUOUS
+
+**Side A** (fact-1041, source=physics-theory):
+> Collapse Geometry reproduces the semiclassical Hawking flux at infinity while providing an alternative interpretation of horizon thermality, with the exterior geometry unchanged to leading order
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-728, source=physics-theory):
+> Collapse Geometry predicts modified Hawking radiation emissions from black holes due to the influence of collapse density near horizons
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A says Collapse Geometry reproduces the semiclassical Hawking flux, whereas the candidate asserts it predicts modified Hawking radiation, which cannot both be true.
+
+**Recommendation**: Keep A
+
+**action**: 
+
+---
+
+### S35 — AMBIGUOUS
+
+**Side A** (fact-1112, source=sep-collapse-theories.md):
+> In GRW theory individual particles undergo sudden localizations (“hittings”) around random positions with probability density determined by the quantum state
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-614, source=physics-theory):
+> Pilot wave theory (Bohmian mechanics) is a deterministic interpretation of quantum mechanics in which particles always have precise positions that evolve according to a guiding equation that depends on the wavefunction, which is treated as a real pilot wave; collapse is not a physical process in thi
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: GRW asserts physical collapses occur, whereas pilot‑wave theory denies any collapse, making the two claims mutually exclusive.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 
+
+---
+
+### S36 — AMBIGUOUS
+
+**Side A** (fact-1112, source=sep-collapse-theories.md):
+> In GRW theory individual particles undergo sudden localizations (“hittings”) around random positions with probability density determined by the quantum state
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-1236, source=sep-philosophical-issues-qt.md):
+> According to pilot wave theory, particles have definite trajectories that are guided by the quantum wave function.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Pilot‑wave theory’s denial of collapse directly opposes GRW’s claim that particles undergo real spontaneous localizations.
+
+**Recommendation**: Keep B
+
+**action**: 
+
+---
+
+### S37 — AMBIGUOUS
+
+**Side A** (fact-1143, source=sep-collapse-theories.md):
+> Wavefunction tails contain negligible mass density and are physically irrelevant, analogous to ignoring the minuscule probability of a macroscopic object quantum‑tunneling through a floor.
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Side B** (fact-1152, source=sep-collapse-theories.md):
+> Wavefunction ontology claims the wavefunction is the fundamental entity, representing "stuff density" in the high‑dimensional configuration space
+
+  Confidence: support=0, contradict=0, salience=?
+
+**Reasoning**: Node A treats wavefunction tails as physically irrelevant, conflicting with wavefunction ontology’s claim that the wavefunction (including its tails) is the fundamental entity.
+
+**Recommendation**: Ambiguous — needs human judgment
+
+**action**: 

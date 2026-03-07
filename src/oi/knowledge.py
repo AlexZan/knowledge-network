@@ -378,3 +378,92 @@ def remove_edge(
         "removed_count": len(removed),
         "edges_removed": [{"source": e["source"], "target": e["target"], "type": e["type"]} for e in removed],
     })
+
+
+def reclassify_edge(
+    session_dir: Path,
+    source_id: str,
+    target_id: str,
+    old_type: str,
+    new_type: str,
+    reasoning: str,
+    review_text: str = "",
+    review_filename: str = "",
+) -> str:
+    """Reclassify an edge (e.g. contradicts → related_to) with review provenance.
+
+    Saves a raw review excerpt to {session_dir}/reviews/{review_filename}
+    and links it as provenance on the reclassified edge.
+
+    Args:
+        session_dir: Path to the session/knowledge directory.
+        source_id: Source node ID of the edge.
+        target_id: Target node ID of the edge.
+        old_type: Current edge type to match (e.g. "contradicts").
+        new_type: New edge type (e.g. "related_to").
+        reasoning: Summary of why this reclassification was made.
+        review_text: Raw chat excerpt for provenance (written to reviews/ dir).
+        review_filename: Filename for the review excerpt. Auto-generated if empty.
+
+    Returns:
+        JSON string with result.
+    """
+    knowledge = _load_knowledge(session_dir)
+    now = datetime.now().isoformat()
+
+    # Find the edge (check both directions for undirected edge types)
+    found = None
+    for edge in knowledge["edges"]:
+        if edge.get("type") != old_type:
+            continue
+        if (edge["source"] == source_id and edge["target"] == target_id) or \
+           (edge["source"] == target_id and edge["target"] == source_id):
+            found = edge
+            break
+
+    if not found:
+        return json.dumps({"error": f"No {old_type} edge found between {source_id} and {target_id}"})
+
+    # Save review provenance file
+    provenance_uri = ""
+    if review_text:
+        reviews_dir = session_dir / "reviews"
+        reviews_dir.mkdir(exist_ok=True)
+        if not review_filename:
+            review_filename = f"{source_id}-{target_id}.md"
+        review_path = reviews_dir / review_filename
+        review_path.write_text(review_text, encoding="utf-8")
+        provenance_uri = f"review://{review_filename}"
+
+    # Reclassify
+    old_reasoning = found.get("reasoning", "")
+    found["type"] = new_type
+    found["reasoning"] = reasoning
+    found["reviewed_at"] = now
+    if provenance_uri:
+        found["provenance_uri"] = provenance_uri
+
+    # Clean has_contradiction flags if old_type was contradicts
+    if old_type == "contradicts":
+        for node in knowledge["nodes"]:
+            if node["id"] in (source_id, target_id) and node.get("has_contradiction"):
+                still_contested = any(
+                    e["type"] == "contradicts" and
+                    (e["source"] == node["id"] or e["target"] == node["id"])
+                    for e in knowledge["edges"]
+                )
+                if not still_contested:
+                    del node["has_contradiction"]
+
+    _save_knowledge(session_dir, knowledge)
+
+    return json.dumps({
+        "status": "reclassified",
+        "source": found["source"],
+        "target": found["target"],
+        "old_type": old_type,
+        "new_type": new_type,
+        "reasoning": reasoning,
+        "provenance_uri": provenance_uri,
+        "reviewed_at": now,
+    })

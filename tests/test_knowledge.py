@@ -648,3 +648,126 @@ class TestAuthoredAt:
         knowledge = _load_knowledge(session_dir)
         node = knowledge["nodes"][0]
         assert "authored_at" not in node
+
+
+class TestReclassifyEdge:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    def _seed_graph(self, session_dir):
+        """Create a graph with two nodes and a contradicts edge."""
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "A",
+                 "status": "active", "has_contradiction": True,
+                 "created": "2026-01-01", "updated": "2026-01-01"},
+                {"id": "fact-002", "type": "fact", "summary": "B",
+                 "status": "active", "has_contradiction": True,
+                 "created": "2026-01-01", "updated": "2026-01-01"},
+            ],
+            "edges": [
+                {"source": "fact-001", "target": "fact-002",
+                 "type": "contradicts", "reasoning": "LLM said so"},
+            ],
+        })
+
+    def test_reclassify_changes_type(self, session_dir):
+        """Edge type changes from contradicts to related_to."""
+        from oi.knowledge import reclassify_edge
+        self._seed_graph(session_dir)
+
+        result = json.loads(reclassify_edge(
+            session_dir, "fact-001", "fact-002",
+            old_type="contradicts", new_type="related_to",
+            reasoning="Complementary perspectives, not contradictory",
+        ))
+        assert result["status"] == "reclassified"
+        assert result["old_type"] == "contradicts"
+        assert result["new_type"] == "related_to"
+
+        kg = _load_knowledge(session_dir)
+        edge = kg["edges"][0]
+        assert edge["type"] == "related_to"
+        assert "Complementary" in edge["reasoning"]
+        assert "reviewed_at" in edge
+
+    def test_clears_has_contradiction(self, session_dir):
+        """has_contradiction removed when no contradicts edges remain."""
+        from oi.knowledge import reclassify_edge
+        self._seed_graph(session_dir)
+
+        reclassify_edge(
+            session_dir, "fact-001", "fact-002",
+            old_type="contradicts", new_type="related_to",
+            reasoning="Not a conflict",
+        )
+        kg = _load_knowledge(session_dir)
+        for node in kg["nodes"]:
+            assert "has_contradiction" not in node
+
+    def test_saves_review_provenance(self, session_dir):
+        """Review text saved to reviews/ dir and linked on edge."""
+        from oi.knowledge import reclassify_edge
+        self._seed_graph(session_dir)
+
+        review = "User: these aren't contradictory\nAssistant: agreed, keep_both"
+        result = json.loads(reclassify_edge(
+            session_dir, "fact-001", "fact-002",
+            old_type="contradicts", new_type="related_to",
+            reasoning="Complementary",
+            review_text=review,
+            review_filename="S1-fact001-fact002.md",
+        ))
+
+        assert result["provenance_uri"] == "review://S1-fact001-fact002.md"
+
+        # File exists with correct content
+        review_path = session_dir / "reviews" / "S1-fact001-fact002.md"
+        assert review_path.exists()
+        assert review_path.read_text() == review
+
+        # Edge has provenance
+        kg = _load_knowledge(session_dir)
+        edge = kg["edges"][0]
+        assert edge["provenance_uri"] == "review://S1-fact001-fact002.md"
+
+    def test_finds_edge_in_either_direction(self, session_dir):
+        """Edge found even if source/target are swapped."""
+        from oi.knowledge import reclassify_edge
+        self._seed_graph(session_dir)
+
+        # Call with swapped IDs
+        result = json.loads(reclassify_edge(
+            session_dir, "fact-002", "fact-001",
+            old_type="contradicts", new_type="related_to",
+            reasoning="Not a conflict",
+        ))
+        assert result["status"] == "reclassified"
+
+    def test_error_if_edge_not_found(self, session_dir):
+        """Returns error if no matching edge exists."""
+        from oi.knowledge import reclassify_edge
+        self._seed_graph(session_dir)
+
+        result = json.loads(reclassify_edge(
+            session_dir, "fact-001", "fact-999",
+            old_type="contradicts", new_type="related_to",
+            reasoning="N/A",
+        ))
+        assert "error" in result
+
+    def test_no_review_file_without_text(self, session_dir):
+        """No provenance file created when review_text is empty."""
+        from oi.knowledge import reclassify_edge
+        self._seed_graph(session_dir)
+
+        result = json.loads(reclassify_edge(
+            session_dir, "fact-001", "fact-002",
+            old_type="contradicts", new_type="related_to",
+            reasoning="Quick fix",
+        ))
+        assert result["provenance_uri"] == ""
+        assert not (session_dir / "reviews").exists()

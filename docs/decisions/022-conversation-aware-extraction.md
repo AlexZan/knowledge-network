@@ -1,7 +1,7 @@
 # Decision 022: Conversation-Aware Extraction
 
 **Date**: 2026-03-06
-**Status**: Accepted
+**Status**: Implemented
 
 ## Context
 

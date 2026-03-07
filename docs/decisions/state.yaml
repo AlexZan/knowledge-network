@@ -130,6 +130,12 @@
 
 - id: "022"
   title: Conversation-Aware Extraction
-  status: accepted
+  status: implemented
+  superseded_by: null
+  depends_on: []
+
+- id: "023"
+  title: Edge Reclassification with Review Provenance
+  status: implemented
   superseded_by: null
   depends_on: []
