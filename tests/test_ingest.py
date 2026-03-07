@@ -11,10 +11,17 @@ from oi.ingest import (
     IngestionResult,
     PipelineResult,
     _build_extraction_prompt,
+    _build_conversation_prompt,
+    _build_conversation_text,
+    _estimate_tokens,
+    _parse_conversation_response,
+    _extract_retracted,
     _get_ingested_conv_ids,
     _parse_llm_json,
     extract_from_chunk,
+    extract_from_conversation,
     extract_document,
+    ingest_conversation,
     ingest_document,
     ingest_pipeline,
 )
@@ -1103,14 +1110,16 @@ class TestIngestChatGPTExport:
         assert result.errors
         assert any("not registered" in e for e in result.errors)
 
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest._estimate_tokens", return_value=100)
     @patch("oi.ingest.chat")
     @patch("oi.chatgpt_parser.parse_chatgpt_export")
-    def test_ingest_chatgpt_export_dry_run(self, mock_parse, mock_chat, session_dir):
+    def test_ingest_chatgpt_export_dry_run(self, mock_parse, mock_chat, mock_tokens, mock_max, session_dir):
         """Dry-run returns extracted claims but writes no nodes."""
         from oi.ingest import ingest_chatgpt_export
         from oi.sources import register_source
 
-        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/conversations")
 
         # Return a doc with one chunk
         mock_parse.return_value = [
@@ -1130,14 +1139,16 @@ class TestIngestChatGPTExport:
         # No knowledge file written
         assert not (session_dir / "knowledge.yaml").exists()
 
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest._estimate_tokens", return_value=100)
     @patch("oi.ingest.chat")
     @patch("oi.chatgpt_parser.parse_chatgpt_export")
-    def test_ingest_chatgpt_export_creates_nodes(self, mock_parse, mock_chat, session_dir):
-        """Full pipeline writes nodes for each claim extracted from turn pairs."""
+    def test_ingest_chatgpt_export_creates_nodes(self, mock_parse, mock_chat, mock_tokens, mock_max, session_dir):
+        """Full pipeline writes nodes via conversation-aware extraction (Decision 022)."""
         from oi.ingest import ingest_chatgpt_export
         from oi.sources import register_source
 
-        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/conversations")
 
         mock_parse.return_value = [
             _make_doc(chunks=[
@@ -1153,16 +1164,16 @@ class TestIngestChatGPTExport:
              patch("oi.embed.ensure_embeddings"):
             from oi.linker import LinkingResult
             mock_link.return_value = LinkingResult(
-                edges_created=0, contradictions_found=0, nodes_processed=2,
+                edges_created=0, contradictions_found=0, nodes_processed=1,
             )
             result = ingest_chatgpt_export(
                 source_id="test-src", session_dir=session_dir, skip_embedding=True,
             )
 
         assert result.dry_run is False
-        # 2 chunks → 2 LLM calls → 2 claims → 2 nodes
-        assert len(result.nodes_created) == 2
-        assert result.claims_extracted == 2
+        # 1 conversation → 1 LLM call → 1 claim → 1 node (conversation-aware)
+        assert len(result.nodes_created) == 1
+        assert result.claims_extracted == 1
         assert result.errors == []
         assert "test-src" in result.source_path
 
@@ -1231,15 +1242,17 @@ class TestIngestChatGPTExportResume:
         d.mkdir()
         return d
 
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest._estimate_tokens", return_value=100)
     @patch("oi.ingest.chat")
     @patch("oi.chatgpt_parser.parse_chatgpt_export")
-    def test_skips_already_ingested(self, mock_parse, mock_chat, session_dir):
+    def test_skips_already_ingested(self, mock_parse, mock_chat, mock_tokens, mock_max, session_dir):
         """Already-ingested conversation is skipped, new one is processed."""
         from oi.ingest import ingest_chatgpt_export
         from oi.sources import register_source
         from oi.state import _save_knowledge
 
-        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/conversations")
 
         # Pre-populate graph with nodes from conv-aaa
         _save_knowledge(session_dir, {
@@ -1267,19 +1280,21 @@ class TestIngestChatGPTExportResume:
         )
 
         assert result.conversations_skipped == 1
-        # Only conv-bbb should be processed (1 chunk → 1 claim → 1 node)
+        # Only conv-bbb should be processed (1 conversation → 1 claim → 1 node)
         assert len(result.nodes_created) == 1
         assert result.errors == []
 
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest._estimate_tokens", return_value=100)
     @patch("oi.ingest.chat")
     @patch("oi.chatgpt_parser.parse_chatgpt_export")
-    def test_reports_skipped_count(self, mock_parse, mock_chat, session_dir):
+    def test_reports_skipped_count(self, mock_parse, mock_chat, mock_tokens, mock_max, session_dir):
         """PipelineResult.conversations_skipped is set correctly."""
         from oi.ingest import ingest_chatgpt_export
         from oi.sources import register_source
         from oi.state import _save_knowledge
 
-        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/conversations")
 
         _save_knowledge(session_dir, {
             "nodes": [
@@ -1312,14 +1327,16 @@ class TestIngestChatGPTExportResume:
         assert result.conversations_skipped == 2
         assert len(result.nodes_created) == 1  # only conv-3
 
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest._estimate_tokens", return_value=100)
     @patch("oi.ingest.chat")
     @patch("oi.chatgpt_parser.parse_chatgpt_export")
-    def test_processes_all_when_none_ingested(self, mock_parse, mock_chat, session_dir):
+    def test_processes_all_when_none_ingested(self, mock_parse, mock_chat, mock_tokens, mock_max, session_dir):
         """No prior ingestion → all conversations processed."""
         from oi.ingest import ingest_chatgpt_export
         from oi.sources import register_source
 
-        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/path.zip")
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake/conversations")
 
         mock_parse.return_value = [
             _make_doc(chunks=[_make_chunk(content="C1")], source_path="conv-1"),
@@ -1483,3 +1500,255 @@ class TestExtractFromChunkLLM:
         # All claims should have correct provenance
         for claim in result.claims:
             assert claim.provenance_uri.startswith("doc://docs/thesis.md#")
+
+
+# === Conversation-Aware Extraction (Decision 022) ===
+
+
+class TestConversationText:
+    """Tests for _build_conversation_text."""
+
+    def test_concatenates_non_empty_chunks(self):
+        doc = _make_doc(chunks=[
+            _make_chunk(chunk_id="t1", content="User asks about X"),
+            _make_chunk(chunk_id="t2", content="Assistant explains X"),
+            _make_chunk(chunk_id="t3", content="", char_count=0),
+            _make_chunk(chunk_id="t4", content="User refines question"),
+        ])
+        text = _build_conversation_text(doc)
+        assert "User asks about X" in text
+        assert "Assistant explains X" in text
+        assert "User refines question" in text
+        # Empty chunk should be skipped
+        assert text.count("---") == 2  # separators between 3 non-empty chunks
+
+    def test_empty_doc_returns_empty(self):
+        doc = _make_doc(chunks=[
+            _make_chunk(chunk_id="t1", content="", char_count=0),
+        ])
+        text = _build_conversation_text(doc)
+        assert text == ""
+
+
+class TestConversationPrompt:
+    """Tests for _build_conversation_prompt."""
+
+    def test_basic_prompt_structure(self):
+        messages = _build_conversation_prompt("Hello world", "Title: Test\n")
+        assert len(messages) == 2
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        assert "Hello world" in messages[1]["content"]
+        assert "settled conclusions" in messages[1]["content"]
+        assert "IGNORE exploratory" in messages[1]["content"]
+
+    def test_prior_nodes_included(self):
+        prior = [
+            {"node_type": "fact", "summary": "Collapse is entropy-driven"},
+            {"node_type": "decision", "summary": "Use topology for confidence"},
+        ]
+        messages = _build_conversation_prompt("Next section", "", prior_nodes=prior)
+        content = messages[1]["content"]
+        assert "Collapse is entropy-driven" in content
+        assert "Use topology for confidence" in content
+        assert "UPDATE, EXTEND, or ADD" in content
+        assert "retracted" in content
+
+    def test_no_prior_nodes_omits_section(self):
+        messages = _build_conversation_prompt("Content here", "")
+        content = messages[1]["content"]
+        assert "UPDATE, EXTEND" not in content
+
+
+class TestParseConversationResponse:
+    """Tests for _parse_conversation_response."""
+
+    def test_parses_valid_claims(self):
+        response = json.dumps([
+            {"node_type": "fact", "summary": "Collapse is real", "reasoning": "proved it", "voice": "first_person"},
+            {"node_type": "decision", "summary": "Use topology", "reasoning": "best approach", "voice": "first_person"},
+        ])
+        claims = _parse_conversation_response(response, "conv-1", "chatgpt://conv-1#turn-1")
+        assert len(claims) == 2
+        assert claims[0].summary == "Collapse is real"
+        assert claims[1].node_type == "decision"
+        assert claims[0].provenance_uri == "chatgpt://conv-1#turn-1"
+
+    def test_filters_retracted(self):
+        response = json.dumps([
+            {"node_type": "fact", "summary": "Keep this"},
+            {"node_type": "retracted", "summary": "Remove this"},
+        ])
+        claims = _parse_conversation_response(response, "conv-1", "chatgpt://conv-1")
+        assert len(claims) == 1
+        assert claims[0].summary == "Keep this"
+
+    def test_filters_invalid_types(self):
+        response = json.dumps([
+            {"node_type": "fact", "summary": "Valid"},
+            {"node_type": "banana", "summary": "Invalid type"},
+            {"node_type": "fact", "summary": ""},  # empty summary
+        ])
+        claims = _parse_conversation_response(response, "conv-1", "chatgpt://conv-1")
+        assert len(claims) == 1
+
+    def test_handles_non_array(self):
+        claims = _parse_conversation_response('{"not": "array"}', "conv-1", "chatgpt://conv-1")
+        assert claims == []
+
+
+class TestExtractRetracted:
+    """Tests for _extract_retracted."""
+
+    def test_extracts_retracted_summaries(self):
+        response = json.dumps([
+            {"node_type": "fact", "summary": "Keep"},
+            {"node_type": "retracted", "summary": "Remove this one"},
+            {"node_type": "retracted", "summary": "And this one"},
+        ])
+        retracted = _extract_retracted(response)
+        assert len(retracted) == 2
+        assert "Remove this one" in retracted
+        assert "And this one" in retracted
+
+    def test_empty_on_no_retracted(self):
+        response = json.dumps([{"node_type": "fact", "summary": "Keep"}])
+        assert _extract_retracted(response) == []
+
+
+class TestExtractFromConversation:
+    """Tests for extract_from_conversation — single-call and iterative paths."""
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_single_call_path(self, mock_tokens, mock_chat, mock_max):
+        """Small conversation should use single LLM call."""
+        mock_chat.return_value = json.dumps([
+            {"node_type": "fact", "summary": "Collapse is entropy-driven",
+             "reasoning": "Main conclusion", "voice": "first_person"},
+            {"node_type": "fact", "summary": "Screen causes first collapse",
+             "reasoning": "Key finding", "voice": "first_person"},
+        ])
+        doc = _make_doc(
+            chunks=[
+                _make_chunk(chunk_id="t1", content="User: What causes collapse?"),
+                _make_chunk(chunk_id="t2", content="Assistant: Entropy drives it..."),
+                _make_chunk(chunk_id="t3", content="User: And where does it happen first?"),
+                _make_chunk(chunk_id="t4", content="Assistant: At the screen..."),
+            ],
+            title="Physics Discussion",
+            source_path="conv-123",
+        )
+        result = extract_from_conversation(doc)
+        assert mock_chat.call_count == 1
+        assert len(result.claims) == 2
+        assert result.claims[0].summary == "Collapse is entropy-driven"
+        assert result.chunks_processed == 4
+        assert result.chunks_failed == 0
+        # Check the prompt contained the full conversation
+        call_args = mock_chat.call_args
+        prompt = call_args[0][0][1]["content"]
+        assert "What causes collapse" in prompt
+        assert "At the screen" in prompt
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=80)
+    def test_iterative_path(self, mock_tokens, mock_chat, mock_max):
+        """Large conversation should use iterative node-carry-forward."""
+        # First segment returns initial nodes
+        # Second segment returns new nodes (with prior context)
+        mock_chat.side_effect = [
+            json.dumps([
+                {"node_type": "fact", "summary": "Early finding",
+                 "reasoning": "r1", "voice": "first_person"},
+            ]),
+            json.dumps([
+                {"node_type": "fact", "summary": "Later conclusion",
+                 "reasoning": "r2", "voice": "first_person"},
+            ]),
+        ]
+        doc = _make_doc(
+            chunks=[
+                _make_chunk(chunk_id="t1", content="First part of discussion"),
+                _make_chunk(chunk_id="t2", content="Second part of discussion"),
+            ],
+            source_path="conv-456",
+        )
+        result = extract_from_conversation(doc)
+        assert mock_chat.call_count == 2
+        assert len(result.claims) == 2
+        assert result.claims[0].summary == "Early finding"
+        assert result.claims[1].summary == "Later conclusion"
+        # Second call should have prior nodes in prompt
+        second_call_prompt = mock_chat.call_args_list[1][0][0][1]["content"]
+        assert "Early finding" in second_call_prompt
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_skips_empty_chunks(self, mock_tokens, mock_chat, mock_max):
+        mock_chat.return_value = json.dumps([])
+        doc = _make_doc(chunks=[
+            _make_chunk(chunk_id="t1", content="Real content"),
+            _make_chunk(chunk_id="t2", content="", char_count=0),
+        ])
+        result = extract_from_conversation(doc)
+        assert result.chunks_processed == 1
+        assert result.chunks_skipped == 1
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_all_empty_returns_early(self, mock_tokens, mock_chat, mock_max):
+        doc = _make_doc(chunks=[
+            _make_chunk(chunk_id="t1", content="", char_count=0),
+        ])
+        result = extract_from_conversation(doc)
+        assert mock_chat.call_count == 0
+        assert result.chunks_processed == 0
+        assert result.chunks_skipped == 1
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat", side_effect=Exception("API down"))
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_llm_error_reported(self, mock_tokens, mock_chat, mock_max):
+        doc = _make_doc(chunks=[_make_chunk()])
+        result = extract_from_conversation(doc)
+        assert result.chunks_failed == 1
+        assert len(result.errors) == 1
+        assert "API down" in result.errors[0]
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=80)
+    def test_iterative_retraction(self, mock_tokens, mock_chat, mock_max):
+        """Iterative path should handle retracted nodes."""
+        mock_chat.side_effect = [
+            json.dumps([
+                {"node_type": "fact", "summary": "Exploratory idea",
+                 "reasoning": "r1", "voice": "first_person"},
+            ]),
+            json.dumps([
+                {"node_type": "retracted", "summary": "Exploratory idea"},
+                {"node_type": "fact", "summary": "Revised conclusion",
+                 "reasoning": "r2", "voice": "first_person"},
+            ]),
+        ]
+        doc = _make_doc(
+            chunks=[
+                _make_chunk(chunk_id="t1", content="First exploration"),
+                _make_chunk(chunk_id="t2", content="Actually, that was wrong"),
+            ],
+            source_path="conv-789",
+        )
+        result = extract_from_conversation(doc)
+        # Should have 2 claims total: "Exploratory idea" from segment 1
+        # and "Revised conclusion" from segment 2.
+        # The retracted node is excluded from claims but removed from
+        # accumulated_nodes for future segments.
+        assert len(result.claims) == 2
+        summaries = [c.summary for c in result.claims]
+        assert "Exploratory idea" in summaries  # still in claims from segment 1
+        assert "Revised conclusion" in summaries

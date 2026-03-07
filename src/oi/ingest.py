@@ -3,7 +3,7 @@
 Takes ParsedDocument output from parser.py, uses LLM to extract claims per chunk,
 and writes them to the knowledge graph via add_knowledge(). Includes a top-level
 ingest_pipeline() orchestrator that chains parse → extract → write → link → embed → report.
-Also provides ingest_chatgpt_export() for ChatGPT export zip files.
+Also provides ingest_chatgpt_export() for ChatGPT conversation sources.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from typing import Callable, Optional
 
 from pydantic import BaseModel
 
-from .llm import chat, DEFAULT_MODEL
+from .llm import chat, DEFAULT_MODEL, get_max_input_tokens
 from .schemas import get_extractable_types, build_extraction_type_list
 from .parser import ParsedDocument, DocumentChunk
 
@@ -266,6 +266,306 @@ def extract_from_chunk(
         )
 
 
+# === Conversation-Aware Extraction (Decision 022) ===
+
+
+def _estimate_tokens(text: str, model: str = None) -> int:
+    """Estimate token count for text using litellm's token counter."""
+    try:
+        from litellm import token_counter
+        return token_counter(model=model or DEFAULT_MODEL, text=text)
+    except Exception:
+        return len(text) // 4  # fallback: ~4 chars per token
+
+
+def _build_conversation_text(doc: ParsedDocument) -> str:
+    """Concatenate all chunks in a ParsedDocument into a single conversation string."""
+    parts = []
+    for chunk in doc.chunks:
+        if chunk.char_count == 0:
+            continue
+        parts.append(chunk.content)
+    return "\n\n---\n\n".join(parts)
+
+
+def _build_conversation_prompt(
+    conversation_text: str,
+    metadata_context: str,
+    prior_nodes: list[dict] | None = None,
+) -> list[dict]:
+    """Build LLM messages for conversation-aware extraction."""
+    type_list = build_extraction_type_list()
+
+    system = (
+        "You extract knowledge claims from conversations. "
+        "Respond ONLY with a JSON array. No explanation, no markdown fences, no prose."
+    )
+
+    prior_context = ""
+    if prior_nodes:
+        summaries = "\n".join(
+            f"- [{n['node_type']}] {n['summary']}" for n in prior_nodes
+        )
+        prior_context = (
+            f"Nodes extracted from earlier in this conversation:\n{summaries}\n\n"
+            f"For the next section below, UPDATE, EXTEND, or ADD TO these nodes.\n"
+            f"If a prior node was exploratory and the conversation now contradicts or "
+            f"abandons it, mark it with node_type \"retracted\" so it can be removed.\n"
+            f"Only output NEW or UPDATED nodes — do not repeat unchanged prior nodes.\n\n"
+        )
+
+    user = (
+        f"Read this full conversation and extract knowledge claims that represent "
+        f"settled conclusions, committed positions, and key ideas.\n\n"
+        f"Context:\n"
+        f"{metadata_context}"
+        f"Rules:\n"
+        f"- Extract ONLY conclusions, settled positions, and ideas the participants committed to\n"
+        f"- IGNORE exploratory hypotheticals, ideas proposed then abandoned, rhetorical questions, and scaffolding discussion\n"
+        f"- If an idea was proposed early and revised later, extract ONLY the final version\n"
+        f"- Each summary must be self-contained (no pronouns like 'it', 'this')\n"
+        f"- Include reasoning briefly explaining why this claim is noteworthy\n"
+        f"- {type_list}\n"
+        f"- For each claim, set voice to one of:\n"
+        f'    "first_person" — the author is asserting this as their own original claim or position\n'
+        f'    "reported"     — the author is describing what standard physics / conventional theory / existing literature claims\n'
+        f'    "described"    — the author is neutrally describing an observed phenomenon or experimental result\n\n'
+        f"{prior_context}"
+        f'Respond with ONLY a JSON array:\n'
+        f'[{{"node_type": "fact", "summary": "...", "reasoning": "...", "voice": "first_person|reported|described"}}, ...]\n'
+        f"If nothing is worth extracting, respond with: []\n\n"
+        f"--- Conversation ---\n"
+        f"{conversation_text}"
+    )
+
+    return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+
+def _parse_conversation_response(
+    text: str,
+    source_path: str,
+    provenance_uri: str,
+    authored_at: str = "",
+) -> list[ExtractedClaim]:
+    """Parse LLM response into ExtractedClaim objects, filtering retracted nodes."""
+    valid_types = set(get_extractable_types())
+    nodes = _parse_llm_json(text)
+    if not isinstance(nodes, list):
+        return []
+
+    claims = []
+    for n in nodes:
+        if not isinstance(n, dict):
+            continue
+        ntype = n.get("node_type", "")
+        summary = n.get("summary", "")
+        if ntype == "retracted":
+            continue  # handled by caller for iterative mode
+        if ntype not in valid_types:
+            continue
+        if not isinstance(summary, str) or not summary.strip():
+            continue
+        raw_voice = str(n.get("voice", "first_person")).strip().lower()
+        voice = raw_voice if raw_voice in ("first_person", "reported", "described") else "first_person"
+        claims.append(
+            ExtractedClaim(
+                node_type=ntype,
+                summary=summary.strip(),
+                provenance_uri=provenance_uri,
+                source_path=source_path,
+                reasoning=str(n.get("reasoning", "")).strip(),
+                voice=voice,
+                authored_at=authored_at,
+            )
+        )
+    return claims
+
+
+def _extract_retracted(text: str) -> list[str]:
+    """Extract summaries of retracted nodes from LLM response."""
+    nodes = _parse_llm_json(text)
+    if not isinstance(nodes, list):
+        return []
+    return [
+        n.get("summary", "").strip()
+        for n in nodes
+        if isinstance(n, dict) and n.get("node_type") == "retracted"
+    ]
+
+
+def extract_from_conversation(
+    doc: ParsedDocument,
+    model: str = None,
+) -> DocumentExtractionResult:
+    """Extract knowledge claims from a conversation using full-context awareness.
+
+    For conversations that fit in the model's context window, sends the entire
+    conversation in one LLM call. For larger conversations, uses iterative
+    node-carry-forward: extract from the first chunk, then send subsequent
+    chunks with prior node summaries as compressed context.
+
+    See Decision 022 for rationale.
+    """
+    model = model or DEFAULT_MODEL
+    source_path = doc.metadata.source_path
+    metadata_context = ""
+    if doc.metadata.title:
+        metadata_context += f"Conversation: {doc.metadata.title}\n"
+    if doc.metadata.author:
+        metadata_context += f"Author: {doc.metadata.author}\n"
+    if doc.metadata.date:
+        metadata_context += f"Date: {doc.metadata.date}\n"
+
+    # Get first chunk's provenance and authored_at for the whole conversation
+    first_chunk = next((c for c in doc.chunks if c.char_count > 0), None)
+    if not first_chunk:
+        return DocumentExtractionResult(
+            source_path=source_path,
+            chunks_total=len(doc.chunks),
+            chunks_processed=0,
+            chunks_skipped=len(doc.chunks),
+            chunks_failed=0,
+        )
+
+    provenance_uri = first_chunk.provenance_uri
+    authored_at = ""
+    if hasattr(first_chunk, "metadata") and first_chunk.metadata:
+        authored_at = first_chunk.metadata.get("authored_at", "")
+
+    # Concatenate full conversation
+    full_text = _build_conversation_text(doc)
+    non_empty_chunks = sum(1 for c in doc.chunks if c.char_count > 0)
+
+    # Reserve tokens for prompt overhead and response
+    max_input = get_max_input_tokens(model)
+    prompt_overhead = 500  # system message + instructions
+    response_reserve = 4000  # room for output
+    available_tokens = max_input - prompt_overhead - response_reserve
+
+    text_tokens = _estimate_tokens(full_text, model)
+
+    errors: list[str] = []
+
+    if text_tokens <= available_tokens:
+        # Single-call path: send entire conversation
+        messages = _build_conversation_prompt(full_text, metadata_context)
+        try:
+            raw = chat(messages, model=model, phase="extract_conversation",
+                       log_meta={"source": source_path, "mode": "single"})
+            claims = _parse_conversation_response(
+                raw.strip(), source_path, provenance_uri, authored_at)
+            return DocumentExtractionResult(
+                source_path=source_path,
+                chunks_total=len(doc.chunks),
+                chunks_processed=non_empty_chunks,
+                chunks_skipped=len(doc.chunks) - non_empty_chunks,
+                chunks_failed=0,
+                claims=claims,
+            )
+        except Exception as e:
+            errors.append(f"Conversation extraction failed: {e}")
+            return DocumentExtractionResult(
+                source_path=source_path,
+                chunks_total=len(doc.chunks),
+                chunks_processed=0,
+                chunks_skipped=0,
+                chunks_failed=non_empty_chunks,
+                errors=errors,
+            )
+    else:
+        # Iterative path: node-carry-forward
+        # Split conversation into segments that fit in context
+        non_empty = [c for c in doc.chunks if c.char_count > 0]
+        accumulated_nodes: list[dict] = []
+        all_claims: list[ExtractedClaim] = []
+        chunks_processed = 0
+        chunks_failed = 0
+
+        # Build segments by accumulating chunks until we approach the limit
+        segment_chunks: list[DocumentChunk] = []
+        segment_tokens = 0
+
+        for chunk in non_empty:
+            chunk_tokens = _estimate_tokens(chunk.content, model)
+            # Reserve space for prior node summaries (~50 tokens per node)
+            prior_overhead = len(accumulated_nodes) * 50
+            segment_limit = available_tokens - prior_overhead
+
+            if segment_tokens + chunk_tokens > segment_limit and segment_chunks:
+                # Process current segment
+                segment_text = "\n\n---\n\n".join(c.content for c in segment_chunks)
+                messages = _build_conversation_prompt(
+                    segment_text, metadata_context,
+                    prior_nodes=accumulated_nodes if accumulated_nodes else None,
+                )
+                try:
+                    raw = chat(messages, model=model, phase="extract_conversation",
+                               log_meta={"source": source_path, "mode": "iterative",
+                                          "segment": chunks_processed})
+                    raw_text = raw.strip()
+
+                    # Extract retracted nodes and remove them from accumulated
+                    retracted = _extract_retracted(raw_text)
+                    if retracted:
+                        accumulated_nodes = [
+                            n for n in accumulated_nodes
+                            if n["summary"] not in retracted
+                        ]
+
+                    # Parse new claims
+                    new_claims = _parse_conversation_response(
+                        raw_text, source_path, provenance_uri, authored_at)
+                    all_claims.extend(new_claims)
+                    chunks_processed += len(segment_chunks)
+
+                    # Add to accumulated for next segment
+                    for claim in new_claims:
+                        accumulated_nodes.append({
+                            "node_type": claim.node_type,
+                            "summary": claim.summary,
+                        })
+                except Exception as e:
+                    chunks_failed += len(segment_chunks)
+                    errors.append(f"Segment extraction failed: {e}")
+
+                # Reset segment
+                segment_chunks = []
+                segment_tokens = 0
+
+            segment_chunks.append(chunk)
+            segment_tokens += chunk_tokens
+
+        # Process final segment
+        if segment_chunks:
+            segment_text = "\n\n---\n\n".join(c.content for c in segment_chunks)
+            messages = _build_conversation_prompt(
+                segment_text, metadata_context,
+                prior_nodes=accumulated_nodes if accumulated_nodes else None,
+            )
+            try:
+                raw = chat(messages, model=model, phase="extract_conversation",
+                           log_meta={"source": source_path, "mode": "iterative",
+                                      "segment": chunks_processed})
+                raw_text = raw.strip()
+                new_claims = _parse_conversation_response(
+                    raw_text, source_path, provenance_uri, authored_at)
+                all_claims.extend(new_claims)
+                chunks_processed += len(segment_chunks)
+            except Exception as e:
+                chunks_failed += len(segment_chunks)
+                errors.append(f"Final segment extraction failed: {e}")
+
+        return DocumentExtractionResult(
+            source_path=source_path,
+            chunks_total=len(doc.chunks),
+            chunks_processed=chunks_processed,
+            chunks_skipped=len(doc.chunks) - non_empty_chunks,
+            chunks_failed=chunks_failed,
+            claims=all_claims,
+            errors=errors,
+        )
+
+
 def extract_document(
     doc: ParsedDocument,
     model: str = None,
@@ -346,6 +646,68 @@ def ingest_document(
     from .knowledge import add_knowledge
 
     extraction = extract_document(doc, model=model)
+    source = source_label or extraction.source_path
+
+    nodes_created: list[str] = []
+    errors = list(extraction.errors)
+
+    for claim in extraction.claims:
+        try:
+            result_json = add_knowledge(
+                session_dir,
+                node_type=claim.node_type,
+                summary=claim.summary,
+                source=source,
+                reasoning=claim.reasoning,
+                provenance_uri=claim.provenance_uri,
+                voice=claim.voice,
+                authored_at=claim.authored_at or None,
+                skip_linking=True,
+                skip_embed=True,
+            )
+            result = json.loads(result_json)
+            if "error" in result:
+                errors.append(f"add_knowledge error: {result['error']}")
+            else:
+                nodes_created.append(result["node_id"])
+        except Exception as e:
+            errors.append(f"Failed to add claim '{claim.summary[:50]}...': {e}")
+
+    return IngestionResult(
+        source_path=extraction.source_path,
+        nodes_created=nodes_created,
+        chunks_total=extraction.chunks_total,
+        chunks_processed=extraction.chunks_processed,
+        chunks_failed=extraction.chunks_failed,
+        claims_extracted=len(extraction.claims),
+        errors=errors,
+    )
+
+
+def ingest_conversation(
+    doc: ParsedDocument,
+    session_dir: Path,
+    model: str = None,
+    source_label: str = None,
+) -> IngestionResult:
+    """Extract claims from a conversation and write them to the knowledge graph.
+
+    Like ingest_document() but uses conversation-aware extraction (Decision 022)
+    instead of per-chunk extraction. Used for ChatGPT conversations where
+    full-context awareness produces better, synthesized claims.
+
+    Args:
+        doc: ParsedDocument from chatgpt_parser.
+        session_dir: Path to the session/knowledge directory.
+        model: LLM model for extraction.
+        source_label: Optional source label for nodes (defaults to source_path).
+
+    Returns:
+        IngestionResult with created node IDs and error info.
+    """
+    from .knowledge import add_knowledge
+
+    extraction = extract_from_conversation(doc, model=model)
     source = source_label or extraction.source_path
 
     nodes_created: list[str] = []
@@ -647,10 +1009,12 @@ def ingest_chatgpt_export(
     skip_clustering: bool = True,
     progress_fn: Callable[[str, str], None] | None = None,
 ) -> PipelineResult:
-    """Ingest a ChatGPT export using the registered source path.
+    """Ingest ChatGPT conversations from a registered source.
 
-    Gets zip path from source registry via get_source(session_dir, source_id).
-    Calls parse_chatgpt_export() then runs the pipeline per conversation.
+    Gets source path from registry via get_source(session_dir, source_id).
+    The path can point to a directory of individual JSON files or a
+    conversations.json array file. Calls parse_chatgpt_export() then runs
+    the pipeline per conversation using conversation-aware extraction (Decision 022).
     Returns aggregated PipelineResult.
 
     Args:
@@ -682,13 +1046,13 @@ def ingest_chatgpt_export(
             errors=[f"Source '{source_id}' not registered. Use mcp_add_source first."],
         )
 
-    zip_path = source["path"]
+    source_path = source["path"]
 
     # Stage 1: Parse
-    _progress("parse", zip_path)
+    _progress("parse", source_path)
     try:
         docs = parse_chatgpt_export(
-            zip_path,
+            source_path,
             source_id=source_id,
             title_filter=title_filter,
             chatgpt_project_id=chatgpt_project_id,
@@ -725,7 +1089,7 @@ def ingest_chatgpt_export(
         _progress("extract", f"{n_matched} conversations")
         all_claims_count = 0
         for doc in docs:
-            extraction = extract_document(doc, model=model)
+            extraction = extract_from_conversation(doc, model=model)
             chunks_total += extraction.chunks_total
             chunks_processed += extraction.chunks_processed
             chunks_failed += extraction.chunks_failed
@@ -746,12 +1110,12 @@ def ingest_chatgpt_export(
     if conversations_skipped:
         _progress("dedup", f"{conversations_skipped} already ingested, skipping")
 
-    # Stage 3: Write to graph
+    # Stage 3: Write to graph (conversation-aware extraction per Decision 022)
     _progress("extract+write", f"{n_matched} conversations")
     node_ids: list[str] = []
     all_claims_count = 0
     for doc in docs:
-        ingestion = ingest_document(doc, session_dir, model=model, source_label=source_id)
+        ingestion = ingest_conversation(doc, session_dir, model=model, source_label=source_id)
         node_ids.extend(ingestion.nodes_created)
         chunks_total += ingestion.chunks_total
         chunks_processed += ingestion.chunks_processed

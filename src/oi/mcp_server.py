@@ -520,15 +520,16 @@ def mcp_ingest_chatgpt_export(
 def mcp_list_chatgpt_projects(source_id: str) -> str:
     """List ChatGPT projects found in a registered export source.
 
-    Reads the zip and groups conversations by project ID (gizmo_id field).
+    Reads the source path (directory of JSON files or conversations.json)
+    and groups conversations by project ID (gizmo_id field).
     No LLM calls — free to run.
 
     Args:
-        source_id: Registered source name pointing to a ChatGPT export zip.
+        source_id: Registered source name pointing to a ChatGPT conversation source.
     """
-    import zipfile
     import json as _json
     from collections import defaultdict
+    from pathlib import Path
     from .sources import get_source
 
     session_dir = _get_session_dir()
@@ -536,11 +537,17 @@ def mcp_list_chatgpt_projects(source_id: str) -> str:
     if not source:
         return f"Error: source '{source_id}' not registered."
 
-    zip_path = source["path"]
+    source_path = Path(source["path"])
     try:
-        with zipfile.ZipFile(zip_path) as zf:
-            with zf.open("conversations.json") as f:
-                convs = _json.load(f)
+        if source_path.is_dir():
+            convs = []
+            for f in sorted(source_path.glob("*.json")):
+                try:
+                    convs.append(_json.loads(f.read_text(encoding="utf-8")))
+                except (_json.JSONDecodeError, OSError):
+                    continue
+        else:
+            convs = _json.loads(source_path.read_text(encoding="utf-8"))
     except Exception as e:
         return f"Error reading export: {e}"
 
