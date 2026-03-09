@@ -334,8 +334,9 @@ def _build_conversation_prompt(
         f"Rules:\n"
         f"- Extract ONLY conclusions, settled positions, and ideas the participants committed to\n"
         f"- IGNORE exploratory hypotheticals, ideas proposed then abandoned, rhetorical questions, and scaffolding discussion\n"
-        f"- The USER is the primary author and source of authority. Extract claims based on what the USER actually said, not how the assistant restated or characterized it\n"
+        f"- The USER is the primary author and source of authority. When the user and assistant both state the same idea, prefer the user's wording\n"
         f"- If the assistant rephrases a user idea more formally or confidently than the user stated it, use the USER's framing, not the assistant's elevation\n"
+        f"- HOWEVER: when the user asks the assistant to explain, elaborate, or apply their framework, the assistant's response IS extractable — it represents the framework the user is developing\n"
         f"- Tentative user language ('maybe', 'I wonder', 'could be', 'just thinking', 'spitballing') means the idea is NOT a settled position — do not extract it as one\n"
         f"- If an idea was proposed early and revised later, extract ONLY the final version\n"
         f"- Do NOT split composite principles into separate nodes. If a statement has contrasting parts (e.g., 'X is not A, but it IS B'), keep it as ONE node\n"
@@ -346,7 +347,7 @@ def _build_conversation_prompt(
         f'    "first_person" — the author is asserting this as their own original claim or position\n'
         f'    "reported"     — the author is describing what standard physics / conventional theory / existing literature claims\n'
         f'    "described"    — the author is neutrally describing an observed phenomenon or experimental result\n'
-        f"- Include source_quote: the verbatim text from the conversation that this claim is based on (1-3 sentences, exact wording from the USER's messages)\n\n"
+        f"- Include source_quote: the verbatim text from the conversation that this claim is based on (1-3 sentences, exact wording — prefer user's words when available)\n\n"
         f"{prior_context}"
         f'Respond with ONLY a JSON array:\n'
         f'[{{"node_type": "fact", "summary": "...", "reasoning": "...", "voice": "first_person|reported|described", "source_quote": "..."}}, ...]\n'
@@ -1231,7 +1232,10 @@ def ingest_chatgpt_export(
     _progress("extract+write", f"{n_matched} conversations")
     node_ids: list[str] = []
     all_claims_count = 0
-    for doc in docs:
+    consecutive_empty = 0
+    EMPTY_THRESHOLD = 5  # stop after N consecutive conversations with 0 claims
+    aborted = False
+    for idx, doc in enumerate(docs):
         ingestion = ingest_conversation(doc, session_dir, model=model, source_label=source_id)
         node_ids.extend(ingestion.nodes_created)
         chunks_total += ingestion.chunks_total
@@ -1239,6 +1243,26 @@ def ingest_chatgpt_export(
         chunks_failed += ingestion.chunks_failed
         all_claims_count += ingestion.claims_extracted
         errors.extend(ingestion.errors)
+
+        # Early-stop: detect sustained empty extraction (likely prompt/model issue)
+        has_content = ingestion.chunks_processed > 0
+        if has_content and ingestion.claims_extracted == 0 and not ingestion.errors:
+            consecutive_empty += 1
+        else:
+            consecutive_empty = 0
+
+        if consecutive_empty >= EMPTY_THRESHOLD:
+            remaining = len(docs) - idx - 1
+            errors.append(
+                f"ABORTED: {consecutive_empty} consecutive conversations with content "
+                f"produced 0 claims (no errors). This usually means the extraction "
+                f"prompt is misconfigured or the model is returning empty results. "
+                f"{remaining} conversations were NOT processed. "
+                f"Last empty: '{doc.metadata.title}'"
+            )
+            _progress("abort", f"{consecutive_empty} consecutive empty results — stopping")
+            aborted = True
+            break
 
     # Stage 4: Link
     edges_created = 0

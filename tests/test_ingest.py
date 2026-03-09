@@ -1219,6 +1219,124 @@ class TestIngestChatGPTExport:
         assert "test-src" in result.source_path
 
 
+# === Phase 7b: Early-stop on sustained empty extraction ===
+
+
+class TestEarlyStop:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest._estimate_tokens", return_value=100)
+    @patch("oi.ingest.chat")
+    @patch("oi.chatgpt_parser.parse_chatgpt_export")
+    def test_aborts_after_consecutive_empty_results(self, mock_parse, mock_chat, mock_tokens, mock_max, session_dir):
+        """Pipeline stops when too many consecutive conversations produce 0 claims."""
+        from oi.ingest import ingest_chatgpt_export
+        from oi.sources import register_source
+
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake")
+
+        # 8 conversations, all producing empty results
+        mock_parse.return_value = [
+            _make_doc(
+                source_path=f"conv-{i}",
+                chunks=[_make_chunk(
+                    chunk_id=f"chatgpt://test-src/conv-{i}#turn-0",
+                    content=f"**User:** Q{i}\n\n**Assistant:** A{i}",
+                )],
+            )
+            for i in range(8)
+        ]
+        mock_chat.return_value = "[]"  # all return empty
+
+        with patch("oi.linker.link_new_nodes"):
+            result = ingest_chatgpt_export(
+                source_id="test-src", session_dir=session_dir,
+                skip_linking=True, skip_embedding=True,
+            )
+
+        assert any("ABORTED" in e for e in result.errors)
+        assert any("NOT processed" in e for e in result.errors)
+        # Should have stopped before processing all 8
+        assert result.chunks_processed < 8
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest._estimate_tokens", return_value=100)
+    @patch("oi.ingest.chat")
+    @patch("oi.chatgpt_parser.parse_chatgpt_export")
+    def test_no_abort_when_claims_produced(self, mock_parse, mock_chat, mock_tokens, mock_max, session_dir):
+        """Pipeline doesn't abort when conversations produce claims."""
+        from oi.ingest import ingest_chatgpt_export
+        from oi.sources import register_source
+
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake")
+
+        mock_parse.return_value = [
+            _make_doc(
+                source_path=f"conv-{i}",
+                chunks=[_make_chunk(
+                    chunk_id=f"chatgpt://test-src/conv-{i}#turn-0",
+                    content=f"**User:** Q{i}\n\n**Assistant:** A{i}",
+                )],
+            )
+            for i in range(8)
+        ]
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "A claim", "reasoning": "r"}
+        ])
+
+        with patch("oi.linker.link_new_nodes"):
+            result = ingest_chatgpt_export(
+                source_id="test-src", session_dir=session_dir,
+                skip_linking=True, skip_embedding=True,
+            )
+
+        assert not any("ABORTED" in e for e in result.errors)
+        assert len(result.nodes_created) == 8
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest._estimate_tokens", return_value=100)
+    @patch("oi.ingest.chat")
+    @patch("oi.chatgpt_parser.parse_chatgpt_export")
+    def test_reset_counter_on_success(self, mock_parse, mock_chat, mock_tokens, mock_max, session_dir):
+        """Counter resets when a conversation produces claims."""
+        from oi.ingest import ingest_chatgpt_export
+        from oi.sources import register_source
+
+        register_source(session_dir, id="test-src", type="chatgpt_export", path="/fake")
+
+        # 4 empty, 1 success, 4 empty — should not abort (counter resets)
+        mock_parse.return_value = [
+            _make_doc(
+                source_path=f"conv-{i}",
+                chunks=[_make_chunk(
+                    chunk_id=f"chatgpt://test-src/conv-{i}#turn-0",
+                    content=f"**User:** Q{i}\n\n**Assistant:** A{i}",
+                )],
+            )
+            for i in range(9)
+        ]
+        responses = (
+            ["[]"] * 4 +
+            [_llm_response([{"node_type": "fact", "summary": "Claim", "reasoning": "r"}])] +
+            ["[]"] * 4
+        )
+        mock_chat.side_effect = responses
+
+        with patch("oi.linker.link_new_nodes"):
+            result = ingest_chatgpt_export(
+                source_id="test-src", session_dir=session_dir,
+                skip_linking=True, skip_embedding=True,
+            )
+
+        assert not any("ABORTED" in e for e in result.errors)
+        assert len(result.nodes_created) == 1  # only 1 conversation produced claims
+
+
 # === Phase 8: Ingestion Resume/Checkpoint ===
 
 

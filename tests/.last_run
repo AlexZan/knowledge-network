@@ -1,8 +1,8 @@
-passed: 794
+passed: 797
 failed: 0
 skipped: 1
 date: 2026-03-09
-commit: 0950bb5 (dirty)
+commit: a5072a9 (dirty)
 duration: 18.0s
 e2e: excluded
 command: /data/Dev/knowledge-network/.venv/bin/python -m pytest
