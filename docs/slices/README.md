@@ -120,6 +120,29 @@ Technical debt items. Not urgent — trigger conditions listed. Review when the 
 
 ---
 
+## Planned
+
+Improvements identified during conflict review (2026-03-08). Ordered by dependency.
+
+1. **Extraction source quotes + block-level provenance** — Extraction LLM returns `source_quote` and `source_anchor` per claim. Two anchor schemes: `#turn-3:L12-L18` for chat (turn + line range), `#heading:P2` for markdown/canvas (heading + paragraph index). Canvas docs require extra dereference (conv JSON → canvas message → markdown → heading). Baked into `provenance_uri`. Foundation for items 2 and 3.
+2. **Context-aware linking (tiered)** — Give the linker richer context when classifying edges, not just summaries. Three tiers:
+   - **Tier 1** (current): summaries only. Cheap, catches obvious cases.
+   - **Tier 2**: summaries + source blocks pulled via `provenance_uri`. Catches ambiguous phrasing (e.g., "deterministic form" meaning "structured" not "predictable"). Depends on #1 for precise block fetching.
+   - **Tier 3** (agentic): when Tier 2 is still ambiguous, navigate the KG — follow edges, pull related nodes, check definitions. E.g., "what does 'parent system' mean?" → finds parent-universe theory nodes → understands scope difference → resolves. The KG becomes the agent's working memory for disambiguation. This is the thesis in action: the knowledge network enables reasoning that flat prompts can't.
+3. **Canvas-aware extraction routing** — Route canvas documents (embedded markdown) to chunk-based `extract_document()`, conversations to `extract_from_conversation()`. Parser already identifies canvas content (`#canvas-N`). Independent of #1/#2.
+4. **Extraction-phase deduplication** — The extraction LLM can split a single user statement into multiple nodes that contradict each other. S17: "randomness is not information, but it's information potential" became two nodes (axioms 2 and 3 of the RIEP), which the linker flagged as contradictory. Fix: post-extraction pass that detects near-duplicate or complementary nodes from the same conversation turn and merges them, or a same-turn consistency check in the extraction prompt. Independent of #1/#2. Gap identified during S17 conflict review (fact-402 vs fact-401 — same conversation, same timestamp, one principle split into two conflicting nodes).
+5. **Terminology conflict resolution flow** — Standardized process for when a `contradicts` edge is a terminology clash, not a logical conflict. Flow: (1) detect terminology conflict during review → (2) create corrected node with fixed language → (3) corrected node `supersedes` the original → (4) re-assess relationship between corrected node and the node it was originally conflicting with (often `related_to`, but could be `supports` or genuinely `contradicts` — the flow should prompt for this) → (5) review provenance documents why (terminology, not logic). Uses existing supersession mechanism, no new edge types. Needs: a helper function (e.g., `correct_terminology()`) that creates the new node, wires the `supersedes` edge, runs the re-assessment, and links to the review provenance. First case: fact-501 ("rewriting the collapse chain" should say "redirecting future collapse alignment") vs fact-176.
+6. **Process/sequence edge types** — New edge types (e.g., `precedes`, `leads_to`) that capture causal/temporal ordering within a theory's processes. Currently, sequential stages of the same process (e.g., "collapse creates entropy" → "stabilized memory has zero entropy") can only be expressed as `related_to`, losing the directional relationship. With sequence edges, the linker can express that claim A describes a stage whose outcome feeds into claim B. Enables graph traversal that follows process flows, not just topic clusters. Gap identified during S12 conflict review (fact-228 vs fact-156 — Null Catalyst tick vs zero-entropy memory, two stages of the fluctuation → collapse → memory spectrum).
+7. **Attribution-aware extraction with epistemic status** — The extraction LLM must distinguish user turns (source authority) from assistant turns (helper/sounding board). Two new fields per node:
+   - `attribution`: `author` (user's own claim) or `assistant_characterization` (assistant restating/elevating the user's idea). The user is the source; the assistant is context.
+   - `epistemic_status`: `assertion` (firm claim), `hypothesis` (spitballing, tentative — "maybe", "i wonder", "just some ideas"), `question` (asking, not asserting), `reported` (describing someone else's claim).
+   - Detection signals: tentative language ("maybe", "i dunno"), question marks, assistant restating user explorations as firm framework principles (assistant-elevation pattern).
+   - Impact: linker and conflict resolution weight hypotheses differently from assertions. Low-epistemic nodes don't generate high-confidence contradicts edges.
+   - Gap identified during S16 conflict review (fact-370 — assistant characterized user's virtual particle spitballing as "the vacuum is a deterministic structured potential").
+8. **TOTP review attestation** — See [Decision 024](../decisions/024-totp-review-attestation.md). Human reviewer types a TOTP code to cryptographically attest approval. Prevents AI from forging `reviewed_by` metadata. Build when provenance needs to be stronger (multi-user or published research).
+
+---
+
 ## Icebox
 
 Capabilities that may be valuable but aren't blocking the core vision. Revisit as needed.
@@ -144,6 +167,8 @@ Capabilities that may be valuable but aren't blocking the core vision. Revisit a
   **Why it matters**: Without this, efforts are just open/close bookends with no internal structure. The work that happens *during* an effort — the nodes created, the contradictions found, the decisions made — isn't connected to the effort in the graph. This makes it impossible to ask "what did we learn during theory-ingestion?" and get a structured answer. The OI chat model handles this via conversation threading; MCP needs explicit plumbing.
 
   **Note**: This item may be superseded by "Hierarchical effort KGs" below, which solves child node association by giving each effort its own graph.
+
+- **Conflict review UI** — Agent-generated conflict report (with timestamps, delta, source context, analysis) displayed in a web app. User sets resolution type from UI, interfaced back via MCP. Replaces the current chat-based one-by-one review workflow. Needs: web app scaffold, MCP endpoints for listing conflicts and submitting resolutions, report generation agent.
 
 - **Hierarchical effort KGs** — Each effort gets its own knowledge graph rather than being a node inside a flat global KG. The effort node in the parent KG holds the summary; expanding it opens the full sub-KG. Core design:
   1. **Effort = scoped KG.** When an effort opens, it gets its own `knowledge.yaml` (or equivalent). All `add_knowledge`, linking, and confidence computation during the effort operates on this scoped graph. No noise from unrelated work.

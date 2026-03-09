@@ -467,3 +467,85 @@ def reclassify_edge(
         "provenance_uri": provenance_uri,
         "reviewed_at": now,
     })
+
+
+def mark_reviewed(
+    session_dir: Path,
+    source_id: str,
+    target_id: str,
+    edge_type: str,
+    review_status: str,
+    notes: str = "",
+    review_text: str = "",
+    review_filename: str = "",
+    effort: str = "",
+) -> str:
+    """Annotate an edge as reviewed without changing its type.
+
+    Used when a human reviews a conflict but defers judgment or
+    wants to record that they looked at it.
+
+    Args:
+        session_dir: Path to the session/knowledge directory.
+        source_id: Source node ID of the edge.
+        target_id: Target node ID of the edge.
+        edge_type: Edge type to match (e.g. "contradicts").
+        review_status: One of "deferred", "uncertain", "approved".
+        notes: Brief notes on why this status was chosen.
+        review_text: Raw chat excerpt for provenance.
+        review_filename: Filename for the review excerpt.
+        effort: Optional effort name tracking investigation of this edge.
+
+    Returns:
+        JSON string with result.
+    """
+    knowledge = _load_knowledge(session_dir)
+    now = datetime.now().isoformat()
+
+    # Find the edge (check both directions)
+    found = None
+    for edge in knowledge["edges"]:
+        if edge.get("type") != edge_type:
+            continue
+        if (edge["source"] == source_id and edge["target"] == target_id) or \
+           (edge["source"] == target_id and edge["target"] == source_id):
+            found = edge
+            break
+
+    if not found:
+        return json.dumps({"error": f"No {edge_type} edge found between {source_id} and {target_id}"})
+
+    # Save review provenance file
+    provenance_uri = ""
+    if review_text:
+        reviews_dir = session_dir / "reviews"
+        reviews_dir.mkdir(exist_ok=True)
+        if not review_filename:
+            review_filename = f"{source_id}-{target_id}-review.md"
+        review_path = reviews_dir / review_filename
+        review_path.write_text(review_text, encoding="utf-8")
+        provenance_uri = f"review://{review_filename}"
+
+    # Annotate edge
+    found["reviewed_at"] = now
+    found["review_status"] = review_status
+    if notes:
+        found["review_notes"] = notes
+    if provenance_uri:
+        found["provenance_uri"] = provenance_uri
+    if effort:
+        found["effort"] = effort
+
+    _save_knowledge(session_dir, knowledge)
+
+    return json.dumps({
+        "status": "reviewed",
+        "source": found["source"],
+        "target": found["target"],
+        "edge_type": edge_type,
+        "review_status": review_status,
+        "notes": notes,
+        "provenance_uri": provenance_uri,
+        "reviewed_at": now,
+        "effort": effort,
+    })

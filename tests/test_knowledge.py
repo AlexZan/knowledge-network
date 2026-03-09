@@ -771,3 +771,89 @@ class TestReclassifyEdge:
         ))
         assert result["provenance_uri"] == ""
         assert not (session_dir / "reviews").exists()
+
+
+class TestMarkReviewed:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    def _seed_graph(self, session_dir):
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "A",
+                 "status": "active", "has_contradiction": True,
+                 "created": "2026-01-01", "updated": "2026-01-01"},
+                {"id": "fact-002", "type": "fact", "summary": "B",
+                 "status": "active", "has_contradiction": True,
+                 "created": "2026-01-01", "updated": "2026-01-01"},
+            ],
+            "edges": [
+                {"source": "fact-001", "target": "fact-002",
+                 "type": "contradicts", "reasoning": "LLM said so"},
+            ],
+        })
+
+    def test_marks_edge_as_deferred(self, session_dir):
+        """Edge gains review metadata without changing type."""
+        from oi.knowledge import mark_reviewed
+        self._seed_graph(session_dir)
+
+        result = json.loads(mark_reviewed(
+            session_dir, "fact-001", "fact-002",
+            edge_type="contradicts",
+            review_status="deferred",
+            notes="Need to revisit this topic later",
+        ))
+        assert result["status"] == "reviewed"
+        assert result["review_status"] == "deferred"
+
+        kg = _load_knowledge(session_dir)
+        edge = kg["edges"][0]
+        assert edge["type"] == "contradicts"  # unchanged
+        assert edge["review_status"] == "deferred"
+        assert edge["review_notes"] == "Need to revisit this topic later"
+        assert "reviewed_at" in edge
+
+    def test_saves_review_provenance(self, session_dir):
+        """Review text saved and linked as provenance."""
+        from oi.knowledge import mark_reviewed
+        self._seed_graph(session_dir)
+
+        result = json.loads(mark_reviewed(
+            session_dir, "fact-001", "fact-002",
+            edge_type="contradicts",
+            review_status="uncertain",
+            review_text="User: not sure about this one",
+            review_filename="S3-fact001-fact002.md",
+        ))
+        assert result["provenance_uri"] == "review://S3-fact001-fact002.md"
+        assert (session_dir / "reviews" / "S3-fact001-fact002.md").exists()
+
+    def test_error_if_edge_not_found(self, session_dir):
+        """Returns error if no matching edge exists."""
+        from oi.knowledge import mark_reviewed
+        self._seed_graph(session_dir)
+
+        result = json.loads(mark_reviewed(
+            session_dir, "fact-001", "fact-999",
+            edge_type="contradicts",
+            review_status="deferred",
+        ))
+        assert "error" in result
+
+    def test_has_contradiction_preserved(self, session_dir):
+        """has_contradiction stays — edge type didn't change."""
+        from oi.knowledge import mark_reviewed
+        self._seed_graph(session_dir)
+
+        mark_reviewed(
+            session_dir, "fact-001", "fact-002",
+            edge_type="contradicts",
+            review_status="deferred",
+        )
+        kg = _load_knowledge(session_dir)
+        for node in kg["nodes"]:
+            assert node.get("has_contradiction") is True

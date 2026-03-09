@@ -13,15 +13,15 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Phase 1 Complete, White Paper Experiment In Progress
+## Current Status: Phase 1 Complete, Full-Scale KG Rebuilt, Conflict Review In Progress
 
-Slices 1-14b complete. The Python prototype is proven — 731 tests, full ingestion + enrichment pipeline working, MCP server live.
+Slices 1-14b complete. The Python prototype is proven — 758 tests, full ingestion + enrichment pipeline working, MCP server live.
 
-**Physics theory KG**: 894 active nodes, 5020 edges across 9 sources (7 author conversations + 2 cross-author SEP articles). Three-way interaction analysis (author theory vs GRW collapse vs standard QM foundations) in progress.
+**Physics theory KG**: 1,263 active nodes, 8,022 edges across 122 sources (120 author conversations + 2 cross-author SEP articles). Conversation-aware extraction (Decision 022) rebuilt the entire graph. Manual conflict review in progress (8/37 reviewed, 7 reclassified as false positives).
 
 **Rust port deferred** (2026-03-03): Python performance is acceptable. Bottleneck is LLM API calls, not Python. See [Decision 016](decisions/016-rust-wasm-port.md) for future triggers.
 
-**White paper**: [topological-truth-paper.md](research/topological-truth-paper.md) — "Living Knowledge Networks: Topological Truth Without Voting." Multi-source empirical data now collected, needs update with cross-author findings.
+**White paper**: [topological-truth-paper.md](research/topological-truth-paper.md) — "Topological Truth: Conflict Resolution Through Knowledge Graph Structure." Needs update with v3 rebuild data (1,336 nodes, false positive analysis from manual review).
 
 ### What's Built
 
@@ -52,7 +52,7 @@ Slices 1-14b complete. The Python prototype is proven — 731 tests, full ingest
 | 14a | Done | Edge weight by reasoning quality (1.0x with reasoning, 0.5x without in PageRank). Salience metric from `related_to` density. `sort_by` param in query. |
 | 14b | Done | Concept nodes from embedding clusters: `find_clusters()` + `synthesize_concepts()` pipeline stages, `principle` nodes with `exemplifies` edges. |
 
-**Test counts**: 731 free tests + 55 LLM tests (marker-separated). 1 skipped.
+**Test counts**: 758 free tests + 55 LLM tests (marker-separated). 1 skipped.
 
 ### Session: Document Ingestion Resume (2026-03-05)
 
@@ -168,33 +168,71 @@ Ran conflict resolution on the full 3-source physics graph:
 
 **Major finding during conflict review**: The current ingestion pipeline extracts claims per-turn-pair in isolation, causing false intra-author contradictions (same person refining their position across turns). See [Decision 022](decisions/022-conversation-aware-extraction.md). This invalidates the current physics KG — rebuild required after pipeline improvement.
 
-### What's Next — Conversation-Aware Extraction (Decision 022)
+### Session: Conversation-Aware Extraction + KG Rebuild (2026-03-07 to 2026-03-08)
 
-**Phase 1: New extraction function**
-- `extract_from_conversation()` in `src/oi/ingest.py`
-- Sends full conversation to LLM in one call (conclusion-focused prompt)
-- For conversations exceeding context window: iterative node-carry-forward (first chunk → extract nodes → next chunk + node summaries → repeat)
-- Uses `get_max_input_tokens()` from litellm to auto-detect model limits
-- Tests: unit tests with mock LLM, iterative path test
+Implemented Decision 022 (conversation-aware extraction), rebuilt the physics KG at full scale, and began manual conflict review.
 
-**Phase 2: Wire into ChatGPT ingestion**
-- `ingest_chatgpt_export()` uses new function for conversations
-- Document ingestion (.md/.pdf) unchanged — chunk-based still appropriate
-- Tests: verify existing pipeline tests still pass
+**Phase 1-2: Pipeline upgrade**
+- `extract_from_conversation()`: Full-conversation LLM calls instead of per-turn-pair chunking. Single-call path for conversations within context window, iterative node-carry-forward for larger ones.
+- Wired into `ingest_chatgpt_export()`. Document ingestion (.md/.pdf) unchanged.
+- Removed all zip file references from codebase (lesson learned from earlier).
+- LLM model: `cerebras/gpt-oss-120b` ($0.35/M input, 128K context). Previous `llama-3.3-70b` no longer available on Cerebras.
 
-**Phase 3: Rebuild physics KG**
-- Backup current KG for comparison
-- Wipe and re-ingest 7 conversations + 2 SEP articles
-- Run conflict resolution, compare metrics (node count, contradictions, false positives)
+**Phase 3: Full KG rebuild**
+- Backed up old KG (894 nodes) to `knowledge.yaml.pre-022-backup`
+- Ingested **all 120 conversations** + 2 SEP articles (previously only 7+2)
+- Results: **1,336 nodes** (1,263 active), **8,022 edges** (5,981 related_to, 1,849 supports, 113 supersedes, 79 contradicts after auto-resolution)
+- Sources: 1,104 physics-theory nodes, 99 SEP-QT nodes, 59 SEP-collapse nodes
+- 1 failed conversation (`68028f8e` — LLM returned experimental plan instead of JSON, logged as anomaly)
+- Auto-resolved 111 conflicts, 37 remained for manual review (14 strong recommendations, 23 ambiguous)
 
-**Phase 4: Batch remaining 181 conversations**
-- 1 LLM call per conversation instead of ~10 — credits go ~10x further
-- Run conflict resolution on full graph
-- Update white paper with new data
+**Decision 023: Edge reclassification with review provenance**
+- `reclassify_edge()` changes edge types with reasoning + raw chat excerpt saved to `{session_dir}/reviews/`
+- `mark_reviewed()` annotates edges as reviewed without changing type (deferred/uncertain/approved)
+- Review provenance files referenced via `review://` URI scheme
 
-**After Phase 4:**
-- White paper update with improved empirical data
-- Paper review of remaining conflicts
+**Decision 024: TOTP review attestation (draft)**
+- Time-based one-time password for cryptographically attributing human review sign-off
+- Solves: AI has full write access to KG/git/metadata — TOTP is the only unforgeable proof of human involvement
+- Deferred until multi-user or high-stakes scenarios
+
+**Decision 025: Effort-edge linking via metadata**
+- Optional `effort` field on edges links deferred conflicts to investigation efforts
+- Lightweight: no new edge types, no graph bloat, grep-discoverable
+
+**Manual conflict review (20/37 reviewed)**
+- 7 reclassified `contradicts` → `related_to` (false positives from scope/framework mismatch)
+- 2 reclassified `contradicts` → `supports` (contrapositives and split principles)
+- 5 kept as `contradicts` (genuine: terminology conflicts, speculative vs firm, cross-source rivalries)
+- 3 deferred with efforts (theory evolution, low-confidence claim, attribution gap)
+- 17 deferred batch (S18-S34, intra-theory, domain expert review needed)
+- 2 reverted (S9, S14): initially reclassified to `related_to`, then reverted to `contradicts` after realizing terminology conflicts should keep their signal until the node is superseded
+- `/review-conflicts` skill created for the review workflow
+
+**Key findings from review**:
+1. **Five false positive patterns**: scope mismatch, framework difference, evolutionary refinement, terminology conflict, assistant-elevation (assistant restates user spitballing as firm principle).
+2. **Temporal signal**: `authored_at` timestamps reveal theory evolution — conflicts between nodes authored weeks apart often represent refinements, not contradictions.
+3. **Context gap**: The linker LLM had full conversation context during extraction but only node summaries during linking. This causes misclassification.
+4. **The revert pattern** (paper-worthy): Terminology conflicts should keep their `contradicts` edge — the signal is valid *as written* even when underlying concepts are compatible. Don't lose information prematurely. No other KG system reports this nuance.
+5. **Cross-source validation**: System correctly identifies known scientific rivalries (GRW vs Bohm) and intentionally presented debates in survey articles. Also exposed attribution gap — third-party knowledge in user chat gets wrong source attribution.
+6. **Gaps identified** (added to Planned, 8 items total):
+   - Block-level provenance, context-aware linking, canvas-aware routing
+   - Extraction-phase deduplication (split principles)
+   - Terminology conflict resolution flow
+   - Process/sequence edge types (`precedes`/`leads_to`)
+   - Attribution-aware extraction with epistemic status
+   - TOTP review attestation
+
+See [v3-rebuild-findings.md](research/v3-rebuild-findings.md) for full results.
+
+**Test counts**: 758 free tests passing, 1 skipped (pre-existing).
+
+### What's Next
+
+1. **Update white paper** with v3 rebuild data and conflict review findings
+2. **Retry failed conversation** (`68028f8e`)
+3. **Complete conflict review** (S18-S34 deferred for domain expert review)
+4. **Planned features**: See [slices/README.md](slices/README.md#planned) — 8 items from extraction to attestation
 
 ---
 
@@ -263,16 +301,18 @@ The knowledge graph and Vault project converge: Automerge (CRDT) as the storage 
 | [cross-author-analysis.md](research/cross-author-analysis.md) | SEP collapse theories vs physics theory: edge analysis, unique concepts, contact surface |
 | [ingestion-pipeline-experiments.md](research/ingestion-pipeline-experiments.md) | Iterative linker improvement (5 runs, same doc, prompt tuning) |
 | [conflict-resolution-findings.md](research/conflict-resolution-findings.md) | First conflict resolution run: topology-based classification |
+| [v3-rebuild-findings.md](research/v3-rebuild-findings.md) | Full-scale rebuild: 120 conversations, conversation-aware extraction, conflict review |
 | [ingestion-resume-findings.md](research/ingestion-resume-findings.md) | skip_existing feature and cross-source-id bug |
-| [topological-truth-paper.md](research/topological-truth-paper.md) | White paper draft: "Living Knowledge Networks" |
+| [topological-truth-paper.md](research/topological-truth-paper.md) | White paper draft: "Topological Truth" |
 | [paper-roadmap.md](research/paper-roadmap.md) | Paper strategy and publication targets |
 
 ### Physics Theory KG
 
 **Location**: `/data/physics-theory-kg/`
 **MCP server**: `physics-theory` (configured in `.mcp.json`)
-**Source conversations**: `/data/physics-theory/*.json` (188 total, 7 ingested so far)
+**Source conversations**: `/data/physics-theory/*.json` (188 total, 120 ingested, 1 failed)
 **Cross-author docs**: `/data/physics-theory/cross-author/` (2 SEP articles ingested)
+**Reviews**: `/data/physics-theory-kg/reviews/` (8 conflict review provenance files)
 
 ### Environment Notes
 

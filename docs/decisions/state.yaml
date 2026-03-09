@@ -139,3 +139,15 @@
   status: implemented
   superseded_by: null
   depends_on: []
+
+- id: "024"
+  title: TOTP Review Attestation
+  status: draft
+  superseded_by: null
+  depends_on: ["023"]
+
+- id: "025"
+  title: Effort-Edge Linking via Metadata
+  status: implemented
+  superseded_by: null
+  depends_on: ["011", "023"]

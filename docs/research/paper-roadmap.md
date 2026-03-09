@@ -28,7 +28,7 @@
 
 **What it proves**: The hardest claim in the framework — that graph structure can *arbitrate disputes* without external judgment. If topology can resolve conflicts, the easier claims (ranking confidence, identifying well-supported nodes) follow as corollaries. The self-referential result (topology chose topology over voting) and the 14 honest abstentions are the headline findings.
 
-**Empirical data**: Two runs — (1) 236-node single-doc graph: 37 contradictions, 6 auto-resolved. (2) 894-node 3-source graph: 163 contradictions, 110 auto-resolved (67%). Zero LLM calls in resolution. See `docs/research/conflict-resolution-findings.md`.
+**Empirical data**: Three runs — (1) 236-node single-doc graph: 37 contradictions, 6 auto-resolved. (2) 894-node 3-source graph: 163 contradictions, 110 auto-resolved (67%). (3) 1,336-node full-scale graph (120 conversations + 2 docs, conversation-aware extraction): 190 contradictions, 111 auto-resolved, 37 manual — of which 7/8 reviewed so far were false positives reclassified to `related_to`. Zero LLM calls in resolution. See `docs/research/conflict-resolution-findings.md` and `docs/research/v3-rebuild-findings.md`.
 
 **Relationship to Paper 1**: CCM produces compacted conclusions. This paper asks: when those conclusions contradict each other, can the graph resolve it? Answer: yes, when structural evidence is sufficient; honestly no when it isn't.
 
@@ -64,6 +64,16 @@ The three papers cover the single-graph case. Beyond that:
 - **The graph as dynamic neural network**: Training and inference merge — every conversation both uses and extends the model. The endgame described in the thesis document.
 
 These are not papers yet. They are the direction the empirical work is heading. Each will become a paper when it has data.
+
+---
+
+## Development Efforts (knowledge-network KG)
+
+Open efforts tracked in the knowledge-network KG (`mcp_search_efforts`) that may be relevant to paper work:
+
+- `attribution-referenced-knowledge` — brainstorm how to handle third-party knowledge extracted from user chat history (e.g., Bohmian mechanics from a pasted lecture transcript getting `source: physics-theory`). Related to planned #6 (attribution-aware extraction).
+
+Check `mcp_search_efforts` on the knowledge-network MCP server for current status.
 
 ---
 
