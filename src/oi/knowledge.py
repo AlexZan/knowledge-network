@@ -554,3 +554,157 @@ def mark_reviewed(
         "reviewed_at": now,
         "effort": effort,
     })
+
+
+def correct_terminology(
+    session_dir: Path,
+    node_id: str,
+    corrected_summary: str,
+    conflicting_node_id: str,
+    reasoning: str,
+    model: str = None,
+    review_text: str = "",
+    source_quote: str = None,
+) -> str:
+    """Fix a terminology conflict by creating a corrected node that supersedes the original.
+
+    Flow:
+    1. Create corrected node with fixed language, superseding the original
+    2. Remove the contradicts edge between original and conflicting node
+    3. Classify the relationship between corrected node and conflicting node
+    4. Create that edge
+    5. Save review provenance
+
+    Args:
+        session_dir: Path to the session/knowledge directory.
+        node_id: ID of the node with wrong terminology.
+        corrected_summary: The corrected summary text.
+        conflicting_node_id: ID of the node it was flagged as contradicting.
+        reasoning: Why this is a terminology correction (not a logical conflict).
+        model: LLM model for re-classification.
+        review_text: Raw review excerpt for provenance.
+        source_quote: Optional source_quote for the corrected node (inherits from original if empty).
+
+    Returns:
+        JSON string with result.
+    """
+    knowledge = _load_knowledge(session_dir)
+
+    # Find the original node
+    old_node = None
+    for n in knowledge["nodes"]:
+        if n["id"] == node_id:
+            old_node = n
+            break
+    if not old_node:
+        return json.dumps({"error": f"Node {node_id} not found"})
+
+    # Find the conflicting node
+    conflict_node = None
+    for n in knowledge["nodes"]:
+        if n["id"] == conflicting_node_id:
+            conflict_node = n
+            break
+    if not conflict_node:
+        return json.dumps({"error": f"Node {conflicting_node_id} not found"})
+
+    # Find the contradicts edge between them
+    contradicts_edge = None
+    for edge in knowledge["edges"]:
+        if edge.get("type") != "contradicts":
+            continue
+        if (edge["source"] == node_id and edge["target"] == conflicting_node_id) or \
+           (edge["source"] == conflicting_node_id and edge["target"] == node_id):
+            contradicts_edge = edge
+            break
+    if not contradicts_edge:
+        return json.dumps({"error": f"No contradicts edge between {node_id} and {conflicting_node_id}"})
+
+    # Inherit properties from old node
+    inherited_source_quote = source_quote or old_node.get("source_quote", "")
+
+    # Step 1: Create corrected node (supersedes original, skip linking — we'll link manually)
+    result_json = add_knowledge(
+        session_dir,
+        node_type=old_node["type"],
+        summary=corrected_summary,
+        source=old_node.get("source"),
+        supersedes=[node_id],
+        reasoning=f"Terminology correction: {reasoning}",
+        provenance_uri=old_node.get("provenance_uri"),
+        voice=old_node.get("voice"),
+        authored_at=old_node.get("authored_at"),
+        source_quote=inherited_source_quote or None,
+        skip_linking=True,
+        skip_embed=True,
+    )
+    add_result = json.loads(result_json)
+    if "error" in add_result:
+        return json.dumps({"error": f"Failed to create corrected node: {add_result['error']}"})
+
+    new_node_id = add_result["node_id"]
+
+    # Step 2: Remove the old contradicts edge
+    remove_result_json = remove_edge(
+        session_dir, contradicts_edge["source"], contradicts_edge["target"], "contradicts")
+    remove_result = json.loads(remove_result_json)
+
+    # Step 3: Re-classify relationship between corrected node and conflicting node
+    # Reload graph after modifications
+    knowledge = _load_knowledge(session_dir)
+    new_node = None
+    for n in knowledge["nodes"]:
+        if n["id"] == new_node_id:
+            new_node = n
+            break
+
+    new_edge_type = "related_to"  # default if linking fails
+    link_reasoning = ""
+    if new_node:
+        try:
+            from .linker import link_nodes
+            from .llm import DEFAULT_MODEL
+            link_result = link_nodes(new_node, conflict_node, model or DEFAULT_MODEL)
+            if link_result["edge_type"] != "none":
+                new_edge_type = link_result["edge_type"]
+                link_reasoning = link_result.get("reasoning", "")
+        except Exception:
+            pass  # Fall through to default related_to
+
+    # Step 4: Create edge between corrected node and conflicting node
+    now = datetime.now().isoformat()
+    knowledge["edges"].append({
+        "source": new_node_id,
+        "target": conflicting_node_id,
+        "type": new_edge_type,
+        "reasoning": link_reasoning or f"Re-assessed after terminology correction of {node_id}",
+        "created": now,
+    })
+
+    # Update has_contradiction flags
+    if new_edge_type == "contradicts":
+        for n in knowledge["nodes"]:
+            if n["id"] in (new_node_id, conflicting_node_id):
+                n["has_contradiction"] = True
+
+    _save_knowledge(session_dir, knowledge)
+
+    # Step 5: Save review provenance
+    if review_text:
+        reviews_dir = session_dir / "reviews"
+        reviews_dir.mkdir(exist_ok=True)
+        review_filename = f"terminology-{node_id}-{conflicting_node_id}.md"
+        review_path = reviews_dir / review_filename
+        review_path.write_text(review_text, encoding="utf-8")
+
+    return json.dumps({
+        "status": "corrected",
+        "old_node_id": node_id,
+        "new_node_id": new_node_id,
+        "corrected_summary": corrected_summary,
+        "conflicting_node_id": conflicting_node_id,
+        "old_edge_removed": remove_result.get("status") == "removed",
+        "new_edge_type": new_edge_type,
+        "new_edge_reasoning": link_reasoning,
+        "reasoning": reasoning,
+    })

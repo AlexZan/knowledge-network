@@ -225,7 +225,7 @@ Implemented Decision 022 (conversation-aware extraction), rebuilt the physics KG
 
 See [v3-rebuild-findings.md](research/v3-rebuild-findings.md) for full results.
 
-**Test counts**: 779 free tests passing, 1 skipped (pre-existing).
+**Test counts**: 787 free tests passing, 1 skipped (pre-existing).
 
 **Extraction improvements** (2026-03-09):
 - `_chat_with_retry()` — 1 retry on JSON parse failure, no retry on other errors
@@ -233,10 +233,11 @@ See [v3-rebuild-findings.md](research/v3-rebuild-findings.md) for full results.
 - Prompt fixes: composite principle splitting (#4), attribution/epistemic awareness (#7) — both addressed with extraction prompt instructions rather than post-processing passes
 - Source quote extraction (#1) — `source_quote` field on claims and nodes, verbatim text from source for downstream context-aware linking
 - Context-aware linking (#2) — linker prompts now include `source_quote` alongside summaries for both single-pair and batch classification
+- Terminology correction flow (#5) — `correct_terminology()` + MCP tool for fixing terminology conflicts without losing contradiction signal
 
 ### What's Next
 
-**Planned features**: See [slices/README.md](slices/README.md#planned). Remaining: #5 terminology correction flow, #6 process/sequence edges, #8 TOTP attestation.
+**Planned features**: See [slices/README.md](slices/README.md#planned). Remaining: #6 process/sequence edges, #8 TOTP attestation.
 
 ---
 

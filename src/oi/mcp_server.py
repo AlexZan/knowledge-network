@@ -16,7 +16,7 @@ load_dotenv()
 
 from mcp.server.fastmcp import FastMCP
 
-from .knowledge import add_knowledge, query_knowledge, remove_edge
+from .knowledge import add_knowledge, correct_terminology, query_knowledge, remove_edge
 from .provenance import discover_claude_code_chatlog
 from .tools import (
     open_effort,
@@ -284,6 +284,59 @@ def mcp_remove_edge(
     lines = [f"Removed {result_data['removed_count']} edge(s):"]
     for e in result_data.get("edges_removed", []):
         lines.append(f"  {e['source']} --{e['type']}--> {e['target']}")
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def mcp_correct_terminology(
+    node_id: str,
+    corrected_summary: str,
+    conflicting_node_id: str,
+    reasoning: str,
+    review_text: str = "",
+    source_quote: str = "",
+) -> str:
+    """Fix a terminology conflict by creating a corrected node that supersedes the original.
+
+    Use when a contradicts edge exists because of wrong terminology (not wrong logic).
+    Creates corrected node, removes old contradicts edge, re-assesses relationship.
+
+    Args:
+        node_id: ID of the node with wrong terminology
+        corrected_summary: The corrected summary text with fixed language
+        conflicting_node_id: ID of the node it was flagged as contradicting
+        reasoning: Why this is a terminology correction (not a logical conflict)
+        review_text: Optional review excerpt for provenance
+        source_quote: Optional source quote for the corrected node (inherits from original if empty)
+    """
+    raw = correct_terminology(
+        session_dir=_get_session_dir(),
+        node_id=node_id,
+        corrected_summary=corrected_summary,
+        conflicting_node_id=conflicting_node_id,
+        reasoning=reasoning,
+        review_text=review_text,
+        source_quote=_or_none(source_quote),
+    )
+    result_data = json.loads(raw)
+    _log_tool_call("mcp_correct_terminology", {
+        "node_id": node_id, "corrected_summary": corrected_summary,
+        "conflicting_node_id": conflicting_node_id,
+    }, result_data.get("status", ""))
+
+    if "error" in result_data:
+        return f"Error: {result_data['error']}"
+
+    lines = [
+        f"Terminology corrected:",
+        f"  Old: {node_id} (now superseded)",
+        f"  New: {result_data['new_node_id']} — \"{corrected_summary}\"",
+        f"  Old contradicts edge removed: {result_data['old_edge_removed']}",
+        f"  New edge: {result_data['new_node_id']} --{result_data['new_edge_type']}--> {conflicting_node_id}",
+    ]
+    if result_data.get("new_edge_reasoning"):
+        lines.append(f"  Reasoning: {result_data['new_edge_reasoning']}")
+    lines.append(f"  Why: {reasoning}")
     return "\n".join(lines)
 
 

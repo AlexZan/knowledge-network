@@ -4,7 +4,7 @@ import json
 import pytest
 from unittest.mock import patch
 
-from oi.knowledge import add_knowledge, query_knowledge
+from oi.knowledge import add_knowledge, correct_terminology, query_knowledge
 from oi.state import _load_knowledge, _save_knowledge
 
 # Disable embeddings in keyword/walk tests (Ollama may be running)
@@ -679,6 +679,207 @@ class TestSourceQuote:
         knowledge = _load_knowledge(session_dir)
         node = knowledge["nodes"][0]
         assert "source_quote" not in node
+
+
+# === Terminology correction ===
+
+class TestCorrectTerminology:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    def _seed_conflict(self, session_dir):
+        """Create two nodes with a contradicts edge — a terminology conflict scenario."""
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact",
+                 "summary": "Collapse rewrites the collapse chain",
+                 "status": "active", "has_contradiction": True,
+                 "source": "physics-theory",
+                 "provenance_uri": "chatgpt://physics-theory/conv1#turn-3",
+                 "source_quote": "so collapse basically rewrites the chain",
+                 "created": "2026-01-01", "updated": "2026-01-01"},
+                {"id": "fact-002", "type": "fact",
+                 "summary": "The collapse chain is immutable once formed",
+                 "status": "active", "has_contradiction": True,
+                 "source": "physics-theory",
+                 "created": "2026-01-01", "updated": "2026-01-01"},
+            ],
+            "edges": [
+                {"source": "fact-001", "target": "fact-002",
+                 "type": "contradicts", "reasoning": "rewriting vs immutable",
+                 "created": "2026-01-01"},
+            ],
+        })
+
+    @patch("oi.linker.chat")
+    def test_basic_correction_flow(self, mock_link_chat, session_dir):
+        """Corrected node supersedes old, contradicts edge removed, new edge created."""
+        self._seed_conflict(session_dir)
+        mock_link_chat.return_value = '{"edge_type": "related_to", "reasoning": "complementary perspectives"}'
+
+        result = json.loads(correct_terminology(
+            session_dir,
+            node_id="fact-001",
+            corrected_summary="Collapse redirects future collapse alignment",
+            conflicting_node_id="fact-002",
+            reasoning="'rewriting' is misleading — collapse doesn't alter history",
+        ))
+
+        assert result["status"] == "corrected"
+        assert result["old_node_id"] == "fact-001"
+        assert result["new_node_id"] == "fact-003"
+        assert result["new_edge_type"] == "related_to"
+        assert result["old_edge_removed"] is True
+
+        # Verify graph state
+        kg = _load_knowledge(session_dir)
+        nodes = {n["id"]: n for n in kg["nodes"]}
+
+        # Old node superseded
+        assert nodes["fact-001"]["status"] == "superseded"
+        assert nodes["fact-001"]["superseded_by"] == "fact-003"
+
+        # Corrected node exists with fixed summary
+        assert nodes["fact-003"]["summary"] == "Collapse redirects future collapse alignment"
+        assert nodes["fact-003"]["status"] == "active"
+        assert "Terminology correction" in nodes["fact-003"]["reasoning"]
+
+        # Old contradicts edge removed
+        contradicts_edges = [e for e in kg["edges"] if e["type"] == "contradicts"]
+        assert len(contradicts_edges) == 0
+
+        # New related_to edge exists
+        related_edges = [e for e in kg["edges"]
+                         if e["type"] == "related_to"
+                         and e["source"] == "fact-003"
+                         and e["target"] == "fact-002"]
+        assert len(related_edges) == 1
+
+    @patch("oi.linker.chat")
+    def test_inherits_source_quote(self, mock_link_chat, session_dir):
+        """Corrected node inherits source_quote from the original."""
+        self._seed_conflict(session_dir)
+        mock_link_chat.return_value = '{"edge_type": "related_to", "reasoning": "r"}'
+
+        correct_terminology(
+            session_dir,
+            node_id="fact-001",
+            corrected_summary="Fixed summary",
+            conflicting_node_id="fact-002",
+            reasoning="terminology",
+        )
+
+        kg = _load_knowledge(session_dir)
+        new_node = next(n for n in kg["nodes"] if n["id"] == "fact-003")
+        assert new_node["source_quote"] == "so collapse basically rewrites the chain"
+
+    @patch("oi.linker.chat")
+    def test_inherits_provenance(self, mock_link_chat, session_dir):
+        """Corrected node inherits provenance_uri from the original."""
+        self._seed_conflict(session_dir)
+        mock_link_chat.return_value = '{"edge_type": "supports", "reasoning": "r"}'
+
+        correct_terminology(
+            session_dir,
+            node_id="fact-001",
+            corrected_summary="Fixed summary",
+            conflicting_node_id="fact-002",
+            reasoning="terminology",
+        )
+
+        kg = _load_knowledge(session_dir)
+        new_node = next(n for n in kg["nodes"] if n["id"] == "fact-003")
+        assert new_node["provenance_uri"] == "chatgpt://physics-theory/conv1#turn-3"
+
+    def test_missing_node_returns_error(self, session_dir):
+        """Error when the node to correct doesn't exist."""
+        self._seed_conflict(session_dir)
+        result = json.loads(correct_terminology(
+            session_dir,
+            node_id="fact-999",
+            corrected_summary="Fixed",
+            conflicting_node_id="fact-002",
+            reasoning="test",
+        ))
+        assert "error" in result
+        assert "fact-999" in result["error"]
+
+    def test_missing_conflict_returns_error(self, session_dir):
+        """Error when the conflicting node doesn't exist."""
+        self._seed_conflict(session_dir)
+        result = json.loads(correct_terminology(
+            session_dir,
+            node_id="fact-001",
+            corrected_summary="Fixed",
+            conflicting_node_id="fact-999",
+            reasoning="test",
+        ))
+        assert "error" in result
+        assert "fact-999" in result["error"]
+
+    def test_no_contradicts_edge_returns_error(self, session_dir):
+        """Error when there's no contradicts edge between the nodes."""
+        _save_knowledge(session_dir, {
+            "nodes": [
+                {"id": "fact-001", "type": "fact", "summary": "A",
+                 "status": "active", "created": "2026-01-01", "updated": "2026-01-01"},
+                {"id": "fact-002", "type": "fact", "summary": "B",
+                 "status": "active", "created": "2026-01-01", "updated": "2026-01-01"},
+            ],
+            "edges": [
+                {"source": "fact-001", "target": "fact-002",
+                 "type": "related_to", "created": "2026-01-01"},
+            ],
+        })
+        result = json.loads(correct_terminology(
+            session_dir,
+            node_id="fact-001",
+            corrected_summary="Fixed",
+            conflicting_node_id="fact-002",
+            reasoning="test",
+        ))
+        assert "error" in result
+        assert "contradicts" in result["error"]
+
+    @patch("oi.linker.chat")
+    def test_saves_review_provenance(self, mock_link_chat, session_dir):
+        """Review provenance file is created when review_text provided."""
+        self._seed_conflict(session_dir)
+        mock_link_chat.return_value = '{"edge_type": "related_to", "reasoning": "r"}'
+
+        correct_terminology(
+            session_dir,
+            node_id="fact-001",
+            corrected_summary="Fixed summary",
+            conflicting_node_id="fact-002",
+            reasoning="terminology fix",
+            review_text="## Terminology Correction\n\n'rewriting' should be 'redirecting'",
+        )
+
+        review_file = session_dir / "reviews" / "terminology-fact-001-fact-002.md"
+        assert review_file.exists()
+        assert "rewriting" in review_file.read_text()
+
+    @patch("oi.linker.chat")
+    def test_has_contradiction_cleared_on_old_node(self, mock_link_chat, session_dir):
+        """After correction, has_contradiction is cleared if no other contradicts edges."""
+        self._seed_conflict(session_dir)
+        mock_link_chat.return_value = '{"edge_type": "related_to", "reasoning": "r"}'
+
+        correct_terminology(
+            session_dir,
+            node_id="fact-001",
+            corrected_summary="Fixed summary",
+            conflicting_node_id="fact-002",
+            reasoning="terminology",
+        )
+
+        kg = _load_knowledge(session_dir)
+        fact_002 = next(n for n in kg["nodes"] if n["id"] == "fact-002")
+        assert fact_002.get("has_contradiction") is not True
 
 
 class TestReclassifyEdge:
