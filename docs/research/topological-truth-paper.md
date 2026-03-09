@@ -8,7 +8,7 @@ March 2026
 
 ## Abstract
 
-When conclusions are recorded as nodes in a knowledge graph with typed edges between them, the graph develops structural properties that can resolve contradictions — when the structural evidence is sufficient — without external judgment. I present a conflict resolution system that classifies and resolves contradictions using only the topology of supporting edges — no large language model, no human judge, no voting mechanism. LLMs construct the graph; the resolution phase is pure topology. Applied across three experiments at increasing scale — a 236-node single-document graph (37 contradictions), an 894-node three-source graph (163 contradictions), and a 1,336-node graph built from 122 independent sources (~190 contradictions) — the system auto-resolved 16%, 67%, and 58% of conflicts respectively, with zero false positives among auto-resolutions at any scale. Manual review of 20 post-resolution conflicts revealed that 55% were construction artifacts — the linker misclassified edges due to summary-level ambiguity — while the resolution mechanism correctly classified every one as requiring human review rather than auto-resolving it. Cross-source analysis revealed empirically distinguishable structural signatures between within-source and cross-source edges, providing evidence that independent convergence is observable in graph topology. One resolution is self-referential: the system adjudicated between "confidence from topology" and "confidence from voting" as competing approaches, and the topology chose topology — the system demonstrated its own thesis through its own operation. I argue that independent structural convergence in a knowledge graph is a mechanical analog of scientific replication, and present four properties that distinguish this approach from voting, LLM judgment, or explicit scoring: it is not gameable, not authoritarian, self-correcting, and auditable end-to-end.
+When conclusions are recorded as nodes in a knowledge graph with typed edges between them, the graph develops structural properties that can resolve contradictions — when the structural evidence is sufficient — without external judgment. I present a conflict resolution system that classifies and resolves contradictions using only the topology of supporting edges — no large language model, no human judge, no voting mechanism. LLMs construct the graph; the resolution phase is pure topology. Applied across three experiments at increasing scale — a 236-node single-document graph (37 contradictions), an 894-node three-source graph (163 contradictions), and a 1,336-node graph built from 122 independent sources (190 contradictions) — the system auto-resolved 16%, 67%, and 58% of conflicts respectively, with zero false positives among auto-resolutions at any scale. Manual review of 20 post-resolution conflicts revealed that 55% were construction artifacts — the linker misclassified edges due to summary-level ambiguity — while the resolution mechanism correctly classified every one as requiring human review rather than auto-resolving it. Cross-source analysis revealed empirically distinguishable structural signatures between within-source and cross-source edges, providing evidence that independent convergence is observable in graph topology. One resolution is self-referential: the system adjudicated between "confidence from topology" and "confidence from voting" as competing approaches, and the topology chose topology — the system demonstrated its own thesis through its own operation. I argue that independent structural convergence in a knowledge graph is a mechanical analog of scientific replication, and present four properties that distinguish this approach from voting, LLM judgment, or explicit scoring: it is not gameable, not authoritarian, self-correcting, and auditable end-to-end.
 
 ---
 
@@ -46,7 +46,7 @@ This paper asks the next question: when those compacted conclusions accumulate a
 
 The knowledge graph consists of nodes and typed edges. Nodes represent conclusions extracted from documents — facts, decisions, and preferences — each with a unique identifier, summary text, source provenance, and status (active or superseded). Edges encode relationships: `supports` (one node provides evidence for another), `contradicts` (two nodes make incompatible claims), `exemplifies` (one node is a specific instance of another), and `supersedes` (one node has replaced another through conflict resolution).
 
-The graph used in this study was constructed by ingesting a thesis document through a batch linker that uses LLM-based semantic classification to determine edge types between node pairs. This is a deliberate architectural separation: **LLMs construct the graph; topology arbitrates disputes within it.** The perception phase (building the graph) may involve language models. The judgment phase (resolving conflicts) does not. The novel contribution is in the judgment phase.
+The initial graph (V1) was constructed by ingesting a thesis document through a batch linker that uses LLM-based semantic classification to determine edge types between node pairs. Subsequent experiments (V2, V3) applied the same linker to larger, multi-source graphs — see Sections 3.5–3.7. This is a deliberate architectural separation: **LLMs construct the graph; topology arbitrates disputes within it.** The perception phase (building the graph) may involve language models. The judgment phase (resolving conflicts) does not. The novel contribution is in the judgment phase.
 
 ### 2.2 Classification Algorithm
 
@@ -176,7 +176,7 @@ The most significant resolution, analyzed in detail in Section 6.
 
 ### 3.5 Scaling: Three-Source Graph (894 Nodes)
 
-To test whether topological resolution scales beyond a single document, the system was applied to a knowledge graph built from three independent sources: 7 conversations developing a physics theory (730 nodes), a Stanford Encyclopedia of Philosophy article on collapse theories (66 nodes), and a second SEP article on philosophical issues in quantum theory (98 nodes). The three sources were authored independently and address overlapping but distinct aspects of quantum mechanics.
+To test whether topological resolution scales beyond a single document, the knowledge graph was wiped and rebuilt from scratch using three independent sources: 7 conversations developing a physics theory (730 nodes), a Stanford Encyclopedia of Philosophy article on collapse theories (66 nodes), and a second SEP article on philosophical issues in quantum theory (98 nodes). The same extraction and linking pipeline was used, with no parameter changes from V1. The three sources were authored independently and address overlapping but distinct aspects of quantum mechanics. Cross-source structural signatures from this experiment are analyzed in Section 7.3.
 
 | Metric | Single-Source (V1) | Three-Source (V2) |
 |--------|-------------------|-------------------|
@@ -194,7 +194,7 @@ The auto-resolution rate jumped from 16% to 67%. Larger graphs produce more lops
 
 ### 3.6 Scaling: Full Rebuild (1,336 Nodes, 122 Sources)
 
-The largest experiment rebuilt the knowledge graph from scratch using conversation-aware extraction [3] across 120 author conversations and the same 2 SEP articles — 122 independent sources total.
+The largest experiment rebuilt the knowledge graph from scratch using conversation-aware extraction [3] across 120 author conversations (a superset of V2's 7) and the same 2 SEP articles — 122 independent sources total.
 
 | Metric | Three-Source (V2) | Full-Scale (V3) |
 |--------|-------------------|-----------------|
@@ -203,7 +203,7 @@ The largest experiment rebuilt the knowledge graph from scratch using conversati
 | Total edges | 5,020 | 8,022 |
 | `supports` | 1,198 | 1,849 |
 | `related_to` | 3,618 | 5,981 |
-| `contradicts` (before resolution) | 163 | ~190 |
+| `contradicts` (before resolution) | 163 | 190 |
 | `contradicts` (after auto-resolve) | 51 | 79 |
 | `supersedes` | — | 113 |
 | Auto-resolve rate | 67% | 58% |
@@ -217,11 +217,11 @@ The auto-resolve rate decreased from 67% to 58% despite the larger graph. This i
 |-------|-------|---------|----------------|---------------|------|
 | V1 | 236 | 1 doc | 37 | 6 | 16% |
 | V2 | 894 | 3 | 163 | 110 | 67% |
-| V3 | 1,336 | 122 | ~190 | 111 | 58% |
+| V3 | 1,336 | 122 | 190 | 111 | 58% |
 
 Three observations emerge from the scaling progression:
 
-**Auto-resolution improves with graph density, not just size.** The jump from 16% to 67% between V1 and V2 was driven by cross-source support accumulation: claims about quantum measurement that were isolated in a single document gained independent backing from academic sources. The modest decline to 58% in V3 reflects an increase in genuinely contested claims, not a weakening of the mechanism.
+**Auto-resolution improves with graph density, not just size.** The jump from 16% to 67% between V1 and V2 was driven by cross-source support accumulation: claims about quantum measurement that were isolated in a single document gained independent backing from academic sources. The modest decline to 58% in V3 reflects an increase in genuinely contested claims, not a weakening of the mechanism. Manual review (Section 4.2) confirmed this: of 20 sampled post-resolution conflicts, 5 were intra-theory contradictions where the author's position evolved across the 120-conversation span — a class of conflict that barely exists in V2's 7-conversation dataset. The remaining non-resolutions included 3 cross-source scientific disagreements and 11 construction artifacts, all correctly left for human review.
 
 **Zero false positives in auto-resolution at every scale.** Manual review (Section 4) confirmed that every auto-resolved conflict was correctly decided. The 5x threshold is conservative enough to prevent erroneous resolutions even as the graph grows by an order of magnitude.
 
@@ -387,12 +387,12 @@ The three-source experiment (V2) provided the first empirical evidence that inde
 
 Edge distributions between within-source and cross-source relationships were empirically distinguishable:
 
-| Edge Category | `related_to` | `supports` | `contradicts` |
-|---------------|:------------:|:----------:|:-------------:|
-| Within-source | 56% | 39% | 6% |
-| Cross-source | 77% | 18% | 5% |
+| Edge Category | `related_to` | `supports` | `contradicts` | N |
+|---------------|:------------:|:----------:|:-------------:|------:|
+| Within-source | 70% | 27% | 3% | 4,295 |
+| Cross-source | 90% | 5% | 5% | 684 |
 
-Cross-source edges are dominated by `related_to` (topical overlap without logical commitment) with proportionally fewer `supports` edges. This is expected: independent sources addressing the same domain will have topical overlap, but their argumentative structures are independent — they do not build on each other's intermediate claims. The structural signature of independence is visible in the edge distribution.
+Cross-source edges are overwhelmingly `related_to` (topical overlap without logical commitment) — 90% versus 70% within-source. The most striking difference is in `supports` edges: 27% of within-source edges are logical commitments (one node providing evidence for another), compared to just 5% cross-source. This is expected: independent sources addressing the same domain will have topical overlap, but their argumentative structures are independent — they do not build on each other's intermediate claims. The structural signature of independence is a high related-to-support ratio.
 
 The two SEP articles in the three-source graph connected to each other through only 5 edges (all `related_to`). They cover different aspects of quantum mechanics without directly contradicting each other. The system correctly treated them as genuinely independent perspectives.
 
@@ -418,9 +418,7 @@ The system did not need to understand this distinction to capture it. The struct
 
 ### 7.6 The Limitation Is the Feature
 
-The system did not force a resolution on any conflict where evidence was insufficient. At the V1 scale, 14 of 37 stayed ambiguous. At the V3 scale, 37 of ~190 remained after auto-resolution, and manual review confirmed that the system's abstentions included both genuine ambiguities and construction artifacts — but never a case where it should have acted and didn't.
-
-This is not a failure rate. It is an integrity rate. The system knows when it doesn't know. Most truth-finding systems — LLM judgment, majority voting, explicit scoring — will always produce an answer. They cannot express "I don't have enough information," because their mechanisms are designed to produce outputs, not to abstain. The ability to abstain when evidence is insufficient is what makes the remaining verdicts credible.
+The system did not force a resolution on any conflict where evidence was insufficient. At the V1 scale, 14 of 37 stayed ambiguous. At the V3 scale, 37 of 190 remained after auto-resolution, and manual review confirmed that the system's abstentions included both genuine ambiguities and construction artifacts — but never a case where it should have acted and didn't. The ability to abstain when evidence is insufficient is what makes the remaining verdicts credible.
 
 ---
 
@@ -433,6 +431,8 @@ This is not a failure rate. It is an integrity rate. The system knows when it do
 **Construction failure modes.** Five specific failure modes were identified in the construction phase (Section 4.2): scope mismatch, context loss, extraction splitting, terminology conflict, and attribution gap. Each has a designed mitigation. The failure modes are in the *perception* phase, not the *judgment* phase — but they affect the input quality on which judgment operates. The resolution mechanism's conservatism (5x threshold, never auto-resolving subjective conflicts) provides a safety margin against construction noise.
 
 **Threshold sensitivity.** The 5x auto-resolution threshold and 2x/3x recommendation thresholds are parameters, not derived quantities. Different thresholds would change the classification distribution. The 5x threshold was chosen for conservatism and has now been validated at three scales — 236 nodes, 894 nodes, and 1,336 nodes — with zero false positives among auto-resolutions at every scale. The optimal threshold likely depends on graph density and domain, but the empirical evidence supports 5x as a robust default.
+
+**Adversarial inputs not tested.** Section 5.1 argues that gaming the system requires constructing an entire plausible subgraph. This is true for a single-author graph, but in a multi-source system an adversary could inject many low-quality sources that all support a desired conclusion. The current experiments use trusted sources (author conversations, encyclopedic references) — no adversarial ingestion was attempted. The 5x threshold provides some defense (the adversary needs overwhelming structural advantage, not merely a majority), but the system's robustness under adversarial conditions is an open question.
 
 **Temporal naivety.** The algorithm does not consider when nodes or edges were created. A node supported by 28 edges from 2024 is treated identically to one supported by 28 edges from 2020. In domains where recency matters, this could be a limitation. The graph stores `authored_at` timestamps on nodes, and manual review confirmed that temporal signals are valuable — conflicts between nodes authored weeks apart often represent theory evolution rather than contradiction. Incorporating temporal weighting into the resolution algorithm is a natural extension, though the current design intentionally prioritizes accumulated evidence over recency.
 
@@ -456,6 +456,8 @@ These corrections were not cosmetic. The qualification gap in the abstract was a
 
 The narrative voice limitation is particularly notable: it represents a case where the system correctly identified semantic tension in the text but misattributed its source. The paper was *reporting* contradictions, not *making* them. This is a known limitation of claim extraction from analytical documents, and it points toward future work on provenance-aware ingestion that distinguishes first-person assertions from third-person observations.
 
+*Note: The self-ingestion was performed on the original single-scale draft. The paper has since been substantially revised with multi-scale results (Sections 3.5–3.7), manual review findings (Sections 4.2–4.4), and cross-source analysis (Sections 7.3–7.5). The corrections described above remain valid — they were applied before the subsequent revisions.*
+
 ---
 
 ## 10. Conclusion
@@ -478,7 +480,7 @@ The conflicts that stayed ambiguous are as important as the ones that were resol
 
 [1] Zanfir, A. (2026). Cognitive Context Management: Brain-Inspired Architecture for Bounded AI Memory. Zenodo. https://doi.org/10.5281/zenodo.18752096
 
-[2] Zanfir, A. (2025). Living Knowledge Networks: A Framework for Distributed Intelligence. Unpublished thesis document. https://github.com/knowledge-network
+[2] Zanfir, A. (2025). Living Knowledge Networks: A Framework for Distributed Intelligence. Unpublished thesis document. https://github.com/AlexZan/knowledge-network
 
 [3] Zanfir, A. (2026). Conversation-aware extraction for knowledge graphs. Decision 022, Knowledge Network project. Replaces per-chunk extraction with full-conversation LLM calls to eliminate false intra-author contradictions.
 
