@@ -399,3 +399,116 @@ class TestAuthoredAtOnChunks:
         conv = _simple_conv()
         doc = parse_chatgpt_conversation(conv, source_id="src")
         assert doc.metadata.date is None
+
+
+# === Tests for tool/system skip in turn pairing ===
+
+
+class TestToolSkipBehavior:
+    """Parser should skip tool/system messages between user and assistant."""
+
+    def test_tool_messages_between_user_and_assistant(self):
+        """Tool messages (browsing, code interpreter) are skipped to find assistant."""
+        mapping = {
+            "root": _node("root", parent=None),
+            "u1": _node("u1", role="user", text="Search for X", parent="root"),
+            "t1": _node("t1", role="tool", text="browsing result", parent="u1"),
+            "t2": _node("t2", role="tool", text="quote snippet", parent="t1"),
+            "a1": _node("a1", role="assistant", text="Here is what I found", parent="t2"),
+        }
+        conv = {"id": "c1", "title": "Tool Skip", "mapping": mapping, "current_node": "a1"}
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert len(doc.chunks) == 1
+        assert "Search for X" in doc.chunks[0].content
+        assert "Here is what I found" in doc.chunks[0].content
+
+    def test_system_messages_between_user_and_assistant(self):
+        """System messages between user and assistant are skipped."""
+        mapping = {
+            "root": _node("root", parent=None),
+            "u1": _node("u1", role="user", text="My question", parent="root"),
+            "s1": _node("s1", role="system", text="", parent="u1"),
+            "a1": _node("a1", role="assistant", text="My answer", parent="s1"),
+        }
+        conv = {"id": "c1", "title": "Sys Skip", "mapping": mapping, "current_node": "a1"}
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert len(doc.chunks) == 1
+        assert "My question" in doc.chunks[0].content
+        assert "My answer" in doc.chunks[0].content
+
+    def test_mixed_tool_system_skip(self):
+        """Mix of tool and system messages between user and assistant."""
+        mapping = {
+            "root": _node("root", parent=None),
+            "u1": _node("u1", role="user", text="Q", parent="root"),
+            "s1": _node("s1", role="system", text="", parent="u1"),
+            "t1": _node("t1", role="tool", text="result", parent="s1"),
+            "t2": _node("t2", role="tool", text="more", parent="t1"),
+            "s2": _node("s2", role="system", text="", parent="t2"),
+            "a1": _node("a1", role="assistant", text="A", parent="s2"),
+        }
+        conv = {"id": "c1", "title": "Mixed", "mapping": mapping, "current_node": "a1"}
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert len(doc.chunks) == 1
+
+    def test_consecutive_user_messages_merged(self):
+        """Consecutive user messages have their text merged."""
+        mapping = {
+            "root": _node("root", parent=None),
+            "u1": _node("u1", role="user", text="First part", parent="root"),
+            "u2": _node("u2", role="user", text="Second part", parent="u1"),
+            "a1": _node("a1", role="assistant", text="Response", parent="u2"),
+        }
+        conv = {"id": "c1", "title": "Merge", "mapping": mapping, "current_node": "a1"}
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert len(doc.chunks) == 1
+        assert "First part" in doc.chunks[0].content
+        assert "Second part" in doc.chunks[0].content
+
+    def test_consecutive_user_with_empty_skipped(self):
+        """Empty consecutive user message doesn't corrupt the text."""
+        mapping = {
+            "root": _node("root", parent=None),
+            "u1": _node("u1", role="user", text="My question", parent="root"),
+            "u2": _node("u2", role="user", text="", parent="u1"),
+            "t1": _node("t1", role="tool", text="tool output", parent="u2"),
+            "a1": _node("a1", role="assistant", text="Answer", parent="t1"),
+        }
+        conv = {"id": "c1", "title": "Empty user", "mapping": mapping, "current_node": "a1"}
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert len(doc.chunks) == 1
+        assert "My question" in doc.chunks[0].content
+        assert "Answer" in doc.chunks[0].content
+
+    def test_empty_assistant_prefix_skipped(self):
+        """Empty assistant message followed by real assistant uses the real one."""
+        mapping = {
+            "root": _node("root", parent=None),
+            "u1": _node("u1", role="user", text="Question", parent="root"),
+            "a1": _node("a1", role="assistant", text="", parent="u1"),
+            "a2": _node("a2", role="assistant", text="Real answer", parent="a1"),
+        }
+        conv = {"id": "c1", "title": "Skip empty", "mapping": mapping, "current_node": "a2"}
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert len(doc.chunks) == 1
+        assert "Real answer" in doc.chunks[0].content
+
+    def test_full_browsing_pattern(self):
+        """Full pattern: user, user(empty), tools, assistant(empty), assistant(text)."""
+        mapping = {
+            "root": _node("root", parent=None),
+            "s1": _node("s1", role="system", text="", parent="root"),
+            "s2": _node("s2", role="system", text="", parent="s1"),
+            "u1": _node("u1", role="user", text="Analyze this article", parent="s2"),
+            "u2": _node("u2", role="user", text="", parent="u1"),
+            "t1": _node("t1", role="tool", text="", parent="u2"),
+            "t2": _node("t2", role="tool", text="cite this", parent="t1"),
+            "t3": _node("t3", role="tool", text="cite that", parent="t2"),
+            "a1": _node("a1", role="assistant", text="", parent="t3"),
+            "a2": _node("a2", role="assistant", text="Here is my analysis", parent="a1"),
+        }
+        conv = {"id": "c1", "title": "Full browse", "mapping": mapping, "current_node": "a2"}
+        doc = parse_chatgpt_conversation(conv, source_id="src")
+        assert len(doc.chunks) == 1
+        assert "Analyze this article" in doc.chunks[0].content
+        assert "Here is my analysis" in doc.chunks[0].content

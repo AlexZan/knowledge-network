@@ -157,15 +157,38 @@ def parse_chatgpt_conversation(conv: dict, source_id: str) -> ParsedDocument:
 
         if role == "user":
             user_text = _extract_text(msg)
-            if i + 1 < len(messages):
-                next_msg = messages[i + 1]
+            # Find the next assistant message, skipping tool/system/user messages
+            # (ChatGPT inserts tool results for browsing, code interpreter, etc.
+            # and sometimes splits user input across consecutive user messages)
+            j = i + 1
+            while j < len(messages):
+                jr = (messages[j].get("author") or {}).get("role", "")
+                if jr == "assistant":
+                    break
+                if jr == "user":
+                    # Merge consecutive user text
+                    extra = _extract_text(messages[j])
+                    if extra:
+                        user_text = f"{user_text}\n\n{extra}" if user_text else extra
+                elif jr not in ("tool", "system"):
+                    break  # unexpected role — stop scanning
+                j += 1
+            if j < len(messages):
+                next_msg = messages[j]
                 next_role = (next_msg.get("author") or {}).get("role", "")
                 if next_role == "assistant":
                     # Skip turn pair if assistant responded with canvas only
+                    # Set i = j so the main loop's canvas check extracts it
                     if _extract_canvas(next_msg) is not None:
-                        i += 1
+                        i = j
                         continue
                     assistant_text = _extract_text(next_msg)
+                    # Skip empty assistant prefix (e.g. thinking step) — use next assistant
+                    if not assistant_text and j + 1 < len(messages):
+                        jr2 = (messages[j + 1].get("author") or {}).get("role", "")
+                        if jr2 == "assistant":
+                            assistant_text = _extract_text(messages[j + 1])
+                            j += 1
                     if user_text or assistant_text:
                         chunk_uri = f"{provenance_uri}#turn-{turn_n}"
                         turn_label = f"Turn {turn_n + 1}"
@@ -184,7 +207,7 @@ def parse_chatgpt_conversation(conv: dict, source_id: str) -> ParsedDocument:
                             metadata=chunk_meta,
                         ))
                         turn_n += 1
-                    i += 2
+                    i = j + 1
                     continue
         i += 1
 
