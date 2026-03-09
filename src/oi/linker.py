@@ -146,10 +146,15 @@ def _build_link_prompt_single(node_a: dict, node_b: dict) -> str:
             "If YES → \"contradicts\""
         )
 
+    quote_a = node_a.get("source_quote", "")
+    quote_b = node_b.get("source_quote", "")
+    quote_note_a = f'\n  Source quote: "{quote_a}"' if quote_a else ""
+    quote_note_b = f'\n  Source quote: "{quote_b}"' if quote_b else ""
+
     return (
         "Compare these two knowledge nodes and classify their relationship.\n\n"
-        f"Node A (new): [{node_a.get('type', '')}] {node_a.get('summary', '')}\n"
-        f"Node B (existing): [{node_b.get('type', '')}] {node_b.get('summary', '')}\n"
+        f"Node A (new): [{node_a.get('type', '')}] {node_a.get('summary', '')}{quote_note_a}\n"
+        f"Node B (existing): [{node_b.get('type', '')}] {node_b.get('summary', '')}{quote_note_b}\n"
         f"{voice_note}{abs_note}\n"
         "Follow these steps:\n"
         "1. Are they about the same topic, domain, or system at all? If NO → \"none\"\n"
@@ -160,7 +165,9 @@ def _build_link_prompt_single(node_a: dict, node_b: dict) -> str:
         f"{contradicts_rules}\n"
         "5. Does Node A provide evidence for, reinforce, or logically imply Node B — not just discuss the same topic? "
         "Semantic similarity alone is NOT enough for supports. If YES → \"supports\"\n"
-        "6. If related but none of the above clearly apply → \"related_to\"\n\n"
+        "6. If related but none of the above clearly apply → \"related_to\"\n"
+        "When source quotes are provided, use them to understand the original context and intent behind the summary. "
+        "Summaries can be misleading — the quote shows what was actually said.\n\n"
         "Respond with ONLY a JSON object:\n"
         '{"edge_type": "supports"|"contradicts"|"related_to"|"none", "reasoning": "one sentence"}'
     )
@@ -229,16 +236,20 @@ def batch_link_nodes(new_node: dict, candidates: list[dict], model: str) -> list
             voice_tag = f" [voice={voice_b}]" if voice_b != "first_person" else ""
             abs_tag = f" [abstraction_level={abs_b}]" if abs_b is not None else ""
             cap_note = " (contradicts NOT allowed — both are reported/described)" if _voice_caps_contradicts(new_node, node) else ""
-            candidate_lines.append(
-                f"  {i+1}. [{node.get('type', '')}] (id: {node['id']}){voice_tag}{abs_tag}{cap_note} {node.get('summary', '')}"
-            )
+            line = f"  {i+1}. [{node.get('type', '')}] (id: {node['id']}){voice_tag}{abs_tag}{cap_note} {node.get('summary', '')}"
+            quote_b = node.get("source_quote", "")
+            if quote_b:
+                line += f'\n     Quote: "{quote_b}"'
+            candidate_lines.append(line)
 
         voice_note = f"\nNode A voice={voice_a}.\n" if voice_a != "first_person" else ""
         abs_note = f"Node A abstraction_level={abs_a}.\n" if abs_a is not None else ""
+        quote_a = new_node.get("source_quote", "")
+        quote_note_a = f'\n  Quote: "{quote_a}"' if quote_a else ""
 
         prompt = (
             "Classify the relationship between Node A and each candidate node.\n\n"
-            f"Node A (new): [{new_node.get('type', '')}] {new_node.get('summary', '')}\n"
+            f"Node A (new): [{new_node.get('type', '')}] {new_node.get('summary', '')}{quote_note_a}\n"
             f"{voice_note}{abs_note}\n"
             "Candidates:\n"
             + "\n".join(candidate_lines) + "\n\n"
@@ -251,7 +262,9 @@ def batch_link_nodes(new_node: dict, candidates: list[dict], model: str) -> list
             "4b. Does accepting Node A force you to reject the candidate — they cannot both be true in ANY context? "
             "Never use contradicts when the candidate is marked (contradicts NOT allowed). If YES → \"contradicts\"\n"
             "5. Does Node A provide logical evidence for or imply the candidate — semantic similarity alone is NOT enough? If YES → \"supports\"\n"
-            "6. If related but unclear → \"related_to\"\n\n"
+            "6. If related but unclear → \"related_to\"\n"
+            "When source quotes are provided, use them to understand the original context and intent behind the summary. "
+            "Summaries can be misleading — the quote shows what was actually said.\n\n"
             "Respond with ONLY a JSON array, one object per candidate in order:\n"
             '[{"edge_type": "supports"|"contradicts"|"related_to"|"none", "reasoning": "one sentence"}, ...]'
         )

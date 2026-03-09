@@ -13,7 +13,9 @@ from oi.ingest import (
     _build_extraction_prompt,
     _build_conversation_prompt,
     _build_conversation_text,
+    _chat_with_retry,
     _estimate_tokens,
+    _is_canvas_chunk,
     _parse_conversation_response,
     _extract_retracted,
     _get_ingested_conv_ids,
@@ -762,6 +764,45 @@ class TestIngestPipeline:
         assert "write" in stages
         assert "done" in stages
 
+
+    @patch("oi.ingest.chat")
+    def test_source_quote_flows_to_nodes(self, mock_chat, session_dir, sample_md):
+        """source_quote from extraction is stored on nodes in knowledge.yaml."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "Python is interpreted",
+             "source_quote": "Python runs code through an interpreter"},
+        ])
+        result = ingest_pipeline(
+            sample_md, session_dir, skip_linking=True, skip_embedding=True)
+        assert len(result.nodes_created) == 1
+        # Verify the node in knowledge.yaml has source_quote
+        import yaml
+        kg = yaml.safe_load((session_dir / "knowledge.yaml").read_text())
+        node = kg["nodes"][0]
+        assert node["source_quote"] == "Python runs code through an interpreter"
+
+    @patch("oi.ingest.chat")
+    def test_source_quote_available_for_linker(self, mock_chat, session_dir, sample_md):
+        """After extraction, the linker receives nodes with source_quote in prompt."""
+        mock_chat.return_value = _llm_response([
+            {"node_type": "fact", "summary": "Claim with quote",
+             "source_quote": "The exact words from the document"},
+        ])
+        # First: extract and write nodes (skip linking)
+        ingest_pipeline(
+            sample_md, session_dir, skip_linking=True, skip_embedding=True)
+
+        # Now verify: when we link, the prompt includes the source_quote
+        import yaml
+        kg = yaml.safe_load((session_dir / "knowledge.yaml").read_text())
+        node = kg["nodes"][0]
+        assert node.get("source_quote") == "The exact words from the document"
+
+        # Build a linker prompt with this node
+        from oi.linker import _build_link_prompt_single
+        other = {"id": "fact-002", "type": "fact", "summary": "Some other claim"}
+        prompt = _build_link_prompt_single(node, other)
+        assert "exact words from the document" in prompt
 
     @patch("oi.ingest.chat")
     def test_source_id_produces_logical_uris(self, mock_chat, session_dir, tmp_path):
@@ -1596,6 +1637,25 @@ class TestParseConversationResponse:
         claims = _parse_conversation_response('{"not": "array"}', "conv-1", "chatgpt://conv-1")
         assert claims == []
 
+    def test_parses_source_quote(self):
+        response = json.dumps([
+            {"node_type": "fact", "summary": "Collapse is real",
+             "reasoning": "proved it", "voice": "first_person",
+             "source_quote": "I believe collapse is a real physical process"},
+        ])
+        claims = _parse_conversation_response(response, "conv-1", "chatgpt://conv-1#turn-1")
+        assert len(claims) == 1
+        assert claims[0].source_quote == "I believe collapse is a real physical process"
+
+    def test_missing_source_quote_defaults_empty(self):
+        response = json.dumps([
+            {"node_type": "fact", "summary": "No quote here",
+             "reasoning": "r1", "voice": "first_person"},
+        ])
+        claims = _parse_conversation_response(response, "conv-1", "chatgpt://conv-1#turn-1")
+        assert len(claims) == 1
+        assert claims[0].source_quote == ""
+
 
 class TestExtractRetracted:
     """Tests for _extract_retracted."""
@@ -1752,3 +1812,203 @@ class TestExtractFromConversation:
         summaries = [c.summary for c in result.claims]
         assert "Exploratory idea" in summaries  # still in claims from segment 1
         assert "Revised conclusion" in summaries
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_retry_on_json_failure(self, mock_tokens, mock_chat, mock_max):
+        """JSON parse failure should retry once, succeed on second attempt."""
+        valid_json = json.dumps([
+            {"node_type": "fact", "summary": "Recovered claim",
+             "reasoning": "r1", "voice": "first_person"},
+        ])
+        # First call returns garbage, second returns valid JSON
+        mock_chat.side_effect = [
+            "Here is a step-by-step plan:\n1. Do this\n2. Do that",
+            valid_json,
+        ]
+        doc = _make_doc(chunks=[_make_chunk()])
+        result = extract_from_conversation(doc)
+        assert mock_chat.call_count == 2
+        assert len(result.claims) == 1
+        assert result.claims[0].summary == "Recovered claim"
+        assert result.chunks_failed == 0
+        # Should have logged the retry
+        assert any("retrying" in e for e in result.errors)
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_retry_exhausted_on_json_failure(self, mock_tokens, mock_chat, mock_max):
+        """Two consecutive JSON failures should report failure after retry."""
+        mock_chat.side_effect = [
+            "Not JSON at all",
+            "Still not JSON",
+        ]
+        doc = _make_doc(chunks=[_make_chunk()])
+        result = extract_from_conversation(doc)
+        assert mock_chat.call_count == 2
+        assert result.chunks_failed == 1
+        assert any("after retry" in e for e in result.errors)
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat", side_effect=RuntimeError("Network timeout"))
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_no_retry_on_non_json_error(self, mock_tokens, mock_chat, mock_max):
+        """Non-JSON errors (network, etc.) should NOT be retried."""
+        doc = _make_doc(chunks=[_make_chunk()])
+        result = extract_from_conversation(doc)
+        assert mock_chat.call_count == 1
+        assert result.chunks_failed == 1
+        assert any("Network timeout" in e for e in result.errors)
+
+
+class TestCanvasRouting:
+    """Tests for canvas-aware extraction routing in extract_from_conversation."""
+
+    def test_is_canvas_chunk(self):
+        """Canvas chunks identified by #canvas- in chunk_id."""
+        canvas = _make_chunk(chunk_id="chatgpt://src/conv1#canvas-0")
+        turn = _make_chunk(chunk_id="chatgpt://src/conv1#turn-0")
+        plain = _make_chunk(chunk_id="doc.md#intro")
+        assert _is_canvas_chunk(canvas) is True
+        assert _is_canvas_chunk(turn) is False
+        assert _is_canvas_chunk(plain) is False
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_canvas_routed_to_chunk_extraction(self, mock_tokens, mock_chat, mock_max):
+        """Canvas chunks should use per-chunk extraction, not conversation-aware."""
+        # First call: canvas chunk extraction (extract_from_chunk)
+        # Second call: conversation extraction (extract_from_conversation)
+        mock_chat.side_effect = [
+            json.dumps([
+                {"node_type": "fact", "summary": "Canvas finding",
+                 "reasoning": "From document", "voice": "first_person"},
+            ]),
+            json.dumps([
+                {"node_type": "fact", "summary": "Conversation conclusion",
+                 "reasoning": "From chat", "voice": "first_person"},
+            ]),
+        ]
+        doc = _make_doc(
+            chunks=[
+                _make_chunk(chunk_id="chatgpt://src/c1#turn-0",
+                            content="User: What about collapse?"),
+                _make_chunk(chunk_id="chatgpt://src/c1#canvas-0",
+                            content="# Theory\n\nCollapse is fundamental.",
+                            heading="Theory Doc"),
+                _make_chunk(chunk_id="chatgpt://src/c1#turn-1",
+                            content="Assistant: Let me explain..."),
+            ],
+            title="Physics Discussion",
+            source_path="conv-123",
+        )
+        result = extract_from_conversation(doc)
+        assert mock_chat.call_count == 2
+        assert len(result.claims) == 2
+        summaries = [c.summary for c in result.claims]
+        assert "Canvas finding" in summaries
+        assert "Conversation conclusion" in summaries
+        # Canvas claims come first
+        assert result.claims[0].summary == "Canvas finding"
+        assert result.chunks_failed == 0
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_canvas_excluded_from_conversation_text(self, mock_tokens, mock_chat, mock_max):
+        """Canvas content should NOT appear in the conversation prompt."""
+        mock_chat.side_effect = [
+            json.dumps([]),  # canvas extraction
+            json.dumps([]),  # conversation extraction
+        ]
+        doc = _make_doc(
+            chunks=[
+                _make_chunk(chunk_id="chatgpt://src/c1#turn-0",
+                            content="User: Hello"),
+                _make_chunk(chunk_id="chatgpt://src/c1#canvas-0",
+                            content="CANVAS_CONTENT_SHOULD_NOT_APPEAR"),
+                _make_chunk(chunk_id="chatgpt://src/c1#turn-1",
+                            content="Assistant: Hi there"),
+            ],
+        )
+        result = extract_from_conversation(doc)
+        # Second call is the conversation extraction
+        conv_call = mock_chat.call_args_list[1]
+        conv_prompt = conv_call[0][0][1]["content"]
+        assert "CANVAS_CONTENT_SHOULD_NOT_APPEAR" not in conv_prompt
+        assert "Hello" in conv_prompt
+        assert "Hi there" in conv_prompt
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_canvas_only_conversation(self, mock_tokens, mock_chat, mock_max):
+        """Conversation with only canvas chunks (no turns) should work."""
+        mock_chat.return_value = json.dumps([
+            {"node_type": "fact", "summary": "Canvas-only finding",
+             "reasoning": "r1", "voice": "first_person"},
+        ])
+        doc = _make_doc(
+            chunks=[
+                _make_chunk(chunk_id="chatgpt://src/c1#canvas-0",
+                            content="# Doc\n\nSome content"),
+                _make_chunk(chunk_id="chatgpt://src/c1#turn-0",
+                            content="", char_count=0),  # empty turn
+            ],
+        )
+        result = extract_from_conversation(doc)
+        # Only 1 LLM call (canvas), no conversation call
+        assert mock_chat.call_count == 1
+        assert len(result.claims) == 1
+        assert result.claims[0].summary == "Canvas-only finding"
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_no_canvas_unchanged(self, mock_tokens, mock_chat, mock_max):
+        """Conversations without canvas chunks should work as before."""
+        mock_chat.return_value = json.dumps([
+            {"node_type": "fact", "summary": "Normal finding",
+             "reasoning": "r1", "voice": "first_person"},
+        ])
+        doc = _make_doc(
+            chunks=[
+                _make_chunk(chunk_id="chatgpt://src/c1#turn-0",
+                            content="User: What about X?"),
+                _make_chunk(chunk_id="chatgpt://src/c1#turn-1",
+                            content="Assistant: X is Y."),
+            ],
+        )
+        result = extract_from_conversation(doc)
+        # Only 1 LLM call — no canvas extraction
+        assert mock_chat.call_count == 1
+        assert len(result.claims) == 1
+
+    @patch("oi.ingest.get_max_input_tokens", return_value=100000)
+    @patch("oi.ingest.chat")
+    @patch("oi.ingest._estimate_tokens", return_value=1000)
+    def test_canvas_error_reported_separately(self, mock_tokens, mock_chat, mock_max):
+        """Canvas extraction failure shouldn't block conversation extraction."""
+        mock_chat.side_effect = [
+            "NOT JSON",  # canvas fails
+            json.dumps([
+                {"node_type": "fact", "summary": "Conv claim",
+                 "reasoning": "r1", "voice": "first_person"},
+            ]),
+        ]
+        doc = _make_doc(
+            chunks=[
+                _make_chunk(chunk_id="chatgpt://src/c1#canvas-0",
+                            content="# Broken Canvas", heading="Broken"),
+                _make_chunk(chunk_id="chatgpt://src/c1#turn-0",
+                            content="User: Hello"),
+            ],
+        )
+        result = extract_from_conversation(doc)
+        assert len(result.claims) == 1
+        assert result.claims[0].summary == "Conv claim"
+        assert result.chunks_failed == 1
+        assert any("Canvas" in e for e in result.errors)

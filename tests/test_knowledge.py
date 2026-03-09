@@ -650,6 +650,37 @@ class TestAuthoredAt:
         assert "authored_at" not in node
 
 
+# === source_quote on nodes ===
+
+class TestSourceQuote:
+    def test_source_quote_stored_on_node(self, session_dir):
+        """source_quote parameter is persisted on the node."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(
+            session_dir, "fact", "Collapse is real",
+            source_quote="I believe collapse is a real physical process",
+        )
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert node["source_quote"] == "I believe collapse is a real physical process"
+
+    def test_no_source_quote_means_no_field(self, session_dir):
+        """Nodes without source_quote don't have the field."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "Some fact")
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert "source_quote" not in node
+
+    def test_empty_source_quote_means_no_field(self, session_dir):
+        """Empty string source_quote is treated as absent."""
+        session_dir.mkdir(parents=True, exist_ok=True)
+        add_knowledge(session_dir, "fact", "Some fact", source_quote="")
+        knowledge = _load_knowledge(session_dir)
+        node = knowledge["nodes"][0]
+        assert "source_quote" not in node
+
+
 class TestReclassifyEdge:
     @pytest.fixture
     def session_dir(self, tmp_path):

@@ -145,6 +145,8 @@ def query_knowledge(
             entry["reasoning"] = node["reasoning"]
         if node.get("provenance_uri"):
             entry["provenance_uri"] = node["provenance_uri"]
+        if node.get("source_quote"):
+            entry["source_quote"] = node["source_quote"]
         if stale_deps:
             entry["stale_dependencies"] = stale_deps
 
@@ -187,6 +189,7 @@ def add_knowledge(
     provenance_uri: str = None,
     voice: str = None,
     authored_at: str = None,
+    source_quote: str = None,
     skip_linking: bool = False,
     skip_embed: bool = False,
 ) -> str:
@@ -230,6 +233,8 @@ def add_knowledge(
         node["voice"] = voice
     if authored_at:
         node["authored_at"] = authored_at
+    if source_quote:
+        node["source_quote"] = source_quote
     knowledge["nodes"].append(node)
 
     # Handle supersession: mark old nodes and transfer edges

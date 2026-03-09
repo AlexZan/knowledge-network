@@ -33,6 +33,7 @@ class ExtractedClaim(BaseModel):
     reasoning: str = ""
     voice: str = "first_person"  # "first_person" | "reported" | "described"
     authored_at: str = ""  # ISO 8601 timestamp from source (e.g. ChatGPT create_time)
+    source_quote: str = ""  # verbatim text from source that this claim was extracted from
 
 
 class ChunkExtractionResult(BaseModel):
@@ -116,6 +117,7 @@ def _build_extraction_prompt(chunk: DocumentChunk, metadata_context: str) -> lis
         f"- Each summary must be self-contained (no pronouns like 'it', 'this')\n"
         f"- Include reasoning briefly explaining why this claim is noteworthy\n"
         f"- Skip trivial, redundant, or overly specific details\n"
+        f"- Do NOT split composite principles into separate nodes. If a statement has contrasting parts (e.g., 'X is not A, but it IS B'), keep it as ONE node\n"
         f"- {type_list}\n"
         f"- For each claim, set voice to one of:\n"
         f'    "first_person" — the author is asserting this as their own original claim or position\n'
@@ -125,8 +127,9 @@ def _build_extraction_prompt(chunk: DocumentChunk, metadata_context: str) -> lis
         f'                     or any claim attributed to an external theory, framework, or the scientific consensus.\n'
         f'    "described"    — the author is neutrally describing an observed phenomenon or experimental result\n'
         f'                     (neither their own theory nor attributed to another — just describing what happens)\n\n'
+        f"- Include source_quote: the verbatim text from the source that this claim is based on (1-3 sentences, exact wording)\n\n"
         f'Respond with ONLY a JSON array:\n'
-        f'[{{"node_type": "fact", "summary": "...", "reasoning": "...", "voice": "first_person|reported|described"}}, ...]\n'
+        f'[{{"node_type": "fact", "summary": "...", "reasoning": "...", "voice": "first_person|reported|described", "source_quote": "..."}}, ...]\n'
         f"If nothing is worth extracting, respond with: []\n\n"
         f"--- Document Section ---\n"
         f"{chunk.content}"
@@ -249,6 +252,7 @@ def extract_from_chunk(
                     reasoning=str(n.get("reasoning", "")).strip(),
                     voice=voice,
                     authored_at=authored_at,
+                    source_quote=str(n.get("source_quote", "")).strip(),
                 )
             )
 
@@ -278,11 +282,19 @@ def _estimate_tokens(text: str, model: str = None) -> int:
         return len(text) // 4  # fallback: ~4 chars per token
 
 
+def _is_canvas_chunk(chunk: DocumentChunk) -> bool:
+    """Check if a chunk is a canvas document (vs a conversation turn)."""
+    return "#canvas-" in (chunk.chunk_id or "")
+
+
 def _build_conversation_text(doc: ParsedDocument) -> str:
-    """Concatenate all chunks in a ParsedDocument into a single conversation string."""
+    """Concatenate conversation turn chunks into a single string.
+
+    Excludes canvas chunks — those are extracted separately via extract_from_chunk().
+    """
     parts = []
     for chunk in doc.chunks:
-        if chunk.char_count == 0:
+        if chunk.char_count == 0 or _is_canvas_chunk(chunk):
             continue
         parts.append(chunk.content)
     return "\n\n---\n\n".join(parts)
@@ -322,17 +334,22 @@ def _build_conversation_prompt(
         f"Rules:\n"
         f"- Extract ONLY conclusions, settled positions, and ideas the participants committed to\n"
         f"- IGNORE exploratory hypotheticals, ideas proposed then abandoned, rhetorical questions, and scaffolding discussion\n"
+        f"- The USER is the primary author and source of authority. Extract claims based on what the USER actually said, not how the assistant restated or characterized it\n"
+        f"- If the assistant rephrases a user idea more formally or confidently than the user stated it, use the USER's framing, not the assistant's elevation\n"
+        f"- Tentative user language ('maybe', 'I wonder', 'could be', 'just thinking', 'spitballing') means the idea is NOT a settled position — do not extract it as one\n"
         f"- If an idea was proposed early and revised later, extract ONLY the final version\n"
+        f"- Do NOT split composite principles into separate nodes. If a statement has contrasting parts (e.g., 'X is not A, but it IS B'), keep it as ONE node\n"
         f"- Each summary must be self-contained (no pronouns like 'it', 'this')\n"
         f"- Include reasoning briefly explaining why this claim is noteworthy\n"
         f"- {type_list}\n"
         f"- For each claim, set voice to one of:\n"
         f'    "first_person" — the author is asserting this as their own original claim or position\n'
         f'    "reported"     — the author is describing what standard physics / conventional theory / existing literature claims\n'
-        f'    "described"    — the author is neutrally describing an observed phenomenon or experimental result\n\n'
+        f'    "described"    — the author is neutrally describing an observed phenomenon or experimental result\n'
+        f"- Include source_quote: the verbatim text from the conversation that this claim is based on (1-3 sentences, exact wording from the USER's messages)\n\n"
         f"{prior_context}"
         f'Respond with ONLY a JSON array:\n'
-        f'[{{"node_type": "fact", "summary": "...", "reasoning": "...", "voice": "first_person|reported|described"}}, ...]\n'
+        f'[{{"node_type": "fact", "summary": "...", "reasoning": "...", "voice": "first_person|reported|described", "source_quote": "..."}}, ...]\n'
         f"If nothing is worth extracting, respond with: []\n\n"
         f"--- Conversation ---\n"
         f"{conversation_text}"
@@ -376,6 +393,7 @@ def _parse_conversation_response(
                 reasoning=str(n.get("reasoning", "")).strip(),
                 voice=voice,
                 authored_at=authored_at,
+                source_quote=str(n.get("source_quote", "")).strip(),
             )
         )
     return claims
@@ -393,6 +411,40 @@ def _extract_retracted(text: str) -> list[str]:
     ]
 
 
+def _chat_with_retry(
+    messages: list[dict],
+    model: str,
+    phase: str,
+    log_meta: dict,
+    errors: list[str],
+) -> str | None:
+    """Call chat() and retry once on JSON parse failure.
+
+    Returns raw response text on success, None on failure (after retry).
+    Appends error/retry info to errors list.
+    """
+    for attempt in range(2):
+        try:
+            raw = chat(messages, model=model, phase=phase, log_meta=log_meta)
+            raw_text = raw.strip()
+            # Validate that the response is parseable JSON before returning
+            _parse_llm_json(raw_text)
+            return raw_text
+        except json.JSONDecodeError:
+            if attempt == 0:
+                source = log_meta.get("source", "unknown")
+                errors.append(
+                    f"JSON parse failed for {source}, retrying (attempt 2/2)"
+                )
+                continue
+            else:
+                return None
+        except Exception:
+            # Non-JSON errors (network, timeout, etc.) — don't retry
+            raise
+    return None
+
+
 def extract_from_conversation(
     doc: ParsedDocument,
     model: str = None,
@@ -405,6 +457,11 @@ def extract_from_conversation(
     chunks with prior node summaries as compressed context.
 
     See Decision 022 for rationale.
+
+    Canvas chunks (embedded markdown documents) are routed to per-chunk
+    extraction (extract_from_chunk) instead of conversation-aware extraction.
+    This preserves document structure for canvas content while keeping
+    conversation turns in the conclusion-focused pipeline.
     """
     model = model or DEFAULT_MODEL
     source_path = doc.metadata.source_path
@@ -416,9 +473,13 @@ def extract_from_conversation(
     if doc.metadata.date:
         metadata_context += f"Date: {doc.metadata.date}\n"
 
-    # Get first chunk's provenance and authored_at for the whole conversation
-    first_chunk = next((c for c in doc.chunks if c.char_count > 0), None)
-    if not first_chunk:
+    # Split chunks: conversation turns vs canvas documents
+    conv_chunks = [c for c in doc.chunks if not _is_canvas_chunk(c)]
+    canvas_chunks = [c for c in doc.chunks if _is_canvas_chunk(c) and c.char_count > 0]
+
+    # Get first conversation chunk's provenance and authored_at
+    first_chunk = next((c for c in conv_chunks if c.char_count > 0), None)
+    if not first_chunk and not canvas_chunks:
         return DocumentExtractionResult(
             source_path=source_path,
             chunks_total=len(doc.chunks),
@@ -427,14 +488,42 @@ def extract_from_conversation(
             chunks_failed=0,
         )
 
+    # Extract canvas chunks via per-chunk document extraction
+    canvas_claims: list[ExtractedClaim] = []
+    canvas_processed = 0
+    canvas_failed = 0
+    canvas_errors: list[str] = []
+    canvas_metadata = metadata_context.replace("Conversation:", "Document:")
+    for chunk in canvas_chunks:
+        chunk_result = extract_from_chunk(
+            chunk, source_path, metadata_context=canvas_metadata, model=model)
+        if chunk_result.error:
+            canvas_failed += 1
+            canvas_errors.append(f"Canvas '{chunk.heading}': {chunk_result.error}")
+        else:
+            canvas_processed += 1
+            canvas_claims.extend(chunk_result.claims)
+
+    # If no conversation turns, return canvas-only results
+    if not first_chunk:
+        return DocumentExtractionResult(
+            source_path=source_path,
+            chunks_total=len(doc.chunks),
+            chunks_processed=canvas_processed,
+            chunks_skipped=len(doc.chunks) - len(canvas_chunks),
+            chunks_failed=canvas_failed,
+            claims=canvas_claims,
+            errors=canvas_errors,
+        )
+
     provenance_uri = first_chunk.provenance_uri
     authored_at = ""
     if hasattr(first_chunk, "metadata") and first_chunk.metadata:
         authored_at = first_chunk.metadata.get("authored_at", "")
 
-    # Concatenate full conversation
+    # Concatenate conversation turns only (canvas already extracted above)
     full_text = _build_conversation_text(doc)
-    non_empty_chunks = sum(1 for c in doc.chunks if c.char_count > 0)
+    non_empty_conv_chunks = sum(1 for c in conv_chunks if c.char_count > 0)
 
     # Reserve tokens for prompt overhead and response
     max_input = get_max_input_tokens(model)
@@ -444,38 +533,55 @@ def extract_from_conversation(
 
     text_tokens = _estimate_tokens(full_text, model)
 
-    errors: list[str] = []
+    errors: list[str] = list(canvas_errors)
+    empty_conv_chunks = len(conv_chunks) - non_empty_conv_chunks
+    total_skipped = empty_conv_chunks + (len(doc.chunks) - len(conv_chunks) - len(canvas_chunks))
 
     if text_tokens <= available_tokens:
         # Single-call path: send entire conversation
         messages = _build_conversation_prompt(full_text, metadata_context)
+        log_meta = {"source": source_path, "mode": "single"}
         try:
-            raw = chat(messages, model=model, phase="extract_conversation",
-                       log_meta={"source": source_path, "mode": "single"})
+            raw_text = _chat_with_retry(
+                messages, model=model, phase="extract_conversation",
+                log_meta=log_meta, errors=errors)
+            if raw_text is None:
+                errors.append(f"Conversation extraction failed after retry: JSON parse error")
+                return DocumentExtractionResult(
+                    source_path=source_path,
+                    chunks_total=len(doc.chunks),
+                    chunks_processed=canvas_processed,
+                    chunks_skipped=total_skipped,
+                    chunks_failed=non_empty_conv_chunks + canvas_failed,
+                    claims=canvas_claims,
+                    errors=errors,
+                )
             claims = _parse_conversation_response(
-                raw.strip(), source_path, provenance_uri, authored_at)
+                raw_text, source_path, provenance_uri, authored_at)
             return DocumentExtractionResult(
                 source_path=source_path,
                 chunks_total=len(doc.chunks),
-                chunks_processed=non_empty_chunks,
-                chunks_skipped=len(doc.chunks) - non_empty_chunks,
-                chunks_failed=0,
-                claims=claims,
+                chunks_processed=non_empty_conv_chunks + canvas_processed,
+                chunks_skipped=total_skipped,
+                chunks_failed=canvas_failed,
+                claims=canvas_claims + claims,
+                errors=errors,
             )
         except Exception as e:
             errors.append(f"Conversation extraction failed: {e}")
             return DocumentExtractionResult(
                 source_path=source_path,
                 chunks_total=len(doc.chunks),
-                chunks_processed=0,
-                chunks_skipped=0,
-                chunks_failed=non_empty_chunks,
+                chunks_processed=canvas_processed,
+                chunks_skipped=total_skipped,
+                chunks_failed=non_empty_conv_chunks + canvas_failed,
+                claims=canvas_claims,
                 errors=errors,
             )
     else:
         # Iterative path: node-carry-forward
         # Split conversation into segments that fit in context
-        non_empty = [c for c in doc.chunks if c.char_count > 0]
+        non_empty = [c for c in conv_chunks if c.char_count > 0]
         accumulated_nodes: list[dict] = []
         all_claims: list[ExtractedClaim] = []
         chunks_processed = 0
@@ -498,32 +604,36 @@ def extract_from_conversation(
                     segment_text, metadata_context,
                     prior_nodes=accumulated_nodes if accumulated_nodes else None,
                 )
+                log_meta = {"source": source_path, "mode": "iterative",
+                            "segment": chunks_processed}
                 try:
-                    raw = chat(messages, model=model, phase="extract_conversation",
-                               log_meta={"source": source_path, "mode": "iterative",
-                                          "segment": chunks_processed})
-                    raw_text = raw.strip()
+                    raw_text = _chat_with_retry(
+                        messages, model=model, phase="extract_conversation",
+                        log_meta=log_meta, errors=errors)
+                    if raw_text is None:
+                        chunks_failed += len(segment_chunks)
+                        errors.append(f"Segment extraction failed after retry: JSON parse error")
+                    else:
+                        # Extract retracted nodes and remove them from accumulated
+                        retracted = _extract_retracted(raw_text)
+                        if retracted:
+                            accumulated_nodes = [
+                                n for n in accumulated_nodes
+                                if n["summary"] not in retracted
+                            ]
 
-                    # Extract retracted nodes and remove them from accumulated
-                    retracted = _extract_retracted(raw_text)
-                    if retracted:
-                        accumulated_nodes = [
-                            n for n in accumulated_nodes
-                            if n["summary"] not in retracted
-                        ]
+                        # Parse new claims
+                        new_claims = _parse_conversation_response(
+                            raw_text, source_path, provenance_uri, authored_at)
+                        all_claims.extend(new_claims)
+                        chunks_processed += len(segment_chunks)
 
-                    # Parse new claims
-                    new_claims = _parse_conversation_response(
-                        raw_text, source_path, provenance_uri, authored_at)
-                    all_claims.extend(new_claims)
-                    chunks_processed += len(segment_chunks)
-
-                    # Add to accumulated for next segment
-                    for claim in new_claims:
-                        accumulated_nodes.append({
-                            "node_type": claim.node_type,
-                            "summary": claim.summary,
-                        })
+                        # Add to accumulated for next segment
+                        for claim in new_claims:
+                            accumulated_nodes.append({
+                                "node_type": claim.node_type,
+                                "summary": claim.summary,
+                            })
                 except Exception as e:
                     chunks_failed += len(segment_chunks)
                     errors.append(f"Segment extraction failed: {e}")
@@ -542,15 +652,20 @@ def extract_from_conversation(
                 segment_text, metadata_context,
                 prior_nodes=accumulated_nodes if accumulated_nodes else None,
             )
+            log_meta = {"source": source_path, "mode": "iterative",
+                        "segment": chunks_processed}
             try:
-                raw = chat(messages, model=model, phase="extract_conversation",
-                           log_meta={"source": source_path, "mode": "iterative",
-                                      "segment": chunks_processed})
-                raw_text = raw.strip()
-                new_claims = _parse_conversation_response(
-                    raw_text, source_path, provenance_uri, authored_at)
-                all_claims.extend(new_claims)
-                chunks_processed += len(segment_chunks)
+                raw_text = _chat_with_retry(
+                    messages, model=model, phase="extract_conversation",
+                    log_meta=log_meta, errors=errors)
+                if raw_text is None:
+                    chunks_failed += len(segment_chunks)
+                    errors.append(f"Final segment extraction failed after retry: JSON parse error")
+                else:
+                    new_claims = _parse_conversation_response(
+                        raw_text, source_path, provenance_uri, authored_at)
+                    all_claims.extend(new_claims)
+                    chunks_processed += len(segment_chunks)
             except Exception as e:
                 chunks_failed += len(segment_chunks)
                 errors.append(f"Final segment extraction failed: {e}")
@@ -558,10 +673,10 @@ def extract_from_conversation(
         return DocumentExtractionResult(
             source_path=source_path,
             chunks_total=len(doc.chunks),
-            chunks_processed=chunks_processed,
-            chunks_skipped=len(doc.chunks) - non_empty_chunks,
-            chunks_failed=chunks_failed,
-            claims=all_claims,
+            chunks_processed=chunks_processed + canvas_processed,
+            chunks_skipped=total_skipped,
+            chunks_failed=chunks_failed + canvas_failed,
+            claims=canvas_claims + all_claims,
             errors=errors,
         )
 
@@ -662,6 +777,7 @@ def ingest_document(
                 provenance_uri=claim.provenance_uri,
                 voice=claim.voice,
                 authored_at=claim.authored_at or None,
+                source_quote=claim.source_quote or None,
                 skip_linking=True,
                 skip_embed=True,
             )
@@ -724,6 +840,7 @@ def ingest_conversation(
                 provenance_uri=claim.provenance_uri,
                 voice=claim.voice,
                 authored_at=claim.authored_at or None,
+                source_quote=claim.source_quote or None,
                 skip_linking=True,
                 skip_embed=True,
             )

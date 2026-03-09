@@ -225,14 +225,18 @@ Implemented Decision 022 (conversation-aware extraction), rebuilt the physics KG
 
 See [v3-rebuild-findings.md](research/v3-rebuild-findings.md) for full results.
 
-**Test counts**: 758 free tests passing, 1 skipped (pre-existing).
+**Test counts**: 779 free tests passing, 1 skipped (pre-existing).
+
+**Extraction improvements** (2026-03-09):
+- `_chat_with_retry()` — 1 retry on JSON parse failure, no retry on other errors
+- Canvas-aware extraction routing — canvas chunks (`#canvas-N`) routed to per-chunk extraction, conversation turns to conversation-aware path
+- Prompt fixes: composite principle splitting (#4), attribution/epistemic awareness (#7) — both addressed with extraction prompt instructions rather than post-processing passes
+- Source quote extraction (#1) — `source_quote` field on claims and nodes, verbatim text from source for downstream context-aware linking
+- Context-aware linking (#2) — linker prompts now include `source_quote` alongside summaries for both single-pair and batch classification
 
 ### What's Next
 
-1. **Update white paper** with v3 rebuild data and conflict review findings
-2. **Retry failed conversation** (`68028f8e`)
-3. **Complete conflict review** (S18-S34 deferred for domain expert review)
-4. **Planned features**: See [slices/README.md](slices/README.md#planned) — 8 items from extraction to attestation
+**Planned features**: See [slices/README.md](slices/README.md#planned). Remaining: #5 terminology correction flow, #6 process/sequence edges, #8 TOTP attestation.
 
 ---
 

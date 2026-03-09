@@ -608,3 +608,71 @@ class TestAbstractionLevel:
         assert "abstraction_level=1" in prompt  # Node A
         assert "abstraction_level=3" in prompt  # candidate 1
         assert "[abstraction_level=" not in prompt or "abstraction_level" in prompt  # candidate 2 has no tag
+
+
+class TestSourceQuoteInLinker:
+    """Tests for source_quote context in linker prompts."""
+
+    def test_source_quote_in_single_prompt(self):
+        """Single-pair prompt includes source quotes when available."""
+        a = _node("fact-001", "Collapse requires compatible modeling")
+        a["source_quote"] = "I think collapse only happens when the observer has a compatible model"
+        b = _node("fact-002", "Decoherence explains apparent collapse")
+        b["source_quote"] = "Standard physics says decoherence accounts for what looks like collapse"
+        prompt = _build_link_prompt_single(a, b)
+        assert "compatible model" in prompt
+        assert "decoherence accounts" in prompt
+        assert "Source quote" in prompt
+
+    def test_no_source_quote_no_extra_text(self):
+        """Nodes without source_quote don't add quote lines."""
+        a = _node("fact-001", "Claim A")
+        b = _node("fact-002", "Claim B")
+        prompt = _build_link_prompt_single(a, b)
+        assert "Source quote" not in prompt
+        assert "Quote" not in prompt
+
+    def test_one_node_has_quote(self):
+        """Only one node having source_quote still surfaces it."""
+        a = _node("fact-001", "Claim A")
+        a["source_quote"] = "The exact text from the user"
+        b = _node("fact-002", "Claim B")
+        prompt = _build_link_prompt_single(a, b)
+        assert "exact text from the user" in prompt
+        # Only one quote line should appear
+        assert prompt.count("Source quote") == 1
+
+    def test_source_quote_in_batch_prompt(self):
+        """batch_link_nodes includes source quotes in candidate lines and Node A."""
+        new = _node("fact-003", "Collapse is entropy-driven")
+        new["source_quote"] = "I believe the collapse process is fundamentally about entropy"
+        c1 = _node("fact-001", "Entropy increases during measurement")
+        c1["source_quote"] = "Each measurement step adds entropy to the system"
+        c2 = _node("fact-002", "Quantum states are fragile")
+        # c2 has no source_quote
+        candidates = [
+            {"node": c1, "score": 0.5},
+            {"node": c2, "score": 0.3},
+        ]
+
+        mock_response = '[{"edge_type": "supports", "reasoning": "r1"}, {"edge_type": "related_to", "reasoning": "r2"}]'
+        with patch("oi.linker.chat", return_value=mock_response) as mock_chat:
+            batch_link_nodes(new, candidates, "test-model")
+
+        prompt = mock_chat.call_args[0][0][1]["content"]
+        # Node A quote
+        assert "fundamentally about entropy" in prompt
+        # Candidate 1 quote
+        assert "Each measurement step" in prompt
+        # Candidate 2 has no quote — shouldn't have Quote line for it
+        assert "Quantum states are fragile" in prompt  # summary is there
+        # Instruction about using quotes
+        assert "source quotes" in prompt.lower() or "quote" in prompt.lower()
+
+    def test_source_quote_instruction_in_single_prompt(self):
+        """Single prompt includes instruction about using source quotes."""
+        a = _node("fact-001", "Claim A")
+        a["source_quote"] = "Some quote"
+        b = _node("fact-002", "Claim B")
+        prompt = _build_link_prompt_single(a, b)
+        assert "misleading" in prompt.lower() or "context" in prompt.lower()
