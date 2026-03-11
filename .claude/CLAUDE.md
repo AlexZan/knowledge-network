@@ -65,6 +65,19 @@ When you encounter an unexpected but non-fatal issue (LLM output glitch, flaky b
 - Implementing = editing files, running scripts, making changes
 - The boundary is explicit user approval — never cross it on your own
 
+## LLM Ingestion Safety
+
+**NEVER run bulk LLM ingestion without validating the prompt first.**
+
+After ANY change to extraction prompts, model config, or parsing logic:
+1. Pick 3-5 representative conversations (mix of sizes, styles)
+2. Run extraction on each and verify non-zero claims with sensible content
+3. Only then launch a full ingestion
+
+**Why**: On 2026-03-09, a prompt change silently broke extraction for 53/185 conversations (all returned `[]`). The pipeline processed all 185 before the issue was discovered — wasting the entire token budget. A 5-conversation smoke test would have caught it instantly.
+
+The pipeline has an early-stop safety net (aborts after 5 consecutive empty results), but the real fix is **always validate before bulk runs**.
+
 ## Development Approach
 
 Direct implementation with manual tests. See `docs/JOURNEY.md` for current status and what's next.

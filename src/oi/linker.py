@@ -1,13 +1,15 @@
 """Node linking: find related knowledge nodes and classify relationships.
 
-Two-stage pipeline:
-1. Candidate retrieval via keyword overlap (Jaccard similarity)
-2. LLM classification of each pair as supports/contradicts/none
+Three-stage pipeline:
+1. Auto-link same-group nodes (same conversation/document) as related_to — zero LLM cost
+2. Candidate retrieval via keyword overlap (Jaccard similarity), excluding same-group nodes
+3. LLM classification of cross-group pairs as supports/contradicts/none
 
 Also provides batch linking for ingested document nodes (Slice 13c).
 """
 
 import json
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -28,6 +30,86 @@ def _node_type_is_linkable(node_type: str) -> bool:
     return type_cfg.get("linkable", True)
 
 
+def _get_provenance_group(node: dict) -> str:
+    """Extract group key from provenance_uri for same-source grouping.
+
+    Nodes from the same conversation or document share a group key.
+    Returns empty string if no groupable provenance.
+
+    Examples:
+        chatgpt://physics-theory/conv-abc#turn-0 → "chatgpt://physics-theory/conv-abc"
+        doc://project-sources/paper.pdf#sec-3    → "doc://project-sources/paper.pdf"
+    """
+    uri = node.get("provenance_uri", "")
+    if not uri:
+        return ""
+    return uri.split("#")[0]
+
+
+def auto_link_same_group(
+    node_ids: list[str],
+    session_dir: Path,
+) -> LinkingResult:
+    """Create related_to edges between nodes from the same conversation/document.
+
+    Nodes extracted from the same source were already seen in context together
+    during extraction, so they are related by definition. This creates the
+    intra-conversation graph structure for free (zero LLM calls), enabling
+    multi-hop traversal paths when cross-group LLM linking adds bridges.
+
+    Deduplicates against existing edges.
+    """
+    if not node_ids:
+        return LinkingResult()
+
+    graph = _load_knowledge(session_dir)
+    nodes_by_id = {n["id"]: n for n in graph.get("nodes", [])}
+    node_id_set = set(node_ids)
+
+    # Index existing edges
+    seen_pairs: set[frozenset] = set()
+    for edge in graph.get("edges", []):
+        seen_pairs.add(frozenset({edge["source"], edge["target"]}))
+
+    # Group nodes by provenance
+    groups: dict[str, list[str]] = {}
+    for nid in node_ids:
+        node = nodes_by_id.get(nid)
+        if not node:
+            continue
+        if not _node_type_is_linkable(node.get("type", "")):
+            continue
+        group_key = _get_provenance_group(node)
+        if group_key:
+            groups.setdefault(group_key, []).append(nid)
+
+    result = LinkingResult()
+    now = datetime.now().isoformat()
+
+    for group_key, members in groups.items():
+        if len(members) < 2:
+            continue
+        # Create related_to edges between all pairs in this group
+        for i, nid_a in enumerate(members):
+            for nid_b in members[i + 1:]:
+                pair = frozenset({nid_a, nid_b})
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                graph.setdefault("edges", []).append({
+                    "source": nid_a,
+                    "target": nid_b,
+                    "type": "related_to",
+                    "reasoning": "Same source context",
+                    "created": now,
+                })
+                result.edges_created += 1
+
+    result.nodes_processed = len(node_ids)
+    _save_knowledge(session_dir, graph)
+    return result
+
+
 class LinkingResult(BaseModel):
     """Result of a batch linking operation."""
 
@@ -38,16 +120,29 @@ class LinkingResult(BaseModel):
     errors: list[str] = []
 
 
-def find_candidates(new_node: dict, graph: dict, max_candidates: int = 8) -> list[dict]:
+def find_candidates(
+    new_node: dict,
+    graph: dict,
+    max_candidates: int = 8,
+    exclude_same_group: bool = False,
+) -> list[dict]:
     """Find existing nodes that might relate to the new node.
 
     Uses keyword overlap (Jaccard similarity) for seed matching,
     then graph walk expansion to discover neighborhood candidates.
     Returns list of candidates sorted by score descending.
+
+    Args:
+        exclude_same_group: If True, filter out candidates from the same
+            provenance group (same conversation/document). These are already
+            auto-linked as related_to, so LLM classification should focus
+            on cross-group relationships.
     """
     new_keywords = extract_keywords(new_node.get("summary", ""))
     if not new_keywords:
         return []
+
+    new_group = _get_provenance_group(new_node) if exclude_same_group else ""
 
     # Phase 1: Keyword seed matching
     seeds = []
@@ -57,6 +152,8 @@ def find_candidates(new_node: dict, graph: dict, max_candidates: int = 8) -> lis
         if node.get("status") != "active":
             continue
         if not _node_type_is_linkable(node.get("type", "")):
+            continue
+        if new_group and _get_provenance_group(node) == new_group:
             continue
 
         node_keywords = extract_keywords(node.get("summary", ""))
@@ -89,8 +186,11 @@ def find_candidates(new_node: dict, graph: dict, max_candidates: int = 8) -> lis
         if entry["node_id"] == new_node["id"]:
             continue
         node = nodes_by_id.get(entry["node_id"])
-        if node:
-            candidates.append({"node": node, "score": entry["score"]})
+        if not node:
+            continue
+        if new_group and _get_provenance_group(node) == new_group:
+            continue
+        candidates.append({"node": node, "score": entry["score"]})
 
     return candidates[:max_candidates]
 
@@ -379,7 +479,8 @@ def link_new_nodes(
             continue
 
         try:
-            candidates = find_candidates(node, graph, max_candidates)
+            candidates = find_candidates(
+                node, graph, max_candidates, exclude_same_group=True)
             if not candidates:
                 result.nodes_skipped += 1
                 result.nodes_processed += 1

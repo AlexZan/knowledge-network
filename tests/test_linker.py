@@ -11,9 +11,11 @@ from oi.linker import (
     batch_link_nodes,
     run_linking,
     link_new_nodes,
+    auto_link_same_group,
     LinkingResult,
     _voice_caps_contradicts,
     _build_link_prompt_single,
+    _get_provenance_group,
 )
 
 
@@ -482,7 +484,7 @@ class TestLinkNewNodes:
         call_count = [0]
         original_find = find_candidates
 
-        def mock_find(node, graph, max_candidates=8):
+        def mock_find(node, graph, max_candidates=8, exclude_same_group=False):
             call_count[0] += 1
             if call_count[0] == 1:
                 raise RuntimeError("Simulated error")
@@ -676,3 +678,169 @@ class TestSourceQuoteInLinker:
         b = _node("fact-002", "Claim B")
         prompt = _build_link_prompt_single(a, b)
         assert "misleading" in prompt.lower() or "context" in prompt.lower()
+
+
+# === TestGetProvenanceGroup ===
+
+
+class TestGetProvenanceGroup:
+    def test_chatgpt_conversation(self):
+        node = _node("f1", "X")
+        node["provenance_uri"] = "chatgpt://physics-theory/conv-abc#turn-0"
+        assert _get_provenance_group(node) == "chatgpt://physics-theory/conv-abc"
+
+    def test_chatgpt_different_turns_same_group(self):
+        a = _node("f1", "X")
+        a["provenance_uri"] = "chatgpt://physics-theory/conv-abc#turn-0"
+        b = _node("f2", "Y")
+        b["provenance_uri"] = "chatgpt://physics-theory/conv-abc#turn-3"
+        assert _get_provenance_group(a) == _get_provenance_group(b)
+
+    def test_different_conversations(self):
+        a = _node("f1", "X")
+        a["provenance_uri"] = "chatgpt://physics-theory/conv-abc#turn-0"
+        b = _node("f2", "Y")
+        b["provenance_uri"] = "chatgpt://physics-theory/conv-xyz#turn-0"
+        assert _get_provenance_group(a) != _get_provenance_group(b)
+
+    def test_document_source(self):
+        node = _node("f1", "X")
+        node["provenance_uri"] = "doc://project-sources/paper.pdf#sec-3"
+        assert _get_provenance_group(node) == "doc://project-sources/paper.pdf"
+
+    def test_no_provenance(self):
+        node = _node("f1", "X")
+        assert _get_provenance_group(node) == ""
+
+    def test_no_fragment(self):
+        node = _node("f1", "X")
+        node["provenance_uri"] = "chatgpt://src/conv-abc"
+        assert _get_provenance_group(node) == "chatgpt://src/conv-abc"
+
+
+# === TestAutoLinkSameGroup ===
+
+
+class TestAutoLinkSameGroup:
+    @pytest.fixture
+    def session_dir(self, tmp_path):
+        d = tmp_path / "session"
+        d.mkdir()
+        return d
+
+    def test_creates_related_to_edges(self, session_dir):
+        """Nodes from the same conversation get related_to edges."""
+        from oi.state import _save_knowledge, _load_knowledge
+
+        nodes = [
+            {**_node("f1", "Collapse is entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-0"},
+            {**_node("f2", "Mass resists entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-1"},
+            {**_node("f3", "Time emerges from collapse"), "provenance_uri": "chatgpt://s/conv-a#turn-2"},
+        ]
+        _save_knowledge(session_dir, {"nodes": nodes, "edges": []})
+
+        result = auto_link_same_group(["f1", "f2", "f3"], session_dir)
+
+        assert result.edges_created == 3  # f1-f2, f1-f3, f2-f3
+        kg = _load_knowledge(session_dir)
+        assert len(kg["edges"]) == 3
+        assert all(e["type"] == "related_to" for e in kg["edges"])
+
+    def test_skips_cross_group(self, session_dir):
+        """Nodes from different conversations don't get auto-linked."""
+        from oi.state import _save_knowledge, _load_knowledge
+
+        nodes = [
+            {**_node("f1", "Collapse is entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-0"},
+            {**_node("f2", "Mass resists entropy"), "provenance_uri": "chatgpt://s/conv-b#turn-0"},
+        ]
+        _save_knowledge(session_dir, {"nodes": nodes, "edges": []})
+
+        result = auto_link_same_group(["f1", "f2"], session_dir)
+
+        assert result.edges_created == 0
+
+    def test_deduplicates_existing_edges(self, session_dir):
+        """Doesn't create edges that already exist."""
+        from oi.state import _save_knowledge, _load_knowledge
+
+        nodes = [
+            {**_node("f1", "Collapse is entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-0"},
+            {**_node("f2", "Mass resists entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-1"},
+        ]
+        _save_knowledge(session_dir, {"nodes": nodes, "edges": [
+            {"source": "f1", "target": "f2", "type": "related_to"},
+        ]})
+
+        result = auto_link_same_group(["f1", "f2"], session_dir)
+
+        assert result.edges_created == 0
+        kg = _load_knowledge(session_dir)
+        assert len(kg["edges"]) == 1  # original only
+
+    def test_mixed_groups(self, session_dir):
+        """Only same-group pairs are linked."""
+        from oi.state import _save_knowledge, _load_knowledge
+
+        nodes = [
+            {**_node("f1", "Collapse is entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-0"},
+            {**_node("f2", "Mass resists entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-1"},
+            {**_node("f3", "Dark energy expands"), "provenance_uri": "chatgpt://s/conv-b#turn-0"},
+            {**_node("f4", "Gravity is closure"), "provenance_uri": "chatgpt://s/conv-b#turn-1"},
+        ]
+        _save_knowledge(session_dir, {"nodes": nodes, "edges": []})
+
+        result = auto_link_same_group(["f1", "f2", "f3", "f4"], session_dir)
+
+        assert result.edges_created == 2  # f1-f2 and f3-f4
+        kg = _load_knowledge(session_dir)
+        pairs = {frozenset({e["source"], e["target"]}) for e in kg["edges"]}
+        assert frozenset({"f1", "f2"}) in pairs
+        assert frozenset({"f3", "f4"}) in pairs
+        assert frozenset({"f1", "f3"}) not in pairs
+
+    def test_skips_unlinkable_types(self, session_dir):
+        """Non-linkable node types are excluded."""
+        from oi.state import _save_knowledge
+
+        nodes = [
+            {**_node("f1", "Collapse is entropy", node_type="fact"), "provenance_uri": "chatgpt://s/conv-a#turn-0"},
+            {**_node("p1", "Prefers dark mode", node_type="preference"), "provenance_uri": "chatgpt://s/conv-a#turn-1"},
+        ]
+        _save_knowledge(session_dir, {"nodes": nodes, "edges": []})
+
+        result = auto_link_same_group(["f1", "p1"], session_dir)
+
+        # preference nodes are not linkable, so no edge
+        assert result.edges_created == 0
+
+
+# === TestFindCandidatesExcludeSameGroup ===
+
+
+class TestFindCandidatesExcludeSameGroup:
+    def test_excludes_same_group_candidates(self):
+        """With exclude_same_group=True, same-conversation nodes are filtered."""
+        a = {**_node("f1", "Collapse creates entropy and structure"), "provenance_uri": "chatgpt://s/conv-a#turn-0"}
+        b = {**_node("f2", "Collapse creates time and entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-1"}
+        c = {**_node("f3", "Collapse creates entropy in all systems"), "provenance_uri": "chatgpt://s/conv-b#turn-0"}
+        graph = _graph(a, b, c)
+
+        cands_with = find_candidates(a, graph, exclude_same_group=False)
+        cands_without = find_candidates(a, graph, exclude_same_group=True)
+
+        cand_ids_with = {c["node"]["id"] for c in cands_with}
+        cand_ids_without = {c["node"]["id"] for c in cands_without}
+
+        assert "f2" in cand_ids_with
+        assert "f2" not in cand_ids_without
+        assert "f3" in cand_ids_without
+
+    def test_default_includes_same_group(self):
+        """Default behavior (exclude_same_group=False) includes all candidates."""
+        a = {**_node("f1", "Collapse creates entropy and structure"), "provenance_uri": "chatgpt://s/conv-a#turn-0"}
+        b = {**_node("f2", "Collapse creates time and entropy"), "provenance_uri": "chatgpt://s/conv-a#turn-1"}
+        graph = _graph(a, b)
+
+        cands = find_candidates(a, graph)
+        assert any(c["node"]["id"] == "f2" for c in cands)
