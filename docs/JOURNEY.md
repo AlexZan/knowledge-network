@@ -13,11 +13,11 @@ Read those first. This doc tracks **implementation progress and pivots**.
 
 ---
 
-## Current Status: Phase 1 Complete, Full-Scale KG Rebuilt, Conflict Review In Progress
+## Current Status: Phase 1 Complete, v4 KG Rebuilt, Linking Pipeline Enhanced
 
-Slices 1-14b complete. The Python prototype is proven — 758 tests, full ingestion + enrichment pipeline working, MCP server live.
+Slices 1-14b complete. The Python prototype is proven — 810 unit tests (15s), full ingestion + enrichment pipeline working, MCP server live.
 
-**Physics theory KG**: 1,263 active nodes, 8,022 edges across 122 sources (120 author conversations + 2 cross-author SEP articles). Conversation-aware extraction (Decision 022) rebuilt the entire graph. Manual conflict review in progress (8/37 reviewed, 7 reclassified as false positives).
+**Physics theory KG**: 2,361 active nodes, 0 edges (v4 rebuild — nodes extracted, linking pending GPU reboot for Ollama). v3 backed up at `/data/physics-theory-kg-v3/`.
 
 **Rust port deferred** (2026-03-03): Python performance is acceptable. Bottleneck is LLM API calls, not Python. See [Decision 016](decisions/016-rust-wasm-port.md) for future triggers.
 
@@ -52,7 +52,28 @@ Slices 1-14b complete. The Python prototype is proven — 758 tests, full ingest
 | 14a | Done | Edge weight by reasoning quality (1.0x with reasoning, 0.5x without in PageRank). Salience metric from `related_to` density. `sort_by` param in query. |
 | 14b | Done | Concept nodes from embedding clusters: `find_clusters()` + `synthesize_concepts()` pipeline stages, `principle` nodes with `exemplifies` edges. |
 
-**Test counts**: 758 free tests + 55 LLM tests (marker-separated). 1 skipped.
+**Test counts**: 810 unit tests (15s) + 55 LLM tests (marker-separated). 1 skipped. Three-tier test system: unit (default), integration (Ollama), llm (remote APIs).
+
+### Session: v4 Rebuild, Auto-Linking, Test Isolation (2026-03-11)
+
+Major session covering extraction improvements, linking pipeline enhancements, and test infrastructure overhaul.
+
+**ChatGPT parser fix**: Conversations with browsing/code interpreter results have `tool` role messages between user and assistant. Parser now scans forward past tool/system/user messages to find the assistant response. Recovered 65 previously-missed conversations. Also handles consecutive user message merging and empty assistant prefixes (thinking steps). 7 new tests.
+
+**v4 KG rebuild**: Full re-ingestion of 185 ChatGPT conversations + 20 project source files (markdown + PDF) + SEP cross-author documents. Extraction prompt improved to handle assistant elaborations at user's request (previously too strict — caused 53/185 conversations to return 0 claims). Added early-stop mechanism (aborts after 5 consecutive empty results) as safety net. Result: 2,361 active nodes across ~205 sources.
+
+**Same-conversation auto-linking**: New `auto_link_same_group()` creates `related_to` edges between nodes from the same conversation/document for free (zero LLM cost). `find_candidates()` now accepts `exclude_same_group=True` to filter same-provenance candidates, focusing LLM classification on cross-source bridges. This creates intra-conversation graph depth before the expensive cross-group linking pass. 13 new tests.
+
+**Cosine similarity analysis**: Evaluated adding cosine similarity to candidate finding on the 2,361-node KG. Keyword Jaccard already saturates (80% of nodes hit the 8-candidate cap), and candidates are high quality cross-source. Cosine would only help with divergent terminology across authors — not needed for this single-author domain. Decision: defer until multi-author KGs or visible quality degradation.
+
+**Test isolation overhaul**: Discovered 5 test files were making real Ollama HTTP calls through `add_knowledge()` (which defaults to embedding + linking). This caused the test suite to take 45s instead of 15s. Root cause: `add_knowledge()` defaults `skip_embed=False, skip_linking=False`, and tests written before these features were added never updated.
+
+Fix: Added autouse `_no_external_calls()` fixture to all affected files (patches `oi.embed.get_embedding` and `oi.linker.chat`). Established three-tier test system:
+- **unit** (default, `pytest`): Pure logic, all I/O mocked. 810 tests, 15s.
+- **integration** (`pytest -m integration`): Local services like Ollama. Free but slow.
+- **llm** (`pytest -m llm`): Remote APIs (Cerebras). ~$1/run, explicit approval only.
+
+Both `integration` and `llm` are excluded by default in `pyproject.toml`. CLAUDE.md updated with "Test Tiers" and "Unit Test Isolation" sections.
 
 ### Session: Document Ingestion Resume (2026-03-05)
 
