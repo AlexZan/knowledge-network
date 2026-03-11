@@ -1,6 +1,7 @@
 """Unit tests for salience decay logic."""
 
 import pytest
+from unittest.mock import patch
 
 from helpers import setup_concluded_effort
 from oi.decay import (
@@ -20,6 +21,14 @@ from oi.state import (
 from oi.tools import expand_effort, expand_knowledge
 from oi.knowledge import add_knowledge
 from oi.session_log import create_session_log, log_event
+
+
+# Block all external service calls (Ollama embeddings, LLM linking)
+@pytest.fixture(autouse=True)
+def _no_external_calls():
+    with patch("oi.embed.get_embedding", return_value=None), \
+         patch("oi.linker.chat", return_value='{"edge_type": "none", "reasoning": "mocked"}'):
+        yield
 
 
 @pytest.fixture
@@ -315,7 +324,7 @@ class TestKnowledgeEviction:
         """Referenced knowledge nodes get their turn tracked."""
         from oi.knowledge import add_knowledge
         session_dir.mkdir(parents=True, exist_ok=True)
-        add_knowledge(session_dir, "fact", "API uses JWT authentication")
+        add_knowledge(session_dir, "fact", "API uses JWT authentication", skip_embed=True, skip_linking=True)
         update_knowledge_references(session_dir, 5, "What about JWT auth?", "Here's the info.")
         refs = _load_knowledge_references(session_dir)
         assert refs["fact-001"] == 5
@@ -324,7 +333,7 @@ class TestKnowledgeEviction:
         """Unreferenced nodes get initialized with grace period at current turn."""
         from oi.knowledge import add_knowledge
         session_dir.mkdir(parents=True, exist_ok=True)
-        add_knowledge(session_dir, "fact", "API uses JWT authentication")
+        add_knowledge(session_dir, "fact", "API uses JWT authentication", skip_embed=True, skip_linking=True)
         update_knowledge_references(session_dir, 5, "unrelated weather chat", "sunny")
         refs = _load_knowledge_references(session_dir)
         assert refs["fact-001"] == 5
@@ -366,7 +375,7 @@ class TestCheckKnowledgeDecay:
         sid = create_session_log(session_dir)
         log_event(session_dir, sid, "user-message", {"content": "test"})
         log_event(session_dir, sid, "assistant-message", {"content": "noted"})
-        add_knowledge(session_dir, "fact", node_summary, session_id=sid)
+        add_knowledge(session_dir, "fact", node_summary, session_id=sid, skip_embed=True, skip_linking=True)
         log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
         _save_session_state(session_dir, {"turn_count": 1})
         expand_knowledge(session_dir, "fact-001")

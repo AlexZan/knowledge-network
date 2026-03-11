@@ -7,10 +7,11 @@ from unittest.mock import patch
 from oi.knowledge import add_knowledge, correct_terminology, query_knowledge
 from oi.state import _load_knowledge, _save_knowledge
 
-# Disable embeddings in keyword/walk tests (Ollama may be running)
+# Block all external service calls (Ollama embeddings, LLM linking)
 @pytest.fixture(autouse=True)
-def _no_embed():
-    with patch("oi.embed.get_embedding", return_value=None):
+def _no_external_calls():
+    with patch("oi.embed.get_embedding", return_value=None), \
+         patch("oi.linker.chat", return_value='{"edge_type": "none", "reasoning": "mocked"}'):
         yield
 
 

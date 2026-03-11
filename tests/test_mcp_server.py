@@ -8,6 +8,14 @@ from unittest.mock import patch, MagicMock, ANY
 import pytest
 
 
+# Block all external service calls (Ollama embeddings, LLM linking)
+@pytest.fixture(autouse=True)
+def _no_external_calls():
+    with patch("oi.embed.get_embedding", return_value=None), \
+         patch("oi.linker.chat", return_value='{"edge_type": "none", "reasoning": "mocked"}'):
+        yield
+
+
 class TestSessionDir:
     """_get_session_dir resolution."""
 

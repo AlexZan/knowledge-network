@@ -1,8 +1,8 @@
-passed: 213
+passed: 810
 failed: 0
-skipped: 0
+skipped: 1
 date: 2026-03-11
-commit: 688ceac (dirty)
-duration: 3.2s
+commit: 4da94e0 (dirty)
+duration: 15.4s
 e2e: excluded
-command: /data/Dev/knowledge-network/.venv/bin/python -m pytest tests/test_linker.py tests/test_ingest.py tests/test_chatgpt_parser.py -v
+command: /data/Dev/knowledge-network/.venv/bin/python -m pytest -v

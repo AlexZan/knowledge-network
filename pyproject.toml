@@ -32,5 +32,8 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
-markers = ["llm: tests that make real LLM API calls (cost money, need API keys)"]
-addopts = "-m 'not llm'"
+markers = [
+    "llm: tests that make remote LLM API calls (cost money, need API keys)",
+    "integration: tests that use local services like Ollama (free but slow)",
+]
+addopts = "-m 'not llm and not integration'"

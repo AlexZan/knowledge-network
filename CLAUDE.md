@@ -10,8 +10,11 @@ cd /data/Dev/knowledge-network
 python3 -m venv .venv
 .venv/bin/pip install -e ".[dev,mcp]"
 
-# Run tests (free, no API calls):
+# Run unit tests (fast, no external calls):
 .venv/bin/python -m pytest
+
+# Run integration tests (uses Ollama — free but slow):
+.venv/bin/python -m pytest -m integration
 
 # Run LLM tests (costs money — ONLY with user approval):
 .venv/bin/python -m pytest -m llm
@@ -22,15 +25,46 @@ python3 -m venv .venv
 
 **NEVER run `pytest` or `python -m pytest` directly** — it will use the system Python which is missing litellm and other dependencies, causing false import errors.
 
-## Test Cost Discipline
+## Test Tiers
 
-Tests are split by `@pytest.mark.llm`. The default `pytest` command excludes LLM tests automatically (configured in `pyproject.toml`).
+Tests are split into three tiers by marker. The default `pytest` command runs only unit tests (configured in `pyproject.toml`).
 
-- **`pytest`** — free tests only. Run freely, no API cost. (~10s)
-- **`pytest -m llm`** — LLM integration tests. Costs ~$1/run on Cerebras. **Only run with explicit user approval.**
-- **`pytest -m ""`** — everything. Same cost rules as LLM tests.
+| Tier | Marker | What it tests | Speed | Cost | When to run |
+|------|--------|---------------|-------|------|-------------|
+| **unit** | (default) | Pure logic, all I/O mocked | <10s | Free | Every change, freely |
+| **integration** | `@pytest.mark.integration` | Local services (Ollama) | ~30s+ | Free | Before commits, major changes |
+| **llm** | `@pytest.mark.llm` | Remote APIs (Cerebras) | ~60s | ~$1/run | Final gate, explicit approval only |
 
-**NEVER run LLM tests without user approval.** When verifying code changes, run `pytest` (free) first. Only run `-m llm` as a final gate when the user says to.
+- **`pytest`** — unit tests only. Fast, no external calls. Run freely.
+- **`pytest -m integration`** — Ollama integration tests. Free but needs Ollama running.
+- **`pytest -m llm`** — remote LLM tests. **Only run with explicit user approval.**
+- **`pytest -m ""`** — everything. Same cost/approval rules as LLM tests.
+
+**NEVER run LLM tests without user approval.** When verifying code changes, run `pytest` (unit) first. Only run `-m llm` as a final gate when the user says to.
+
+## Unit Test Isolation — CRITICAL
+
+**Unit tests must NEVER make external calls** — no Ollama, no LLM APIs, no HTTP requests.
+
+The main leak vector is `add_knowledge()`, which by default calls:
+- `embed_node()` → Ollama HTTP API (embedding)
+- `run_linking()` → `chat()` → LLM API (linking classification)
+
+**Prevention patterns (use one per test file):**
+1. **Autouse fixture** (preferred for test files that call `add_knowledge` often):
+   ```python
+   @pytest.fixture(autouse=True)
+   def _no_external_calls():
+       with patch("oi.embed.get_embedding", return_value=None), \
+            patch("oi.linker.chat", return_value='{"edge_type": "none", "reasoning": "mocked"}'):
+           yield
+   ```
+2. **Skip flags** (for occasional calls):
+   ```python
+   add_knowledge(session_dir, "fact", "...", skip_embed=True, skip_linking=True)
+   ```
+
+**If you add a test that calls `add_knowledge()`, you MUST use one of these patterns.** If the test suite takes >15s, something is leaking external calls — investigate immediately.
 
 ## Test Runner Log (Automatic)
 

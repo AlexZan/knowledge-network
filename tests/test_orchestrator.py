@@ -15,6 +15,14 @@ from oi.knowledge import add_knowledge
 from oi.session_log import create_session_log, log_event, read_session_log
 
 
+# Block all external service calls (Ollama embeddings, LLM linking)
+@pytest.fixture(autouse=True)
+def _no_external_calls():
+    with patch("oi.embed.get_embedding", return_value=None), \
+         patch("oi.linker.chat", return_value='{"edge_type": "none", "reasoning": "mocked"}'):
+        yield
+
+
 @pytest.fixture
 def session_dir(tmp_path):
     return tmp_path / "session"
@@ -329,7 +337,7 @@ class TestKnowledgeEviction:
     def test_evicted_knowledge_excluded_from_system_prompt(self, session_dir):
         """Evicted knowledge nodes don't appear in system prompt."""
         session_dir.mkdir(parents=True, exist_ok=True)
-        add_knowledge(session_dir, "fact", "API uses JWT authentication")
+        add_knowledge(session_dir, "fact", "API uses JWT authentication", skip_embed=True, skip_linking=True)
         # Track reference at turn 1
         _save_knowledge_references(session_dir, {"fact-001": 1})
 
@@ -342,7 +350,7 @@ class TestKnowledgeEviction:
     def test_recently_referenced_knowledge_in_system_prompt(self, session_dir):
         """Recently referenced knowledge nodes remain in system prompt."""
         session_dir.mkdir(parents=True, exist_ok=True)
-        add_knowledge(session_dir, "fact", "API uses JWT authentication")
+        add_knowledge(session_dir, "fact", "API uses JWT authentication", skip_embed=True, skip_linking=True)
         _save_knowledge_references(session_dir, {"fact-001": 25})
 
         messages = _build_messages(session_dir, current_turn=30)
@@ -432,7 +440,7 @@ class TestExpandedKnowledgeContext:
         sid = create_session_log(session_dir)
         log_event(session_dir, sid, "user-message", {"content": "Python uses GIL"})
         log_event(session_dir, sid, "assistant-message", {"content": "Noted"})
-        add_knowledge(session_dir, "fact", "Python uses GIL for thread safety", session_id=sid)
+        add_knowledge(session_dir, "fact", "Python uses GIL for thread safety", session_id=sid, skip_embed=True, skip_linking=True)
         log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
 
         expand_knowledge(session_dir, "fact-001")
@@ -449,7 +457,7 @@ class TestExpandedKnowledgeContext:
         sid = create_session_log(session_dir)
         log_event(session_dir, sid, "user-message", {"content": "Secret context"})
         log_event(session_dir, sid, "assistant-message", {"content": "Noted"})
-        add_knowledge(session_dir, "fact", "Secret fact", session_id=sid)
+        add_knowledge(session_dir, "fact", "Secret fact", session_id=sid, skip_embed=True, skip_linking=True)
         log_event(session_dir, sid, "node-created", {"node_id": "fact-001", "node_type": "fact"})
 
         expand_knowledge(session_dir, "fact-001")

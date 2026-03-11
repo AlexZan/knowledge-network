@@ -2,6 +2,7 @@
 
 import json
 import pytest
+from unittest.mock import patch
 
 from helpers import setup_concluded_effort
 from oi.tools import (
@@ -22,6 +23,14 @@ from oi.state import (
     _load_expanded_knowledge, _save_expanded_knowledge,
 )
 from oi.cli import _append_session_marker, _show_startup
+
+
+# Block all external service calls (Ollama embeddings, LLM linking)
+@pytest.fixture(autouse=True)
+def _no_external_calls():
+    with patch("oi.embed.get_embedding", return_value=None), \
+         patch("oi.linker.chat", return_value='{"edge_type": "none", "reasoning": "mocked"}'):
+        yield
 
 
 @pytest.fixture
