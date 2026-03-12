@@ -97,7 +97,7 @@ The key property of this mechanism is **reversibility**. Superseded nodes retain
 
 ### 3.1 The Graph
 
-The knowledge graph was constructed by ingesting a thesis document describing the Living Knowledge Networks framework [2]. The document covers five interconnected theses about conclusion-triggered compaction, dynamic knowledge networks, abstraction hierarchies, conflict resolution, and emergent confidence. It also references a voting-experience mechanism proposed as a potential alternative confidence model.
+The knowledge graph was constructed by ingesting a single thesis document (~12,000 words) describing the Living Knowledge Networks framework [2]. The document contains interconnected arguments with internal tensions — enough structure for contradictions to emerge naturally during graph construction.
 
 | Metric | Value |
 |--------|-------|
