@@ -26,7 +26,7 @@ This paper proposes a different framing. Instead of *judging* claims, we examine
 
 This work builds on Cognitive Context Management (CCM) [1], which demonstrated that compacting AI memory at conclusion boundaries — rather than at capacity limits — achieves O(1) bounded working memory with 93–98% token savings. CCM's core mechanism extracts conclusions from resolved reasoning threads and persists them as summary nodes with links to their source material.
 
-This paper asks the next question: when those compacted conclusions accumulate as nodes in a knowledge graph with typed edges between them, can the graph's own topology serve as an authority for resolving contradictions? The answer, demonstrated empirically, is yes — for conflicts where the structural evidence is sufficient, and honestly no for conflicts where it is not.
+This paper asks the next question: when those compacted conclusions accumulate as nodes in a knowledge graph with typed edges between them, can the graph's own topology serve as an authority for resolving contradictions? The answer, demonstrated empirically, is yes — for conflicts where the structural evidence is sufficient, and no for conflicts where it is not.
 
 ### 1.3 Contributions
 
