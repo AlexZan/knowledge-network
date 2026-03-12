@@ -255,12 +255,12 @@ When the graph exceeds ~100 nodes, keyword overlap won't scale. The upgrade path
 2. Replace `find_candidates` internals with cosine similarity on embeddings
 3. Interface stays the same — `find_candidates(new_node, graph) → list[dict]`
 
-This is a swap-in optimization, not a redesign. The RAG architecture reference (`docs/research/rag-architecture-reference.md`) details the hybrid approach: vector for "find similar", graph for "find connected".
+This is a swap-in optimization, not a redesign. The RAG architecture reference (`docs/research/literature/rag-architecture-reference.md`) details the hybrid approach: vector for "find similar", graph for "find connected".
 
 ---
 
 ## Related Documents
 
-- [RAG Architecture Reference](../research/rag-architecture-reference.md) — Vector vs Graph retrieval
+- [RAG Architecture Reference](../research/literature/rag-architecture-reference.md) — Vector vs Graph retrieval
 - [Thesis](../thesis.md) — Thesis 4 (Conflict Resolution), Thesis 5 (Emergent Confidence)
 - [Roadmap](README.md) — Slice 8 sub-slice plan

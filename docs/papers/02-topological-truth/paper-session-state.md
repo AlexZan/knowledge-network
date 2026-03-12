@@ -8,9 +8,9 @@ Assessing what to add to the Topological Truth white paper (Paper 2) based on fi
 
 ## Paper Location
 
-- **Source**: `docs/research/topological-truth-paper.md`
-- **Markdown source for Paper 1 (CCM)**: `docs/ccm-whitepaper.md` (published, DOI: 10.5281/zenodo.18752096)
-- **Paper roadmap**: `docs/research/paper-roadmap.md`
+- **Source**: `docs/papers/02-topological-truth/topological-truth-paper.md`
+- **Markdown source for Paper 1 (CCM)**: `docs/papers/01-ccm-whitepaper/ccm-whitepaper.md` (published, DOI: 10.5281/zenodo.18752096)
+- **Paper roadmap**: `docs/papers/paper-roadmap.md`
 
 ## Current Paper Draft State
 
@@ -37,7 +37,7 @@ The topological truth paper draft was written against the **236-node, single-doc
 
 **Key finding**: Auto-resolve rate jumped from 16% to 67% at scale. Larger graphs produce more lopsided support ratios because well-supported claims accumulate evidence from multiple sources, making topology-based resolution more decisive.
 
-**Data**: `docs/research/conflict-resolution-findings.md` (Second Run section)
+**Data**: `docs/research/experiments/conflict-resolution-findings.md` (Second Run section)
 
 ### Cross-Author Analysis (2026-03-05)
 
@@ -47,7 +47,7 @@ The topological truth paper draft was written against the **236-node, single-doc
 - Core disagreement: conditional (entropy-triggered) vs unconditional (spontaneous) collapse — 22/24 contradictions trace to this single fork
 - False positive rate: 3/27 contested nodes (11%)
 
-**Data**: `docs/research/cross-author-analysis.md`, `docs/research/v2-reingestion-findings.md`
+**Data**: `docs/research/experiments/cross-author-analysis.md`, `docs/research/experiments/v2-reingestion-findings.md`
 
 ### Prior Multi-Source Data (still relevant)
 
@@ -57,7 +57,7 @@ The topological truth paper draft was written against the **236-node, single-doc
 - 24 nodes reached `high` confidence from 3+ independent sources
 - 19 contested nodes, 0 false positives — 9/19 (47%) represent theory evolution
 
-**Data**: `docs/research/ingestion-pipeline-experiments.md` (Experiments 2-3)
+**Data**: `docs/research/experiments/ingestion-pipeline-experiments.md` (Experiments 2-3)
 
 ## Assessment: What to Add (Updated Plan)
 
@@ -98,17 +98,17 @@ Same as previous session state — still relevant but lower priority than the ne
 
 | File | Contents |
 |------|----------|
-| `docs/research/topological-truth-paper.md` | Paper 2 draft |
-| `docs/research/conflict-resolution-findings.md` | Both conflict resolution runs (236-node + 894-node) |
-| `docs/research/cross-author-analysis.md` | SEP collapse theories vs physics theory |
-| `docs/research/v2-reingestion-findings.md` | Full v2 experiment writeup |
-| `docs/research/ingestion-pipeline-experiments.md` | Experiments 1-4 data |
-| `docs/research/paper-roadmap.md` | 3-paper sequence plan |
-| `docs/research/three-way-interaction-analysis.md` | Theory vs collapse vs QM foundations |
+| `docs/papers/02-topological-truth/topological-truth-paper.md` | Paper 2 draft |
+| `docs/research/experiments/conflict-resolution-findings.md` | Both conflict resolution runs (236-node + 894-node) |
+| `docs/research/experiments/cross-author-analysis.md` | SEP collapse theories vs physics theory |
+| `docs/research/experiments/v2-reingestion-findings.md` | Full v2 experiment writeup |
+| `docs/research/experiments/ingestion-pipeline-experiments.md` | Experiments 1-4 data |
+| `docs/papers/paper-roadmap.md` | 3-paper sequence plan |
+| `docs/research/experiments/three-way-interaction-analysis.md` | Theory vs collapse vs QM foundations |
 | `docs/decisions/019-semantic-vs-logical-edges.md` | related_to edge type |
 | `docs/decisions/020-salience-confidence-separation.md` | Salience, edge weights, concept nodes |
 | `docs/decisions/021-contradicts-gate-prompt.md` | Contradicts gate improvement |
-| `docs/ccm-whitepaper.md` | Paper 1 (published) |
+| `docs/papers/01-ccm-whitepaper/ccm-whitepaper.md` | Paper 1 (published) |
 
 ## Project Context
 

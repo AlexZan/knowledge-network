@@ -192,7 +192,7 @@ Capabilities that may be valuable but aren't blocking the core vision. Revisit a
 
 ## Related Documents
 
-- [CCM Whitepaper](../ccm-whitepaper.md) — Published (Slices 1-4)
+- [CCM Whitepaper](../papers/01-ccm-whitepaper/ccm-whitepaper.md) — Published (Slices 1-4)
 - [Thesis](../thesis.md) — Knowledge Network vision (Theses 2-5, hybrid endgame)
 - [Technical Reference](../PROJECT.md) — Architecture (needs update)
 - [Scenarios](08-knowledge-graph-scenarios.md) — Slice 8 UX walkthroughs

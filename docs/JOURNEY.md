@@ -21,7 +21,7 @@ Slices 1-14b complete. The Python prototype is proven — 810 unit tests (15s), 
 
 **Rust port deferred** (2026-03-03): Python performance is acceptable. Bottleneck is LLM API calls, not Python. See [Decision 016](decisions/016-rust-wasm-port.md) for future triggers.
 
-**White paper**: [topological-truth-paper.md](research/topological-truth-paper.md) — "Topological Truth: Conflict Resolution Through Knowledge Graph Structure." Needs update with v3 rebuild data (1,336 nodes, false positive analysis from manual review).
+**White paper**: [topological-truth-paper.md](papers/02-topological-truth/topological-truth-paper.md) — "Topological Truth: Conflict Resolution Through Knowledge Graph Structure." Needs update with v3 rebuild data (1,336 nodes, false positive analysis from manual review).
 
 ### What's Built
 
@@ -162,7 +162,7 @@ Re-ingested all 7 physics theory conversations + SEP "Collapse Theories" article
 5. **Unique theory territory**: Parent/child universe cosmology, anchors/fluctuations as novel primitives, dark matter/energy replacement, emergence of spacetime, named formal principles.
 6. **False positive rate**: 3/27 contested nodes (11%), up from 0% in v1. Cross-author content introduces scope/framing mismatches.
 
-See [cross-author-analysis.md](research/cross-author-analysis.md) for full writeup.
+See [cross-author-analysis.md](research/experiments/cross-author-analysis.md) for full writeup.
 
 ### Session: Standard QM Ingestion (2026-03-05)
 
@@ -176,7 +176,7 @@ Ingested SEP "Philosophical Issues in Quantum Theory" (Myrvold) as a third cross
 
 **Inter-SEP edges**: Only 5 edges between the two SEP articles (all related_to) — they cover different aspects of the same field without directly contradicting each other.
 
-See [v2-reingestion-findings.md](research/v2-reingestion-findings.md) for the full experiment writeup.
+See [v2-reingestion-findings.md](research/experiments/v2-reingestion-findings.md) for the full experiment writeup.
 
 ### Session: CachyOS Migration + Conflict Resolution (2026-03-06)
 
@@ -244,7 +244,7 @@ Implemented Decision 022 (conversation-aware extraction), rebuilt the physics KG
    - Attribution-aware extraction with epistemic status
    - TOTP review attestation
 
-See [v3-rebuild-findings.md](research/v3-rebuild-findings.md) for full results.
+See [v3-rebuild-findings.md](research/experiments/v3-rebuild-findings.md) for full results.
 
 **Test counts**: 787 free tests passing, 1 skipped (pre-existing).
 
@@ -323,14 +323,14 @@ The knowledge graph and Vault project converge: Automerge (CRDT) as the storage 
 
 | Doc | Contents |
 |-----|----------|
-| [v2-reingestion-findings.md](research/v2-reingestion-findings.md) | Full v2 experiment: v1 vs v2 metrics, contested node classification, pipeline performance |
-| [cross-author-analysis.md](research/cross-author-analysis.md) | SEP collapse theories vs physics theory: edge analysis, unique concepts, contact surface |
-| [ingestion-pipeline-experiments.md](research/ingestion-pipeline-experiments.md) | Iterative linker improvement (5 runs, same doc, prompt tuning) |
-| [conflict-resolution-findings.md](research/conflict-resolution-findings.md) | First conflict resolution run: topology-based classification |
-| [v3-rebuild-findings.md](research/v3-rebuild-findings.md) | Full-scale rebuild: 120 conversations, conversation-aware extraction, conflict review |
-| [ingestion-resume-findings.md](research/ingestion-resume-findings.md) | skip_existing feature and cross-source-id bug |
-| [topological-truth-paper.md](research/topological-truth-paper.md) | White paper draft: "Topological Truth" |
-| [paper-roadmap.md](research/paper-roadmap.md) | Paper strategy and publication targets |
+| [v2-reingestion-findings.md](research/experiments/v2-reingestion-findings.md) | Full v2 experiment: v1 vs v2 metrics, contested node classification, pipeline performance |
+| [cross-author-analysis.md](research/experiments/cross-author-analysis.md) | SEP collapse theories vs physics theory: edge analysis, unique concepts, contact surface |
+| [ingestion-pipeline-experiments.md](research/experiments/ingestion-pipeline-experiments.md) | Iterative linker improvement (5 runs, same doc, prompt tuning) |
+| [conflict-resolution-findings.md](research/experiments/conflict-resolution-findings.md) | First conflict resolution run: topology-based classification |
+| [v3-rebuild-findings.md](research/experiments/v3-rebuild-findings.md) | Full-scale rebuild: 120 conversations, conversation-aware extraction, conflict review |
+| [ingestion-resume-findings.md](research/experiments/ingestion-resume-findings.md) | skip_existing feature and cross-source-id bug |
+| [topological-truth-paper.md](papers/02-topological-truth/topological-truth-paper.md) | White paper draft: "Topological Truth" |
+| [paper-roadmap.md](papers/paper-roadmap.md) | Paper strategy and publication targets |
 
 ### Physics Theory KG
 

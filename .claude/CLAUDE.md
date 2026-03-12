@@ -30,6 +30,7 @@ Never recreate content that already exists in another markdown file. Always use 
 | `docs/PROJECT.md` | Technical architecture |
 | `docs/JOURNEY.md` | Implementation progress, pivots, current status |
 | `docs/decisions/*.md` | Architectural decisions |
+| `docs/papers/` | Published & draft papers (roadmap, per-paper subfolders) |
 | `docs/research/language-and-storage-decision.md` | Rust port + CRDT analysis (2026-03-03) |
 
 ## Anomaly Tracking

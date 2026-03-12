@@ -42,4 +42,4 @@ The current system treats all conflicts identically: count supporters, pick a wi
 - GitHub issue #4: linker false positives (abstraction level) — likely scope-type
 - GitHub issue #6: narrative voice confusion — likely narrative-type
 - `src/oi/conflicts.py`: current untyped conflict resolution
-- `docs/research/topological-truth-paper.md` Section 9: self-ingestion findings
+- `docs/papers/02-topological-truth/topological-truth-paper.md` Section 9: self-ingestion findings

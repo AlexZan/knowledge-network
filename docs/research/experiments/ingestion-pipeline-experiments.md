@@ -1,6 +1,6 @@
 # Ingestion Pipeline Experiments: Iterative Linker Improvement
 
-> Empirical results from iterating on the auto-linker pipeline. Single document, 5 runs, same source material. Feeds [Paper 3](paper-roadmap.md) ("Living Knowledge Networks").
+> Empirical results from iterating on the auto-linker pipeline. Single document, 5 runs, same source material. Feeds [Paper 3](../../papers/paper-roadmap.md) ("Living Knowledge Networks").
 
 **Date**: 2026-03-04
 **Document**: ChatGPT conversation export (`67f39b61-8f1c-8013-bd02-7c40055558d1`), ~8 chunks, covering a personal physics theory on entropic causality and emergent structure from binary causal interaction.
