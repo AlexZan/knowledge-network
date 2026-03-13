@@ -161,6 +161,8 @@ Capabilities that may be valuable but aren't blocking the core vision. Revisit a
 
   **Note**: This item may be superseded by "Hierarchical effort KGs" below, which solves child node association by giving each effort its own graph.
 
+- **Typed contradiction classification** — Replace the single undifferentiated `contradicts` edge with typed subtypes: logical, semantic, scope, temporal, narrative. Decision 017 explored a five-type taxonomy but was shelved in favor of prompt-level prevention. Manual review data (Paper 2, Section 4.2) now provides empirical grounding: 55% of post-resolution conflicts were construction artifacts classifiable by type (scope mismatch, context loss, extraction splitting, terminology conflict, attribution gap). Each type needs a different resolution mechanism — only logical contradictions have winners in the topological sense; the rest need disambiguation, hierarchy, timeline analysis, or provenance tracking. Pairs with tiered linking (Tier 2 implemented, Tier 3 in icebox) as part of a broader construction-phase improvement story. Consider whether classification belongs in the resolution algorithm, the linker, or both.
+
 - **Conflict review UI** — Agent-generated conflict report (with timestamps, delta, source context, analysis) displayed in a web app. User sets resolution type from UI, interfaced back via MCP. Replaces the current chat-based one-by-one review workflow. Needs: web app scaffold, MCP endpoints for listing conflicts and submitting resolutions, report generation agent.
 
 - **Hierarchical effort KGs** — Each effort gets its own knowledge graph rather than being a node inside a flat global KG. The effort node in the parent KG holds the summary; expanding it opens the full sub-KG. Core design:
