@@ -985,7 +985,20 @@ def ingest_pipeline(
     errors.extend(ingestion.errors)
     node_ids = ingestion.nodes_created
 
-    # Stage 4: Link
+    # Stage 4: Auto-link same group (free, zero LLM calls)
+    auto_link_edges = 0
+    if not skip_linking and node_ids:
+        _progress("auto_link", f"{len(node_ids)} nodes")
+        try:
+            from .linker import auto_link_same_group
+
+            auto_result = auto_link_same_group(node_ids, session_dir)
+            auto_link_edges = auto_result.edges_created
+            errors.extend(auto_result.errors)
+        except Exception as e:
+            errors.append(f"Auto-linking failed: {e}")
+
+    # Stage 5: Cross-group link (LLM classification)
     edges_created = 0
     contradictions_found = 0
     if not skip_linking and node_ids:
@@ -1000,7 +1013,7 @@ def ingest_pipeline(
         except Exception as e:
             errors.append(f"Linking failed: {e}")
 
-    # Stage 5: Embed
+    # Stage 6: Embed
     if not skip_embedding and node_ids:
         _progress("embed", f"{len(node_ids)} nodes")
         try:
@@ -1264,7 +1277,20 @@ def ingest_chatgpt_export(
             aborted = True
             break
 
-    # Stage 4: Link
+    # Stage 4: Auto-link same group (free, zero LLM calls)
+    auto_link_edges = 0
+    if not skip_linking and node_ids:
+        _progress("auto_link", f"{len(node_ids)} nodes")
+        try:
+            from .linker import auto_link_same_group
+
+            auto_result = auto_link_same_group(node_ids, session_dir)
+            auto_link_edges = auto_result.edges_created
+            errors.extend(auto_result.errors)
+        except Exception as e:
+            errors.append(f"Auto-linking failed: {e}")
+
+    # Stage 5: Cross-group link (LLM classification)
     edges_created = 0
     contradictions_found = 0
     if not skip_linking and node_ids:

@@ -1,8 +1,8 @@
 passed: 810
 failed: 0
 skipped: 1
-date: 2026-03-11
-commit: 4da94e0 (dirty)
-duration: 15.4s
+date: 2026-03-14
+commit: 4c9d879 (dirty)
+duration: 10.5s
 e2e: excluded
-command: /data/Dev/knowledge-network/.venv/bin/python -m pytest -v
+command: /data/Dev/knowledge-network/.venv/bin/python -m pytest
