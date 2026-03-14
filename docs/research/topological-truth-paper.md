@@ -126,9 +126,11 @@ The knowledge graph was constructed by ingesting a single thesis document (~12,0
 | Contradicts edges | 37 | 31 | −6 |
 | Supersedes edges | 0 | 6 | +6 |
 
-Each of the 6 resolutions removed the `contradicts` edge between the resolved pair (per Section 2.3, step 3), producing the observed decline from 37 to 31. Six resolutions produced five unique superseded nodes — one node (`fact-095`) lost two separate conflicts, confirming it as the weakest node in its local cluster.
+Each of the 6 resolutions removed the `contradicts` edge between the resolved pair (per Section 2.3, step 3), producing the observed decline from 37 to 31. Six resolutions produced five unique superseded nodes — one node (`fact-095`) was the loser in two separate resolutions, confirming it as the weakest node in its local cluster.
 
 ### 3.4 The Six Resolutions
+
+The six auto-resolved conflicts, examined individually:
 
 #### Resolution 1: Solution supersedes problem statement (6:0)
 
@@ -172,11 +174,11 @@ This resolution reveals an emergent property: **topology encodes argumentative t
 - **Winner**: "Conclusion-triggered compaction creates a knowledge network where node connectivity determines confidence levels" (28 supporters)
 - **Loser**: "A voting-experience system could serve as the confidence mechanism" (4 supporters)
 
-The most significant resolution, analyzed in detail in Section 6.
+The most significant resolution — and the only self-referential one. The system adjudicated between two competing proposals for its own confidence mechanism, and the topology chose the one it was already using. The system demonstrated its own thesis through its own operation. The full analysis is in Section 6.
 
 ### 3.5 Scaling: Three-Source Graph (894 Nodes)
 
-To test whether topological resolution scales beyond a single document, the knowledge graph was wiped and rebuilt from scratch using three independent sources: 7 conversations developing a physics theory (730 nodes), a Stanford Encyclopedia of Philosophy article on collapse theories (66 nodes), and a second SEP article on philosophical issues in quantum theory (98 nodes). The same extraction and linking pipeline was used, with no parameter changes from V1. The three sources were authored independently and address overlapping but distinct aspects of quantum mechanics. Cross-source structural signatures from this experiment are analyzed in Section 7.3.
+To test whether topological resolution scales beyond a single document, the knowledge graph was wiped and rebuilt from scratch using three independent sources: 7 AI-assisted conversations developing a physics theory (ChatGPT exports processed via an ingestion pipeline, 730 nodes), a Stanford Encyclopedia of Philosophy article on collapse theories (66 nodes), and a second SEP article on philosophical issues in quantum theory (98 nodes). The same extraction and linking pipeline was used, with no parameter changes from V1. The three sources were authored independently and address overlapping but distinct aspects of quantum mechanics. Cross-source structural signatures from this experiment are analyzed in Section 7.3.
 
 | Metric | Single-Source (V1) | Three-Source (V2) |
 |--------|-------------------|-------------------|
