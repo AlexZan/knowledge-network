@@ -65,18 +65,20 @@ When you encounter an unexpected but non-fatal issue (LLM output glitch, flaky b
 - Implementing = editing files, running scripts, making changes
 - The boundary is explicit user approval — never cross it on your own
 
-## LLM Ingestion Safety
+## Batch Operation Safety
 
-**NEVER run bulk LLM ingestion without validating the prompt first.**
+**NEVER run batch operations (ingestion, linking, clustering, synthesis) without:**
 
-After ANY change to extraction prompts, model config, or parsing logic:
-1. Pick 3-5 representative conversations (mix of sizes, styles)
-2. Run extraction on each and verify non-zero claims with sensible content
-3. Only then launch a full ingestion
+1. **Small-batch validation first** — run on 3-5 items, inspect results, then launch full batch
+2. **Streaming progress** — every batch operation must print progress per item as it runs
+3. **Early-stop on error** — abort on repeated failures, don't grind through a broken pipeline
+4. **Output sanitization** — LLM output must be sanitized before writing to YAML/JSON (null bytes, control characters)
 
-**Why**: On 2026-03-09, a prompt change silently broke extraction for 53/185 conversations (all returned `[]`). The pipeline processed all 185 before the issue was discovered — wasting the entire token budget. A 5-conversation smoke test would have caught it instantly.
+**Why (incident 1)**: On 2026-03-09, a prompt change silently broke extraction for 53/185 conversations (all returned `[]`). The pipeline processed all 185 before the issue was discovered — wasting the entire token budget.
 
-The pipeline has an early-stop safety net (aborts after 5 consecutive empty results), but the real fix is **always validate before bulk runs**.
+**Why (incident 2)**: On 2026-03-15, `synthesize_concepts()` ran 116 clusters with zero progress output. A null byte in LLM output corrupted `knowledge.yaml` at item ~77, but the process kept grinding for 50+ minutes of CPU. No visibility into progress meant no way to catch or stop it.
+
+The ingestion pipeline has an early-stop safety net (aborts after 5 consecutive empty results), but **all batch operations need the same protections** — not just extraction.
 
 ## Development Approach
 
