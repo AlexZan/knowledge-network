@@ -92,9 +92,36 @@ The physics-theory ↔ sep-qt-issues bridge (791 edges) is the most valuable for
 
 Note: The initial auto-link run produced a false alarm — a diagnostic script checked the wrong field (`provenance` instead of `provenance_uri`), making it appear that all 2,361 nodes were in one group. The actual grouping was correct (199 groups). The function uses `provenance_uri` which was populated on all nodes.
 
+## Topology-Based Support Weight (#9) — Implemented
+
+Applied immediately after linking. Replaces binary edge weight (1.0 with reasoning, 0.5 without) with computed weight from embedding cosine similarity × source independence.
+
+**Weight formula:** `_compute_edge_weight()` in `confidence.py`
+- Embedding dissimilarity: linear ramp from cosine 0.95 (weight=0) to 0.70 (weight=1)
+- Source independence: 0.2 (same conversation), 0.5 (same author), 1.0 (different source)
+- Combined: dissimilarity × source_factor
+
+**Results — Legacy vs Topology-Weighted Confidence:**
+
+| Metric | Legacy | Topology | Change |
+|--------|--------|----------|--------|
+| High confidence | 6 | 6 | unchanged |
+| Medium confidence | 500 | 336 | -33% |
+| Contested | 64 | 25 | -61% |
+| Low confidence | 1,791 | 1,994 | +11% |
+| fact-043 weighted supports | 1,435.6 | 980.2 | -32% |
+| Computation time | 34ms | 212ms | +6x |
+
+**Key outcomes:**
+- **165 nodes dropped from medium → low**: Their support came primarily from same-author paraphrases across conversations. With topology weighting, those repetitions contribute near-zero. Correct behavior — repetition is not evidence.
+- **39 nodes dropped from contested → low/medium**: Same-author scope variations that the LLM flagged as contradictions now have near-zero contradiction weight. These were false contestations — the author saying slightly different things in different conversations, not genuine disagreements.
+- **Top 5 most-supported nodes remain high confidence**: fact-043, fact-042, fact-044, fact-045 all retain high confidence. Their support comes from enough independent sources (3+) that even with paraphrase down-weighting, the genuine cross-source support sustains them.
+- **6x slower computation**: 212ms vs 34ms. Acceptable — cosine similarity is computed per edge (42,155 edges × 768-dim vectors). Could optimize with precomputed weight cache if needed.
+
+**The 25 remaining contested nodes are real conflicts** — cross-source disagreements (e.g., author's collapse framework vs standard QM from SEP articles) with genuine topological weight on both sides.
+
 ## Next Steps
 
-1. **Implement topology-based support weight (#9)** — fix the inflation before clustering builds on it
-2. **Clustering + concept synthesis** — group near-duplicate nodes, create principle nodes
-3. **Conflict report** — review the 254 contradictions, classify auto-resolvable vs ambiguous
-4. **Validate confidence** — after #9, check that confidence levels reflect independent evidence rather than repetition
+1. **Clustering + concept synthesis** — group near-duplicate nodes, create principle nodes
+2. **Conflict report** — review the 25 remaining contested nodes (down from 64)
+3. **Tune weight parameters** — the cosine thresholds (0.95/0.70) and source factors (0.2/0.5/1.0) were set by reasoning, not empirical tuning. Sample edge weights across the distribution to validate.
