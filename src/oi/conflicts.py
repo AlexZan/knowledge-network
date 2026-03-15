@@ -105,8 +105,12 @@ def generate_conflict_report(
     nodes_by_id = {n["id"]: n for n in knowledge.get("nodes", [])}
     edges = knowledge.get("edges", [])
 
+    # Load embeddings for topology-based edge weighting
+    from .knowledge import _load_embeddings_safe
+    emb = _load_embeddings_safe(session_dir)
+
     # Compute weighted confidence once for the whole graph
-    all_conf = compute_all_confidences(knowledge, depth=depth, damping=damping)
+    all_conf = compute_all_confidences(knowledge, depth=depth, damping=damping, embeddings=emb)
     _iters = next(iter(all_conf.values()), {}).get("iterations", 0) if all_conf else 0
     _runtime = next(iter(all_conf.values()), {}).get("runtime_ms", 0.0) if all_conf else 0.0
 

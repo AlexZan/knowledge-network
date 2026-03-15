@@ -13,6 +13,16 @@ from .search import graph_walk
 from .state import _load_knowledge, _save_knowledge
 
 
+def _load_embeddings_safe(session_dir: Path) -> dict | None:
+    """Load embeddings if available, return None otherwise."""
+    try:
+        from .embed import load_embeddings
+        emb = load_embeddings(session_dir)
+        return emb if emb.get("vectors") else None
+    except Exception:
+        return None
+
+
 def query_knowledge(
     session_dir: Path,
     query: str,
@@ -93,9 +103,10 @@ def query_knowledge(
 
     # Build results with confidence and edges
     nodes_by_id = {n["id"]: n for n in knowledge.get("nodes", [])}
+    emb = _load_embeddings_safe(session_dir)
     results = []
     for node, score in matches:
-        conf = compute_confidence(node["id"], knowledge)
+        conf = compute_confidence(node["id"], knowledge, embeddings=emb)
 
         # Check because_of targets for staleness (1-hop)
         stale_deps = []
@@ -334,7 +345,8 @@ def add_knowledge(
         result["edges_created"] = auto_edges
 
     # Compute confidence from current graph state
-    conf = compute_confidence(node_id, knowledge)
+    emb = _load_embeddings_safe(session_dir)
+    conf = compute_confidence(node_id, knowledge, embeddings=emb)
     result["confidence"] = conf
 
     return json.dumps(result)

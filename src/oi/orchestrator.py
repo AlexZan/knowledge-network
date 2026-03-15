@@ -124,9 +124,11 @@ def _build_messages(session_dir: Path, current_turn: int | None = None) -> list[
     visible_nodes = [n for n in active_nodes if n["id"] not in evicted_knowledge]
     evicted_count = len(active_nodes) - len(visible_nodes)
     if visible_nodes:
+        from .knowledge import _load_embeddings_safe
+        emb = _load_embeddings_safe(session_dir)
         kg_parts = ["\nKnowledge graph:"]
         for n in visible_nodes:
-            conf = compute_confidence(n["id"], knowledge)
+            conf = compute_confidence(n["id"], knowledge, embeddings=emb)
             annotation = confidence_annotation(conf)
             prefix = node_display_prefix(n)
             if annotation:

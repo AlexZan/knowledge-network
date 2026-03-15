@@ -42,6 +42,23 @@ Tests are split into three tiers by marker. The default `pytest` command runs on
 
 **NEVER run LLM tests without user approval.** When verifying code changes, run `pytest` (unit) first. Only run `-m llm` as a final gate when the user says to.
 
+## Ollama (Local Embeddings)
+
+Ollama is **not running by default** — it's disabled as a system service to avoid loading nvidia modules and wasting power.
+
+```bash
+# Start ollama before embedding/integration work:
+sudo systemctl start ollama
+
+# Stop when done:
+sudo systemctl stop ollama
+```
+
+- Ollama runs on **CPU by default** (GPU is off). This is fine for embeddings.
+- For large batch jobs needing GPU: run `gpu-on --force` before starting ollama.
+- Models auto-unload after 30s of inactivity (`OLLAMA_KEEP_ALIVE=30s`).
+- **Always stop ollama when done** — don't leave it running.
+
 ## Unit Test Isolation — CRITICAL
 
 **Unit tests must NEVER make external calls** — no Ollama, no LLM APIs, no HTTP requests.

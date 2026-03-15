@@ -9,6 +9,13 @@ Algorithm:
 - Scores are normalized by N so an average node contributes 1.0 to weighted counts
   (preserves existing level thresholds: >= 1 for medium, >= 2 for high)
 
+Edge weights (topology-based, no LLM judgment):
+- Embedding dissimilarity: high cosine similarity = paraphrase = low weight
+- Source independence: same author < different author < different source type
+- Combined: weight = dissimilarity_factor * source_factor
+- Fallback: 1.0 if no reasoning, 0.5 if reasoning absent (legacy behavior when
+  embeddings are unavailable)
+
 Level rules (first match wins, over weighted float counts):
 - contested: weighted_contradicts >= 1.0 AND >= weighted_supports
 - high: independent_sources >= 3 AND weighted_supports >= 2.0
@@ -23,12 +30,76 @@ import time
 from .schemas import get_logical_edge_types
 
 
+# --- Topology-based edge weight ---
+
+# Cosine similarity above this is considered a paraphrase (near-zero weight)
+_COSINE_PARAPHRASE = 0.95
+# Below this, content is different enough for full dissimilarity credit
+_COSINE_NOVEL = 0.70
+
+# Source independence tiers
+_SOURCE_SAME_CONVERSATION = 0.2   # same provenance group
+_SOURCE_SAME_AUTHOR = 0.5        # different group, same source
+_SOURCE_DIFFERENT = 1.0           # different source entirely
+
+
+def _compute_edge_weight(
+    source_node: dict,
+    target_node: dict,
+    embeddings: dict | None,
+    has_reasoning: bool,
+) -> float:
+    """Compute edge weight from topology: embedding dissimilarity + source independence.
+
+    Returns a weight between 0.0 and 1.0. Falls back to legacy reasoning-based
+    weight (1.0/0.5) when embeddings are unavailable.
+    """
+    vectors = embeddings.get("vectors", {}) if embeddings else {}
+    src_vec = vectors.get(source_node.get("id"))
+    tgt_vec = vectors.get(target_node.get("id"))
+
+    # If embeddings are unavailable, fall back to legacy behavior
+    if not src_vec or not tgt_vec:
+        return 1.0 if has_reasoning else 0.5
+
+    from .embed import cosine_similarity
+
+    # 1. Embedding dissimilarity: linear ramp from 0 at _COSINE_PARAPHRASE to 1 at _COSINE_NOVEL
+    cos = cosine_similarity(src_vec, tgt_vec)
+    if cos >= _COSINE_PARAPHRASE:
+        dissimilarity = 0.0
+    elif cos <= _COSINE_NOVEL:
+        dissimilarity = 1.0
+    else:
+        dissimilarity = (_COSINE_PARAPHRASE - cos) / (_COSINE_PARAPHRASE - _COSINE_NOVEL)
+
+    # 2. Source independence
+    src_prov = source_node.get("provenance_uri", "")
+    tgt_prov = target_node.get("provenance_uri", "")
+    src_source = source_node.get("source", "")
+    tgt_source = target_node.get("source", "")
+
+    # Strip fragment to get group key
+    src_group = src_prov.split("#")[0] if src_prov else ""
+    tgt_group = tgt_prov.split("#")[0] if tgt_prov else ""
+
+    if src_group and tgt_group and src_group == tgt_group:
+        source_factor = _SOURCE_SAME_CONVERSATION
+    elif src_source and tgt_source and src_source == tgt_source:
+        source_factor = _SOURCE_SAME_AUTHOR
+    else:
+        source_factor = _SOURCE_DIFFERENT
+
+    return dissimilarity * source_factor
+
+
 def compute_all_confidences(
     graph: dict,
     depth: int | None = None,
     damping: float = 0.85,
     epsilon: float = 1e-6,
     max_iter: int = 100,
+    embeddings: dict | None = None,
 ) -> dict:
     """Compute PageRank-weighted confidence for all active nodes.
 
@@ -38,6 +109,10 @@ def compute_all_confidences(
         damping: PageRank damping factor (default 0.85).
         epsilon: Convergence threshold (only used when depth=None).
         max_iter: Hard cap on iterations when depth=None.
+        embeddings: Optional {"model": str, "vectors": {node_id: [float]}}.
+            When provided, edge weights use topology-based computation
+            (embedding dissimilarity + source independence). When None,
+            falls back to legacy reasoning-based weight (1.0/0.5).
 
     Returns:
         {node_id: {"level", "score", "inbound_supports", "inbound_contradicts",
@@ -53,12 +128,13 @@ def compute_all_confidences(
         return {}
 
     node_id_set = set(node_ids)
+    nodes_by_id = {n["id"]: n for n in graph.get("nodes", [])}
     logical_types = set(get_logical_edge_types())
     edges = graph.get("edges", [])
 
     # Build adjacency index once — O(E), logical edges only
-    # Each inbound entry: (source_id, edge_type, has_reasoning)
-    inbound: dict[str, list[tuple[str, str, bool]]] = {nid: [] for nid in node_ids}
+    # Each inbound entry: (source_id, edge_type, edge_weight)
+    inbound: dict[str, list[tuple[str, str, float]]] = {nid: [] for nid in node_ids}
     outbound_count: dict[str, float] = {nid: 0.0 for nid in node_ids}
 
     for edge in edges:
@@ -67,9 +143,10 @@ def compute_all_confidences(
         src, tgt = edge.get("source", ""), edge.get("target", "")
         if src in node_id_set and tgt in node_id_set:
             has_reasoning = bool(edge.get("reasoning"))
-            reasoning_weight = 1.0 if has_reasoning else 0.5
-            inbound[tgt].append((src, edge["type"], has_reasoning))
-            outbound_count[src] += reasoning_weight
+            weight = _compute_edge_weight(
+                nodes_by_id[src], nodes_by_id[tgt], embeddings, has_reasoning)
+            inbound[tgt].append((src, edge["type"], weight))
+            outbound_count[src] += weight
 
     # PageRank initialisation
     scores: dict[str, float] = {nid: 1.0 / N for nid in node_ids}
@@ -83,10 +160,9 @@ def compute_all_confidences(
         new_scores: dict[str, float] = {}
         for nid in node_ids:
             rank = teleport
-            for src, _, has_reasoning in inbound[nid]:
-                reasoning_weight = 1.0 if has_reasoning else 0.5
+            for src, _, weight in inbound[nid]:
                 out = outbound_count[src]
-                rank += damping * (scores[src] * reasoning_weight) / (out if out > 0 else 1)
+                rank += damping * (scores[src] * weight) / (out if out > 0 else 1)
             new_scores[nid] = rank
 
         if depth is None:
@@ -105,7 +181,6 @@ def compute_all_confidences(
     baseline = teleport  # == (1 - damping) / N
 
     # Compute weighted confidence per node
-    nodes_by_id = {n["id"]: n for n in graph.get("nodes", [])}
     result = {}
 
     for nid in node_ids:
@@ -114,9 +189,8 @@ def compute_all_confidences(
         weighted_contradicts = 0.0
         supporter_ids: list[str] = []
 
-        for src, etype, has_reasoning in inbound[nid]:
-            reasoning_weight = 1.0 if has_reasoning else 0.5
-            contribution = (scores[src] / baseline) * reasoning_weight
+        for src, etype, weight in inbound[nid]:
+            contribution = (scores[src] / baseline) * weight
             if etype in ("supports", "exemplifies"):
                 weighted_supports += contribution
                 supporter_ids.append(src)
@@ -161,6 +235,7 @@ def compute_confidence(
     graph: dict,
     depth: int | None = None,
     damping: float = 0.85,
+    embeddings: dict | None = None,
 ) -> dict:
     """Compute confidence for a single node. Delegates to compute_all_confidences.
 
@@ -168,7 +243,7 @@ def compute_confidence(
              "independent_sources", "iterations", "runtime_ms"}.
     Returns level="low" with zeroes if node not found or inactive.
     """
-    all_conf = compute_all_confidences(graph, depth=depth, damping=damping)
+    all_conf = compute_all_confidences(graph, depth=depth, damping=damping, embeddings=embeddings)
     return all_conf.get(node_id, {
         "level": "low",
         "score": 0.0,
