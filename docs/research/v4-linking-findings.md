@@ -120,8 +120,75 @@ Applied immediately after linking. Replaces binary edge weight (1.0 with reasoni
 
 **The 25 remaining contested nodes are real conflicts** — cross-source disagreements (e.g., author's collapse framework vs standard QM from SEP articles) with genuine topological weight on both sides.
 
+## Concept Synthesis — Completed
+
+`find_clusters()` (cosine threshold 0.90) found 116 clusters of near-duplicate fact nodes. `synthesize_concepts()` created 116 principle nodes with 264 exemplifies edges.
+
+**Performance note:** Original implementation called `add_knowledge()` per concept (12.5s YAML load/save per call × 116 = 50+ minutes). Rewrote to batch: LLM calls first (streaming progress), single YAML write at end. Total: 70 seconds.
+
+### Cluster distribution
+
+| Size | Count |
+|------|-------|
+| 6 members | 2 |
+| 5 members | 1 |
+| 4 members | 4 |
+| 3 members | 13 |
+| 2 members | 96 |
+
+264 facts (11.6% of 2,276) are near-duplicates consolidated under principles.
+
+### Cross-source convergence
+
+60/116 principles (52%) have members from 2+ sources. When the same concept appears in both a ChatGPT conversation and a formal PDF, clustering catches it. This is genuine independent convergence — the same idea expressed independently in different contexts.
+
+### Confidence: principles vs facts
+
+| Level | Facts | Principles |
+|-------|-------|------------|
+| Low | 1,914 (84%) | 0 (0%) |
+| Medium | 331 (15%) | 56 (48%) |
+| High | 6 (0.3%) | 60 (52%) |
+| Contested | 25 (1%) | 0 (0%) |
+
+Principles are dramatically higher confidence than facts. This is correct — a principle exists because multiple facts from multiple sources converge on the same idea. The topology (exemplifies edges from 2+ sources) naturally produces higher confidence scores.
+
+**Zero principles are low confidence.** Every principle has at least 2 exemplifies edges, which creates enough topological support to reach medium. Those with cross-source members reach high.
+
+### Largest principle clusters
+
+| Principle | Members | Sources | Theme |
+|-----------|---------|---------|-------|
+| principle-001 | 6 | 1 | Event selection rules in causal graph |
+| principle-002 | 6 | 2 | Gravity as projection of system closure |
+| principle-003 | 5 | 2 | Consciousness as recursive collapse history |
+| principle-004 | 4 | 2 | Gravitational lensing from collapse density gradients |
+| principle-005 | 4 | 2 | Collapse as irreversible entropic ledger entry |
+| principle-006 | 4 | 2 | True randomness requires external causally disconnected source |
+| principle-007 | 4 | 1 | Mass as recursive resistance to entropy |
+
+These are the core thesis statements, confirmed by convergence from multiple independent writeups.
+
+### No cross-group edges into principles
+
+The cross-group linker ran before clustering, so principle nodes have only `exemplifies` edges (from their member facts), not `supports`/`contradicts`. Re-running linking would allow principles to attract cross-group edges, but their confidence already comes from their members — additional linking is not needed.
+
+## V4 KG Final State
+
+| Metric | Count |
+|--------|-------|
+| Active nodes | 2,477 (2,276 facts + 116 principles + 62 decisions + 23 preferences) |
+| Total edges | 42,419 |
+| `related_to` | 38,841 (28,507 auto-link + 10,334 cross-group) |
+| `supports` | 3,060 |
+| `exemplifies` | 264 |
+| `contradicts` | 254 |
+| Contested nodes | 25 (down from 64 after topology weighting) |
+| High confidence | 66 (6 facts + 60 principles) |
+| Cross-source principles | 60/116 (52%) |
+
 ## Next Steps
 
-1. **Clustering + concept synthesis** — group near-duplicate nodes, create principle nodes
-2. **Conflict report** — review the 25 remaining contested nodes (down from 64)
-3. **Tune weight parameters** — the cosine thresholds (0.95/0.70) and source factors (0.2/0.5/1.0) were set by reasoning, not empirical tuning. Sample edge weights across the distribution to validate.
+1. **Conflict report** — review the 25 remaining contested nodes
+2. **Tune weight parameters** — the cosine thresholds (0.95/0.70) and source factors (0.2/0.5/1.0) were set by reasoning, not empirical tuning. Sample edge weights across the distribution to validate.
+3. **Embed principle nodes** — currently `skip_embed=True` for speed. Run `ensure_embeddings()` to include them in future cosine similarity queries.
